@@ -267,7 +267,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
 
         <div className="apple-card p-5">
           <div className="flex items-center justify-between text-[#86868B] text-xs font-semibold mb-2">
-            <span>نێردراو بۆ مەندوب و شۆرۆم</span>
+            <span>نێردراو بۆ کۆگای مەندوب</span>
             <div className="w-8 h-8 rounded-full bg-[#34C759]/10 text-[#248A3D] flex items-center justify-center">
               <ClipboardList className="w-4 h-4" />
             </div>
@@ -440,10 +440,10 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
           <div className="p-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <span className="font-bold text-xs text-[#1D1D1F] block">
-                گەڕاوەکانی ٣ ڕۆژ لە مەندوب و شۆرۆمەوە (گۆڕینی شێواز و دووبارە ناردنەوە بۆ فرۆشتن)
+                گەڕاوەکانی ٣ ڕۆژ لە مەندوبەوە (گۆڕینی شێواز و دووبارە ناردنەوە بۆ فرۆشتن)
               </span>
               <span className="text-[11px] text-[#86868B]">
-                هەر گەڕاوەیەکی ٣ ڕۆژ (لە مارکێتەکانی مەندوب یان ناو شۆرۆم) دێتە ئێرە و دەتوانیت بیگۆڕیت بۆ شێوازێکی تر (وەک سنگ، ڕان، ئێسک و شلمک...) تا خۆکار بچێتەوە ناو کۆگای ئامادە
+                هەر گەڕاوەیەکی ٣ ڕۆژ لە مارکێتەکانی مەندوبەوە دێتە ئێرە و دەتوانیت بیگۆڕیت بۆ شێوازێکی تر (وەک سنگ، ڕان، ئێسک و شلمک...) تا خۆکار بچێتەوە ناو کۆگای ئامادە
               </span>
             </div>
           </div>

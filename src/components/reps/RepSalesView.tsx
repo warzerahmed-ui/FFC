@@ -245,7 +245,7 @@ export const RepSalesView: React.FC = () => {
     const inListWeight = itemsList.filter(i => i.productId === prod.id).reduce((s, i) => s + i.weightKg, 0);
     if (weight + inListWeight > avail + 0.001) {
       alert(
-        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە عەهدەی مەندوب زیاتر بفرۆشیت!\n\nبەرهەم: ${prod.nameKu}\nعەهدەی بەردەست لە ئۆتۆمبێل: ${avail} کگم\nلە وەسڵدایە: ${inListWeight} کگم\nکێشی داواکراو: ${weight} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر عەهدەی ئەم مەندوبە.`
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە کۆگای مەندوب زیاتر بفرۆشیت!\n\nبەرهەم: ${prod.nameKu}\nبەردەست لە ئۆتۆمبێل: ${avail} کگم\nلە وەسڵدایە: ${inListWeight} کگم\nکێشی داواکراو: ${weight} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (کۆگای مەندوب) بار بخە سەر حسابی ئەم مەندوبە.`
       );
       return;
     }
@@ -339,12 +339,12 @@ export const RepSalesView: React.FC = () => {
       const custItem = selectedRepCustody.items.find(c => c.productId === prodId);
       const avail = custItem ? custItem.remainingKg : 0;
       if (info.weight > avail + 0.01) {
-        custodyShortages.push(`${info.name}: فرۆشتن ${info.weight} کگم / عەهدەی ماوە ${avail} کگم`);
+        custodyShortages.push(`${info.name}: فرۆشتن ${info.weight} کگم / ماوە ${avail} کگم`);
       }
     });
     if (custodyShortages.length > 0) {
       alert(
-        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تۆمار بکەیت چونکە بڕی ئەم کاڵایانە لە عەهدەی مەندوبدا لە کێشی داواکراو کەمترە:\n\n• ${custodyShortages.join('\n• ')}\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر عەهدەکەی تا بتوانیت وەسڵ بکەیت.`
+        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تۆمار بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای مەندوبدا لە کێشی داواکراو کەمترە:\n\n• ${custodyShortages.join('\n• ')}\n\nتکایە سەرەتا لە قۆناغی ٤ (کۆگای مەندوب) بار بخە سەر حسابەکەی تا بتوانیت وەسڵ بکەیت.`
       );
       return;
     }
@@ -1120,7 +1120,7 @@ export const RepSalesView: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-[11px] text-[#B25000] font-semibold">
-                    هیچ بڕە بەرهەمێکی ماوە لەسەر عەهدەی ئەم مەندوبە نییە — سەرەتا لە کۆگای ئامادە یان حسابی مەندوب باری بۆ بنێرە.
+                    هیچ بڕە بەرهەمێکی ماوە لە کۆگای ئەم مەندوبەدا نییە — سەرەتا لە قۆناغی ٤ باری بۆ بنێرە.
                   </p>
                 )}
               </div>

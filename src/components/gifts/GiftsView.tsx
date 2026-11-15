@@ -461,7 +461,7 @@ export const GiftsView: React.FC = () => {
                 <div>
                   <span className="font-bold text-[#1D1D1F] block">سەرچاوەی دەرکردنی کێش:</span>
                   <span className="text-[11px] text-[#86868B]">
-                    دیارییەکە لە کۆگای ئامادەی کارگە کەم بکرێتەوە یان لە عەهدەی ئەو مەندوبە؟
+                    دیارییەکە لە کۆگای ئامادەی کارگە کەم بکرێتەوە یان لە کۆگای ئەو مەندوبە؟
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -485,7 +485,7 @@ export const GiftsView: React.FC = () => {
                         : 'bg-white text-[#515154] border border-black/[0.06]'
                     }`}
                   >
-                    عەهدەی مەندوب
+                    کۆگای مەندوب
                   </button>
                 </div>
               </div>

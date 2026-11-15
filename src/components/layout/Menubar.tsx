@@ -129,7 +129,7 @@ const MENU_GROUPS: MenuGroup[] = [
       {
         id: 'pos',
         label: 'فرۆشگای شۆرۆم (POS)',
-        description: 'کاشێری بارکۆد، قەرز، ئەلکترۆنی و گەڕاوەی شۆرۆم',
+        description: 'کاشێری بارکۆد، وەسڵی 80mm، کۆگا و سەندوقی شۆرۆم',
         badge: 'POS',
         icon: ShoppingBag,
       },
@@ -142,16 +142,16 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       {
         id: 'accounting',
-        label: '٨. کەشف حساب و دانەوەی قەرز',
+        label: '٧. کەشف حساب و دانەوەی قەرز',
         description: 'کەشف حسابی کڕیار و کێڵگە و سەنەدەکان',
-        badge: 'قۆناغی ٨',
+        badge: 'قۆناغی ٧',
         icon: Calculator,
       },
       {
         id: 'reports',
-        label: '٩. قازانج و زەرەر و ڕاپۆرتی ڕۆژانە',
+        label: '٨. قازانج و زەرەر و ڕاپۆرتی ڕۆژانە',
         description: 'ڕاپۆرتی P&L و تەسفییەی ڕۆژانەی مەندوب و شۆرۆم',
-        badge: 'قۆناغی ٩',
+        badge: 'قۆناغی ٨',
         icon: FileSpreadsheet,
       },
     ],

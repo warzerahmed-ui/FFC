@@ -317,7 +317,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-              ٤. کۆگای مەندوب (عەهدەی کاڵا)
+              ٤. کۆگای مەندوب
             </h2>
             <p className="text-xs text-[#86868B] mt-0.5">
               بارکردنی گۆشت لە کۆگای ئامادەوە بۆ سەر کۆگای مەندوبەکان، بەدواداچوونی فرۆشراو، و گەڕاندنەوەی نەفرۆشراو
@@ -351,7 +351,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       {/* Zero-Loss Balance KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="apple-card p-5">
-          <span className="text-xs font-semibold text-[#86868B]">کۆی نێردراو بۆ عەهدەکان</span>
+          <span className="text-xs font-semibold text-[#86868B]">کۆی نێردراو بۆ کۆگای مەندوب</span>
           <div className="text-2xl font-black text-[#1D1D1F] tabular-nums mt-2">
             {totalLoadedAll.toLocaleString()}{' '}
             <span className="text-xs font-medium text-[#86868B]">کگم</span>
@@ -368,7 +368,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             <span className="text-xs font-medium text-[#86868B]">کگم</span>
           </div>
           <div className="text-[11px] text-[#248A3D] font-medium mt-1">
-            فرۆشی مەندوب + وەسڵی POS
+            فرۆشی مەندوبەکان بە وەسڵ
           </div>
         </div>
 

@@ -490,7 +490,7 @@ export const SettingsView: React.FC = () => {
       case 'PRODUCTION':
         return 'بەرهەمهێنان';
       case 'CUSTODY':
-        return 'عەهدە';
+        return 'کۆگای مەندوب';
       case 'SALES':
         return 'فرۆشتن';
       case 'RETURN':
@@ -1315,7 +1315,7 @@ export const SettingsView: React.FC = () => {
                 <option value="AUTH">چوونەژوورەوە</option>
                 <option value="INTAKE">وەرگرتن</option>
                 <option value="PRODUCTION">بەرهەمهێنان</option>
-                <option value="CUSTODY">عەهدە</option>
+                <option value="CUSTODY">کۆگای مەندوب</option>
                 <option value="SALES">فرۆشتن</option>
                 <option value="RETURN">گەڕاوە</option>
                 <option value="FINANCE">دارایی و قەرز</option>
@@ -1699,7 +1699,7 @@ export const SettingsView: React.FC = () => {
               <div className="font-bold text-[#D70015]">ئەم کردارە ئەمانە پاک دەکاتەوە:</div>
               <ul className="list-disc pr-4 space-y-0.5 text-[11px] text-[#515154]">
                 <li>هەموو وەسڵەکانی وەرگرتن، سەربڕین، مەندوب، گەڕاوە و فرۆشی POS</li>
-                <li>تەسفییەکان، سەنەدەکان، خەرجییەکان، عەهدەکان و سەبەتەی سۆفت دیلیت</li>
+                <li>تەسفییەکان، سەنەدەکان، خەرجییەکان، کۆگای مەندوب و سەبەتەی سۆفت دیلیت</li>
                 <li>کێشی کۆگاکان و قەرزی کڕیار و کێڵگەکان سفر دەکرێنەوە</li>
               </ul>
               <div className="text-[11px] font-semibold text-[#248A3D] pt-1">

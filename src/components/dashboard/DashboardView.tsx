@@ -198,7 +198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               onClick={() => setActiveTab('custody')}
               className="px-4 py-2 rounded-full bg-[#FF9500] hover:bg-[#E08600] text-white text-xs font-bold shrink-0 transition-all"
             >
-              پشکنینی عەهدە و گەڕاوە
+              کۆگای مەندوب و گەڕاوە
             </button>
           )}
         </div>

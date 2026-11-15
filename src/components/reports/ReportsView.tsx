@@ -204,7 +204,7 @@ export const ReportsView: React.FC = () => {
       ['پوختەی قازانجی خاوێن (Net Operating Profit)', '', String(netProfit)],
       ['---', '---', '---'],
       ['بڕی کڕینی کێڵگە لەم ماوەیەدا', `${filteredIntakes.length} وەسڵ`, String(totalLiveBirdPurchases)],
-      ['بەهای مەخزەنی ماوەی ئێستا', 'زیندوو + ئامادە + عەهدە + شۆرۆم', String(currentInventoryValuation.total)],
+      ['بەهای مەخزەنی ماوەی ئێستا', 'زیندوو + ئامادە + کۆگای مەندوب + شۆرۆم', String(currentInventoryValuation.total)],
     ];
     const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -522,7 +522,7 @@ export const ReportsView: React.FC = () => {
                   بەهای مەخزەنی ماوەی ئێستا
                 </span>
                 <span className="text-[11px] text-[#515154] tabular-nums">
-                  زیندوو {currentInventoryValuation.liveValue.toLocaleString()} • ئامادە {currentInventoryValuation.readyValue.toLocaleString()} • عەهدە و شۆرۆم {(currentInventoryValuation.repCustodyValue + currentInventoryValuation.branchValue).toLocaleString()}
+                  زیندوو {currentInventoryValuation.liveValue.toLocaleString()} • ئامادە {currentInventoryValuation.readyValue.toLocaleString()} • کۆگای مەندوب و شۆرۆم {(currentInventoryValuation.repCustodyValue + currentInventoryValuation.branchValue).toLocaleString()}
                 </span>
               </div>
               <span className="font-black text-[#248A3D] tabular-nums text-sm">
