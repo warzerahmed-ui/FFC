@@ -14,7 +14,7 @@ import {
   ArrowRight,
   PackageCheck,
 } from 'lucide-react';
-import { TabType } from '../../types';
+import { TabType, roundTo250 } from '../../types';
 
 const BRANCH_HOLDER_NAME = 'فرۆشگای تایبەت (POS / شۆرۆم)';
 
@@ -283,7 +283,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           productName: i.productName,
           weightKg: i.weightKg,
           factoryPricePerKg: factoryPrice,
-          totalCost: Math.round(i.weightKg * factoryPrice),
+          totalCost: roundTo250(i.weightKg * factoryPrice),
         };
       });
       addBranchDelivery({

@@ -20,7 +20,7 @@ import {
   MessageCircle,
   Truck,
 } from 'lucide-react';
-import { DailySettlement } from '../../types';
+import { DailySettlement, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 const BRANCH_ACCOUNT_NAME = 'فرۆشگای تایبەت (POS / شۆرۆم)';
@@ -439,10 +439,10 @@ export const DailySettlementView: React.FC = () => {
       repExpensesAmount: repExp > 0 ? repExp : undefined,
       repExpensesNotes: repExp > 0 ? repExpenseNotes : undefined,
       collectedDebtAmount: newDebtCollected,
-      expectedCashAmount: remainingExpectedCashAfterNewDebt + remainingExpectedCard,
+      expectedCashAmount: roundTo250(remainingExpectedCashAfterNewDebt + remainingExpectedCard),
       returnedCashAmount: newReturnedCash,
       returnedCardAmount: newReturnedCard,
-      varianceAmount: postVariance,
+      varianceAmount: roundTo250(postVariance),
       status,
       settledBy:
         currentUser?.role === 'SUPER_ADMIN'

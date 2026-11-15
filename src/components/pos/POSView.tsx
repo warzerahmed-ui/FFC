@@ -23,7 +23,7 @@ import {
   AlertCircle,
   MessageCircle,
 } from 'lucide-react';
-import { POSSaleItem, POSSale, ProductItem, ReturnItem, BranchStockItem } from '../../types';
+import { POSSaleItem, POSSale, ProductItem, ReturnItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 // ==========================================
@@ -216,7 +216,7 @@ export const POSView: React.FC = () => {
   };
 
   const addItemToCart = (product: ProductItem, weightKg: number, pricePerKg: number, barcodeStr?: string) => {
-    const total = Math.round(weightKg * pricePerKg);
+    const total = roundTo250(weightKg * pricePerKg);
     setCart(prev => {
       const existing = prev.findIndex(item => item.productId === product.id);
       if (existing > -1 && (!barcodeStr || barcodeStr.length < 13)) {
@@ -225,7 +225,7 @@ export const POSView: React.FC = () => {
         updated[existing] = {
           ...updated[existing],
           weightKg: newWeight,
-          total: Math.round(newWeight * pricePerKg),
+          total: roundTo250(newWeight * pricePerKg),
         };
         return updated;
       }
@@ -251,7 +251,7 @@ export const POSView: React.FC = () => {
       updated[index] = {
         ...item,
         weightKg: newWeight,
-        total: Math.round(newWeight * item.pricePerKg),
+        total: roundTo250(newWeight * item.pricePerKg),
       };
       return updated;
     });
@@ -272,12 +272,13 @@ export const POSView: React.FC = () => {
     showToast('سەبەتەی فرۆشتن بەتاڵکرایەوە', 'info');
   };
 
-  // Cart Calculations
-  const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
-  const calculatedDiscount = discountPercent > 0 ? Math.round((subtotal * discountPercent) / 100) : discountAmount;
-  const netTotal = Math.max(0, subtotal - calculatedDiscount);
+  // Cart Calculations (Strictly rounded to nearest 250 IQD)
+  const subtotal = roundTo250(cart.reduce((sum, item) => sum + item.total, 0));
+  const rawDiscount = discountPercent > 0 ? (subtotal * discountPercent) / 100 : discountAmount;
+  const calculatedDiscount = roundTo250(rawDiscount);
+  const netTotal = roundTo250(Math.max(0, subtotal - calculatedDiscount));
   const numericCashGiven = parseFloat(cashGiven) || 0;
-  const changeDue = numericCashGiven > netTotal ? numericCashGiven - netTotal : 0;
+  const changeDue = numericCashGiven > netTotal ? roundTo250(numericCashGiven - netTotal) : 0;
 
   const handleCompleteSale = () => {
     if (cart.length === 0) {
@@ -359,7 +360,7 @@ export const POSView: React.FC = () => {
         barcode: productBarcode,
         weightKg: weight,
         unitCost,
-        totalLoss: Math.round(weight * unitCost),
+        totalLoss: roundTo250(weight * unitCost),
         reason: returnReason,
       },
     ]);
@@ -1447,7 +1448,7 @@ export const POSView: React.FC = () => {
                 <span className="text-sm font-semibold text-[#86868B]">کگم</span>
               </div>
               <div className="text-xs font-bold text-[#0071E3] tabular-nums">
-                کۆ: {Math.round((parseFloat(weightKeypadValue || '0') || 0) * (branchStock.find(b => b.productId === weightModalProduct.id)?.retailPricePerKg || weightModalProduct.pricePerKg)).toLocaleString()} د.ع
+                کۆ: {roundTo250((parseFloat(weightKeypadValue || '0') || 0) * (branchStock.find(b => b.productId === weightModalProduct.id)?.retailPricePerKg || weightModalProduct.pricePerKg)).toLocaleString()} د.ع
               </div>
             </div>
 

@@ -20,7 +20,7 @@ import {
   MessageCircle,
   AlertTriangle,
 } from 'lucide-react';
-import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder } from '../../types';
+import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 type SubTabType = 'sales' | 'returns';
@@ -247,7 +247,7 @@ export const RepSalesView: React.FC = () => {
         barcode: `${prod.barcodePrefix}${String(Math.round(weight * 1000)).padStart(5, '0')}`,
         weightKg: weight,
         pricePerKg: price,
-        totalAmount: Math.round(weight * price),
+        totalAmount: roundTo250(weight * price),
       },
     ]);
     setItemWeight('');
@@ -275,8 +275,8 @@ export const RepSalesView: React.FC = () => {
         soldWeightKg: saleItemMatch?.weightKg || weight,
         salePricePerKg: salePrice,
         unitCost: prod.costPerKg,
-        totalLoss: Math.round(weight * prod.costPerKg),
-        customerDeductionAmount: Math.round(weight * salePrice),
+        totalLoss: roundTo250(weight * prod.costPerKg),
+        customerDeductionAmount: roundTo250(weight * salePrice),
         reason: inlineReturnReason,
       },
     ]);
@@ -284,13 +284,13 @@ export const RepSalesView: React.FC = () => {
   };
 
   const saleTotalWeight = itemsList.reduce((sum, item) => sum + item.weightKg, 0);
-  const saleTotalAmount = itemsList.reduce((sum, item) => sum + item.totalAmount, 0);
+  const saleTotalAmount = roundTo250(itemsList.reduce((sum, item) => sum + item.totalAmount, 0));
   const inlineReturnTotalWeight = inlineReturnItems.reduce((sum, r) => sum + r.weightKg, 0);
-  const inlineReturnTotalDeduction = inlineReturnItems.reduce(
+  const inlineReturnTotalDeduction = roundTo250(inlineReturnItems.reduce(
     (sum, r) => sum + (r.customerDeductionAmount || r.totalLoss),
     0
-  );
-  const inlineReturnTotalLoss = inlineReturnItems.reduce((sum, r) => sum + r.totalLoss, 0);
+  ));
+  const inlineReturnTotalLoss = roundTo250(inlineReturnItems.reduce((sum, r) => sum + r.totalLoss, 0));
 
   const handleSubmitSale = (e: React.FormEvent) => {
     e.preventDefault();
@@ -689,7 +689,7 @@ export const RepSalesView: React.FC = () => {
                       (s, r) => s + (r.totalCustomerDeduction ?? r.totalLossAmount),
                       0
                     );
-                    const netAmount = Math.max(0, d.totalAmount - linkedDeduction);
+                    const netAmount = roundTo250(Math.max(0, d.totalAmount - linkedDeduction));
 
                     return (
                       <tr key={d.id} className="hover:bg-[#FBFBFD] transition-colors">
@@ -1805,7 +1805,7 @@ export const RepSalesView: React.FC = () => {
                 (s, r) => s + (r.totalCustomerDeduction ?? r.totalLossAmount),
                 0
               );
-              const netTotal = Math.max(0, selectedSaleForPrint.totalAmount - linkedDeduct);
+              const netTotal = roundTo250(Math.max(0, selectedSaleForPrint.totalAmount - linkedDeduct));
 
               return (
                 <div className="p-4 rounded-2xl bg-[#FBFBFD] border border-black/[0.06] space-y-3 font-mono text-xs">

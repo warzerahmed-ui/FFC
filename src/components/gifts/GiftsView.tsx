@@ -11,7 +11,7 @@ import {
   Heart,
   Scale,
 } from 'lucide-react';
-import { DispatchItem, DispatchOrder } from '../../types';
+import { DispatchItem, DispatchOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 export const GiftsView: React.FC = () => {
@@ -71,7 +71,7 @@ export const GiftsView: React.FC = () => {
       itemFactoryCostPerKg !== '' && Number(itemFactoryCostPerKg) >= 0
         ? Number(itemFactoryCostPerKg)
         : prod.costPerKg;
-    const factoryCostAmount = Math.round(weight * costPerKg);
+    const factoryCostAmount = roundTo250(weight * costPerKg);
 
     const newItem: DispatchItem = {
       productId: prod.id,
@@ -96,7 +96,7 @@ export const GiftsView: React.FC = () => {
     if (item.factoryCostAmount !== undefined) return item.factoryCostAmount;
     const prod = products.find(p => p.id === item.productId);
     const cost = item.factoryCostPerKg ?? (prod ? prod.costPerKg : 2750);
-    return Math.round(item.weightKg * cost);
+    return roundTo250(item.weightKg * cost);
   };
 
   const getOrderFactoryCost = (order: DispatchOrder): number => {

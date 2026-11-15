@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Truck, Plus, FileText, Search, X, Check, Scissors, ArrowLeft, Trash2 } from 'lucide-react';
-import { TabType } from '../../types';
+import { TabType, roundTo250 } from '../../types';
 
 interface LiveIntakeViewProps {
   onNavigate?: (tab: TabType) => void;
@@ -76,7 +76,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   };
 
   const netWeight = (Number(grossWeightKg) || 0) - (Number(tareWeightKg) || 0);
-  const totalAmount = netWeight > 0 ? netWeight * (Number(pricePerKg) || 0) : 0;
+  const totalAmount = netWeight > 0 ? roundTo250(netWeight * (Number(pricePerKg) || 0)) : 0;
   const mortalityPercent = (Number(birdCount) || 0) > 0 && (Number(deadBirdCount) || 0) > 0
     ? Number((((Number(deadBirdCount) || 0) / (Number(birdCount) || 1)) * 100).toFixed(2))
     : 0;

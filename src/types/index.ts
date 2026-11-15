@@ -411,3 +411,12 @@ export interface DailySettlement {
   settledBy?: string;
   notes?: string;
 }
+
+/**
+ * نزیککردنەوەی بڕی پارەی دیناری عێراقی بۆ نزیکترین ٢٥٠ دینار (250, 500, 750, 1000)
+ * چونکە لە بازاڕدا دراوی کەمتر لە ٢٥٠ دینار بوونی نییە.
+ */
+export const roundTo250 = (amount: number): number => {
+  if (!amount || isNaN(amount)) return 0;
+  return Math.round(amount / 250) * 250;
+};
