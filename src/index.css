@@ -3,12 +3,17 @@
 @layer base {
   html,
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Arabic", "Vazirmatn", "Plus Jakarta Sans", system-ui, sans-serif;
-    letter-spacing: -0.012em;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Arabic", "Inter", "Vazirmatn", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #F4F7FA;
+    background-color: #F5F5F7;
     color: #1D1D1F;
+  }
+
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
   }
 }
 
@@ -16,25 +21,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Apple macOS Sequoia / iOS 18 Glass Surface */
+/* Apple macOS Sequoia / iOS 18 Frosted Glass Surface */
 .apple-glass {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
 }
 
 /* Apple Elevated Card */
 .apple-card {
   background: #FFFFFF;
   border: 1px solid rgba(0, 0, 0, 0.055);
-  box-shadow: 0 2px 14px -2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 16px -2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
   border-radius: 22px;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.24s ease;
 }
 
 .apple-card-hover:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.03);
+  transform: translateY(-1.5px);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
 /* Apple Segmented Control */

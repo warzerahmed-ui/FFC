@@ -76,7 +76,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F7FA] text-[#1D1D1F] flex flex-col selection:bg-[#0071E3] selection:text-white">
+    <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] flex flex-col selection:bg-[#0071E3] selection:text-white">
       <Menubar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <main className="flex-1 p-4 md:p-6 lg:p-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">

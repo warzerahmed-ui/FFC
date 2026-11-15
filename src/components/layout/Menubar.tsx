@@ -261,15 +261,15 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
 
   return (
     <div ref={menuContainerRef} className="sticky top-0 z-40 no-print">
-      {/* Main Executive White Menubar */}
-      <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 lg:px-7 flex items-center justify-between gap-3">
+      {/* Main Apple Frosted Glass Menubar */}
+      <header className="h-16 apple-glass border-b border-black/[0.06] px-4 lg:px-7 flex items-center justify-between gap-3">
         {/* Right Side (RTL Start): Brand + Grouped Horizontal Menubar */}
         <div className="flex items-center gap-3 lg:gap-4 min-w-0">
           {/* Mobile Hamburger Toggle */}
           <button
             type="button"
             onClick={() => setMobileOpen(prev => !prev)}
-            className="lg:hidden w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200/80 flex items-center justify-center text-slate-700 transition-colors shrink-0"
+            className="lg:hidden w-9 h-9 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] flex items-center justify-center text-[#1D1D1F] transition-colors shrink-0"
             aria-label="مینۆ"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -282,15 +282,15 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
               if (hasAccess('dashboard')) handleSelectTab('dashboard');
             }}
             title="داشبۆردی سەرەکی"
-            className={`flex items-center gap-2.5 text-right shrink-0 group cursor-pointer px-2 py-1 rounded-2xl transition-all ${
+            className={`flex items-center gap-2.5 text-right shrink-0 group cursor-pointer px-2.5 py-1 rounded-2xl transition-all ${
               activeTab === 'dashboard'
-                ? 'bg-[#EFF6FF]/70 ring-1 ring-[#3B82F6]/25'
-                : 'hover:bg-slate-100/70'
+                ? 'bg-[#0071E3]/10 ring-1 ring-[#0071E3]/25'
+                : 'hover:bg-black/[0.04]'
             }`}
           >
             <FactoryLogo size="md" className="transition-transform group-hover:scale-105" />
             <div>
-              <div className="text-[13px] font-extrabold text-slate-900 tracking-tight leading-tight">
+              <div className="text-[13px] font-extrabold text-[#1D1D1F] tracking-tight leading-tight">
                 {factorySettings.factoryName}
               </div>
               <div className="text-[10px] font-bold text-[#0071E3] tracking-tight">
@@ -300,7 +300,7 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
           </button>
 
           {/* Subtle Vertical Divider */}
-          <div className="hidden lg:block h-7 w-px bg-slate-200/90 mx-1 shrink-0" />
+          <div className="hidden lg:block h-7 w-px bg-black/[0.08] mx-1 shrink-0" />
 
           {/* Desktop Horizontal Menubar Groups (Brand opens Dashboard) */}
           <nav className="hidden lg:flex items-center gap-1.5">
@@ -326,27 +326,27 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                     }}
                     className={`px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       active
-                        ? 'bg-[#EFF6FF] border border-[#3B82F6]/45 text-[#1D4ED8] font-bold shadow-[0_1px_2px_rgba(37,99,235,0.08)]'
+                        ? 'bg-[#0071E3]/10 border border-[#0071E3]/25 text-[#0071E3] font-bold shadow-[0_1px_3px_rgba(0,113,227,0.08)]'
                         : isOpen
-                        ? 'bg-slate-100 border border-slate-200 text-slate-900 font-semibold'
-                        : 'border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-semibold'
+                        ? 'bg-black/[0.06] border border-black/[0.08] text-[#1D1D1F] font-semibold'
+                        : 'border border-transparent text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-semibold'
                     }`}
                   >
-                    {active && <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] shrink-0" />}
+                    {active && <span className="w-1.5 h-1.5 rounded-full bg-[#0071E3] shrink-0" />}
                     <span>{group.label}</span>
                     {!isSingleDirect && group.items.length > 1 && (
                       <ChevronDown
                         className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                          isOpen ? 'rotate-180 text-[#1D4ED8]' : 'opacity-65'
+                          isOpen ? 'rotate-180 text-[#0071E3]' : 'opacity-60'
                         }`}
                       />
                     )}
                   </button>
 
-                  {/* Floating Dropdown Panel */}
+                  {/* Apple Floating Frosted Dropdown Panel */}
                   {isOpen && group.items.length > 1 && (
-                    <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-2 z-50 apple-sheet">
-                      <div className="px-2.5 py-1.5 mb-1 flex items-center justify-between text-[10px] font-bold text-slate-400 border-b border-slate-100">
+                    <div className="absolute right-0 top-[calc(100%+8px)] w-80 apple-glass rounded-[22px] border border-black/[0.08] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.18)] p-2 z-50 apple-sheet">
+                      <div className="px-2.5 py-1.5 mb-1 flex items-center justify-between text-[10px] font-bold text-[#86868B] border-b border-black/[0.05]">
                         <span>{group.label}</span>
                         <span>{group.items.length} بەش</span>
                       </div>
@@ -359,25 +359,25 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                               key={item.id}
                               type="button"
                               onClick={() => handleSelectTab(item.id)}
-                              className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-right transition-all cursor-pointer ${
+                              className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-2xl text-right transition-all cursor-pointer ${
                                 itemActive
-                                  ? 'bg-[#EFF6FF] text-[#1D4ED8]'
-                                  : 'hover:bg-slate-50 text-slate-700'
+                                  ? 'bg-[#0071E3]/10 text-[#0071E3]'
+                                  : 'hover:bg-black/[0.04] text-[#1D1D1F]'
                               }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <div
                                   className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                                     itemActive
-                                      ? 'bg-[#2563EB] text-white shadow-xs'
-                                      : 'bg-slate-100 text-slate-500'
+                                      ? 'bg-[#0071E3] text-white shadow-xs'
+                                      : 'bg-[#F5F5F7] text-[#515154]'
                                   }`}
                                 >
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
                                   <div className="text-xs font-bold truncate">{item.label}</div>
-                                  <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                  <div className="text-[10px] text-[#86868B] truncate mt-0.5">
                                     {item.description}
                                   </div>
                                 </div>
@@ -386,8 +386,8 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
                                   itemActive
-                                    ? 'bg-[#DBEAFE] text-[#1D4ED8]'
-                                    : 'bg-slate-100 text-slate-500'
+                                    ? 'bg-[#0071E3]/15 text-[#0071E3]'
+                                    : 'bg-[#F5F5F7] text-[#86868B]'
                                 }`}
                               >
                                 {item.badge}
@@ -498,11 +498,11 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
             )}
           </div>
 
-          {/* Crisp Red Outlined Sign Out Button */}
+          {/* Apple System Red Outlined Sign Out Button */}
           <button
             type="button"
             onClick={logout}
-            className="px-3 py-1.5 rounded-full bg-[#FEF2F2] hover:bg-[#FEE2E2] border border-[#FCA5A5]/70 text-[#DC2626] text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+            className="px-3 py-1.5 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30]/15 border border-[#FF3B30]/20 text-[#FF3B30] text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
             title="چوونەدەرەوە"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -511,15 +511,15 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
         </div>
       </header>
 
-      {/* Secondary Breadcrumb & Status Strip */}
-      <div className="bg-[#F8FAFC]/95 backdrop-blur-sm border-b border-slate-200/75 px-4 lg:px-7 py-2 flex items-center justify-between gap-3 text-xs">
+      {/* Secondary Apple Breadcrumb & Status Strip */}
+      <div className="bg-[#F5F5F7]/85 backdrop-blur-md border-b border-black/[0.06] px-4 lg:px-7 py-2 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 min-w-0">
           <ActiveBreadIcon className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
-          <span className="text-slate-500 font-medium truncate">
+          <span className="text-[#86868B] font-medium truncate">
             {isSettingsTab ? 'بەڕێوەبردن' : activeGroupObj?.label}
           </span>
-          <span className="text-slate-300">/</span>
-          <span className="font-extrabold text-slate-900 truncate">{activeItemObj?.label}</span>
+          <span className="text-black/20">/</span>
+          <span className="font-extrabold text-[#1D1D1F] truncate">{activeItemObj?.label}</span>
         </div>
 
         {/* Quick Sub-item Switch Pills inside same group on desktop OR Live status */}
@@ -535,8 +535,8 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                     onClick={() => handleSelectTab(sub.id)}
                     className={`px-2.5 py-0.5 rounded-full text-[11px] transition-all cursor-pointer ${
                       subActive
-                        ? 'bg-[#EFF6FF] text-[#1D4ED8] font-bold border border-[#3B82F6]/30'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 font-medium'
+                        ? 'bg-white text-[#1D1D1F] font-bold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-black/[0.06]'
+                        : 'text-[#86868B] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-medium'
                     }`}
                   >
                     {sub.label}
@@ -546,8 +546,8 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
             </div>
           )}
 
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-extrabold text-[#047857] tracking-wide">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-extrabold text-[#248A3D] tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
             <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
           </div>
         </div>
