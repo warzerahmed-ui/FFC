@@ -395,7 +395,7 @@ export const Menubar: React.FC<MenubarProps> = ({
           <div className="hidden lg:block h-7 w-px bg-black/[0.08] mx-1 shrink-0" />
 
           {/* Desktop Horizontal Menubar Groups (Brand opens Dashboard) */}
-          <nav className="hidden lg:flex items-center gap-1.5">
+          <nav className="hidden lg:flex items-center gap-1 shrink-0">
             {accessibleGroups
               .filter(group => group.key !== 'dashboard')
               .map(group => {
@@ -410,7 +410,7 @@ export const Menubar: React.FC<MenubarProps> = ({
                         handleSelectItem(firstItem);
                       }
                     }}
-                    className={`px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       active
                         ? 'bg-[#0071E3]/10 border border-[#0071E3]/25 text-[#0071E3] font-bold shadow-[0_1px_3px_rgba(0,113,227,0.08)]'
                         : 'border border-transparent text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-semibold'
@@ -424,50 +424,52 @@ export const Menubar: React.FC<MenubarProps> = ({
           </nav>
         </div>
 
-        {/* Left Side (RTL End): Live Badges, Settings, Profile & Sign Out */}
+        {/* Left Side (RTL End): Unified Sync+Clock Capsule, Settings, Unified Profile+SignOut */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Cloud D1 Sync Live Pill */}
-          <button
-            type="button"
-            onClick={() => syncNow()}
-            title={lastSyncedAt ? `دوایین سینک: ${lastSyncedAt}` : 'کلیک بکە بۆ سینککردن لەگەڵ Cloudflare D1'}
-            className={`hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${
-              cloudSyncStatus === 'SYNCED'
-                ? 'bg-[#ECFDF5] border-[#10B981]/25 text-[#047857]'
-                : cloudSyncStatus === 'SYNCING'
-                ? 'bg-[#EFF6FF] border-[#3B82F6]/30 text-[#1D4ED8]'
-                : cloudSyncStatus === 'ERROR'
-                ? 'bg-[#FEF2F2] border-[#EF4444]/30 text-[#B91C1C]'
-                : 'bg-[#FFFBEB] border-[#F59E0B]/30 text-[#B45309]'
-            }`}
-          >
-            <Cloud
-              className={`w-3.5 h-3.5 ${
+          {/* Unified D1 Sync + Live Clock Capsule */}
+          <div className="hidden xl:inline-flex items-center gap-1.5 rounded-full bg-[#F8FAFC] border border-slate-200/90 p-0.5 pl-3 text-[11px]">
+            <button
+              type="button"
+              onClick={() => syncNow()}
+              title={lastSyncedAt ? `دوایین سینک: ${lastSyncedAt}` : 'کلیک بکە بۆ سینککردن لەگەڵ Cloudflare D1'}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer whitespace-nowrap ${
                 cloudSyncStatus === 'SYNCED'
-                  ? 'text-[#10B981]'
+                  ? 'bg-[#ECFDF5] text-[#047857]'
                   : cloudSyncStatus === 'SYNCING'
-                  ? 'text-[#3B82F6] animate-pulse'
+                  ? 'bg-[#EFF6FF] text-[#1D4ED8]'
                   : cloudSyncStatus === 'ERROR'
-                  ? 'text-[#EF4444]'
-                  : 'text-[#F59E0B]'
+                  ? 'bg-[#FEF2F2] text-[#B91C1C]'
+                  : 'bg-[#FFFBEB] text-[#B45309]'
               }`}
-            />
-            <span>
-              {cloudSyncStatus === 'SYNCED'
-                ? `D1 هاوئاهەنگە${lastSyncedAt ? ` (${lastSyncedAt})` : ''}`
-                : cloudSyncStatus === 'SYNCING'
-                ? 'لە سینکدایە...'
-                : cloudSyncStatus === 'ERROR'
-                ? 'هەڵەی D1 سینک'
-                : 'لۆکاڵ (ئۆفلاین)'}
-            </span>
-          </button>
+            >
+              <Cloud
+                className={`w-3.5 h-3.5 ${
+                  cloudSyncStatus === 'SYNCED'
+                    ? 'text-[#10B981]'
+                    : cloudSyncStatus === 'SYNCING'
+                    ? 'text-[#3B82F6] animate-pulse'
+                    : cloudSyncStatus === 'ERROR'
+                    ? 'text-[#EF4444]'
+                    : 'text-[#F59E0B]'
+                }`}
+              />
+              <span>
+                {cloudSyncStatus === 'SYNCED'
+                  ? 'D1 هاوئاهەنگە'
+                  : cloudSyncStatus === 'SYNCING'
+                  ? 'لە سینکدایە...'
+                  : cloudSyncStatus === 'ERROR'
+                  ? 'هەڵەی D1'
+                  : 'لۆکاڵ'}
+              </span>
+            </button>
 
-          {/* Live Date & Clock Pill */}
-          <div className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-slate-200/90 text-slate-600 text-[11px] font-semibold tabular-nums">
-            <span className="w-2 h-2 rounded-full bg-[#10B981] shrink-0" />
-            <Clock className="w-3.5 h-3.5 text-[#0071E3]" />
-            <span dir="ltr">{formattedDateTime}</span>
+            <div className="h-3.5 w-px bg-slate-200 shrink-0" />
+
+            <div className="inline-flex items-center gap-1.5 text-slate-600 font-semibold tabular-nums whitespace-nowrap">
+              <Clock className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
+              <span dir="ltr">{formattedDateTime}</span>
+            </div>
           </div>
 
           {/* Factory Settings Quick Pill (Admin Only) */}
@@ -475,7 +477,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             <button
               type="button"
               onClick={() => handleSelectTab('settings')}
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 isSettingsTab
                   ? 'bg-[#EFF6FF] border border-[#3B82F6]/45 text-[#1D4ED8] shadow-[0_1px_2px_rgba(37,99,235,0.08)]'
                   : 'bg-[#F8FAFC] hover:bg-slate-100 border border-slate-200/90 text-slate-700'
@@ -487,47 +489,48 @@ export const Menubar: React.FC<MenubarProps> = ({
             </button>
           )}
 
-          {/* Profile Info + Change Own Password (non-SuperAdmin) */}
-          <div className="hidden sm:flex items-center gap-2 pl-1 pr-1.5 py-1 rounded-full">
-            <div className="w-8 h-8 rounded-full bg-[#EFF6FF] border border-[#3B82F6]/25 text-[#1D4ED8] flex items-center justify-center font-extrabold text-xs shrink-0">
-              {avatarInitial}
-            </div>
-            <div className="leading-tight">
-              <div className="text-xs font-extrabold text-slate-800 max-w-[130px] truncate">
-                {displayName}
+          {/* Unified User Profile + Password + Sign Out Capsule */}
+          <div className="flex items-center gap-1.5 bg-[#F8FAFC] border border-slate-200/90 rounded-full p-1 pr-1.5 pl-1">
+            <div className="hidden sm:flex items-center gap-2 pl-1">
+              <div className="w-7 h-7 rounded-full bg-[#EFF6FF] border border-[#3B82F6]/25 text-[#1D4ED8] flex items-center justify-center font-extrabold text-xs shrink-0">
+                {avatarInitial}
               </div>
-              <div className="text-[10px] font-extrabold text-[#0071E3] truncate">
-                {displayRole}
+              <div className="leading-tight">
+                <div className="text-[11px] font-extrabold text-slate-800 max-w-[110px] truncate">
+                  {displayName}
+                </div>
+                <div className="text-[10px] font-bold text-[#0071E3] truncate">
+                  {displayRole}
+                </div>
               </div>
+              {!isSuper && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrPwd('');
+                    setNewPwd('');
+                    setConfirmPwd('');
+                    setPwdStatus(null);
+                    setShowPwdModal(true);
+                  }}
+                  className="p-1 rounded-full bg-white hover:bg-slate-100 border border-slate-200/90 text-slate-600 hover:text-[#1D4ED8] transition-all cursor-pointer"
+                  title="گۆڕینی وشەی نهێنیی خۆم"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-            {!isSuper && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrPwd('');
-                  setNewPwd('');
-                  setConfirmPwd('');
-                  setPwdStatus(null);
-                  setShowPwdModal(true);
-                }}
-                className="p-1.5 rounded-full bg-[#F8FAFC] hover:bg-slate-100 border border-slate-200/90 text-slate-600 hover:text-[#1D4ED8] transition-all cursor-pointer"
-                title="گۆڕینی وشەی نهێنیی خۆم"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
 
-          {/* Apple System Red Outlined Sign Out Button */}
-          <button
-            type="button"
-            onClick={logout}
-            className="px-3 py-1.5 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30]/15 border border-[#FF3B30]/20 text-[#FF3B30] text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
-            title="چوونەدەرەوە"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">چوونەدەرەوە</span>
-          </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="px-2.5 py-1 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30]/15 border border-[#FF3B30]/20 text-[#FF3B30] text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+              title="چوونەدەرەوە"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">چوونەدەرەوە</span>
+            </button>
+          </div>
         </div>
       </header>
 
