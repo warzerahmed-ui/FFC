@@ -14,6 +14,7 @@ import {
   Printer,
   Plus,
   Trash2,
+  Search,
 } from 'lucide-react';
 import { ProductItem, ReturnOrder, TabType, ProductCategory } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -37,6 +38,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
   } = useApp();
 
   const [subTab, setSubTab] = useState<SubTabType>('inventory');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // New Product Modal States
   const [showAddProductModal, setShowAddProductModal] = useState(false);
@@ -345,8 +347,26 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
 
       {/* SubTab 1: Ready Inventory Cards */}
       {subTab === 'inventory' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map(prod => {
+        <div className="space-y-4">
+          <div className="apple-card p-3 flex items-center gap-2.5">
+            <Search className="w-4 h-4 text-[#86868B] mr-1" />
+            <input
+              type="text"
+              placeholder="گەڕان بەپێی ناوی پارچە یان کۆد..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="bg-transparent text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none w-full font-medium"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {products
+              .filter(
+                p =>
+                  !searchTerm.trim() ||
+                  p.nameKu.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  p.code.toLowerCase().includes(searchTerm.toLowerCase())
+              )
+              .map(prod => {
             const isOut = prod.inStockKg <= 0;
             const isLow = prod.inStockKg > 0 && prod.inStockKg < 100;
             return (
@@ -431,6 +451,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

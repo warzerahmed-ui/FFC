@@ -70,7 +70,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 3500,
     costPerKg: 2750,
     unit: 'KG',
-    inStockKg: 1450,
+    inStockKg: 0,
   },
   {
     id: 'prod-2',
@@ -81,7 +81,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 6500,
     costPerKg: 5100,
     unit: 'KG',
-    inStockKg: 520,
+    inStockKg: 0,
   },
   {
     id: 'prod-3',
@@ -92,7 +92,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 4000,
     costPerKg: 3100,
     unit: 'KG',
-    inStockKg: 680,
+    inStockKg: 0,
   },
   {
     id: 'prod-4',
@@ -103,7 +103,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 4250,
     costPerKg: 3200,
     unit: 'KG',
-    inStockKg: 310,
+    inStockKg: 0,
   },
   {
     id: 'prod-5',
@@ -114,7 +114,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 3000,
     costPerKg: 2000,
     unit: 'KG',
-    inStockKg: 190,
+    inStockKg: 0,
   },
   {
     id: 'prod-6',
@@ -125,7 +125,7 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
     pricePerKg: 850,
     costPerKg: 400,
     unit: 'KG',
-    inStockKg: 450,
+    inStockKg: 0,
   },
 ];
 
