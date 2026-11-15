@@ -86,39 +86,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
   const freshWindowDays = factorySettings.returnWindowDays || 3;
   const todayMs = new Date().setHours(0, 0, 0, 0);
   const expiryWarnings = [
-    ...custodyTransfers
-      .filter(
-        t =>
-          t.direction === 'LOAD' &&
-          (!t.status || t.status === 'ACCEPTED') &&
-          (repRemainingMap.get(t.holderName) || 0) > 0.1
-      )
-      .map(t => {
-        const dMs = new Date(t.date.slice(0, 10)).getTime();
-        const ageDays = Number.isFinite(dMs) ? Math.floor((todayMs - dMs) / 86400000) : 0;
-        return {
-          id: t.id,
-          label: `${t.holderName} • وەسڵ #${t.receiptNo}`,
-          date: t.date,
-          weightKg: t.totalWeightKg,
-          ageDays,
-          targetTab: 'custody' as TabType,
-        };
-      }),
-    ...branchDeliveries
-      .filter(() => totalBranchStockKg > 0.1)
-      .map(b => {
-        const dMs = new Date(b.date.slice(0, 10)).getTime();
-        const ageDays = Number.isFinite(dMs) ? Math.floor((todayMs - dMs) / 86400000) : 0;
-        return {
-          id: b.id,
-          label: `فرۆشگای شۆرۆم • وەسڵ #${b.manualReceiptNo}`,
-          date: b.date,
-          weightKg: b.totalWeightKg,
-          ageDays,
-          targetTab: 'pos' as TabType,
-        };
-      }),
+    ...(hasAccess('custody')
+      ? custodyTransfers
+          .filter(
+            t =>
+              t.direction === 'LOAD' &&
+              (!t.status || t.status === 'ACCEPTED') &&
+              (repRemainingMap.get(t.holderName) || 0) > 0.1
+          )
+          .map(t => {
+            const dMs = new Date(t.date.slice(0, 10)).getTime();
+            const ageDays = Number.isFinite(dMs) ? Math.floor((todayMs - dMs) / 86400000) : 0;
+            return {
+              id: t.id,
+              label: `${t.holderName} • وەسڵ #${t.receiptNo}`,
+              date: t.date,
+              weightKg: t.totalWeightKg,
+              ageDays,
+              targetTab: 'custody' as TabType,
+            };
+          })
+      : []),
+    ...(hasAccess('pos')
+      ? branchDeliveries
+          .filter(() => totalBranchStockKg > 0.1)
+          .map(b => {
+            const dMs = new Date(b.date.slice(0, 10)).getTime();
+            const ageDays = Number.isFinite(dMs) ? Math.floor((todayMs - dMs) / 86400000) : 0;
+            return {
+              id: b.id,
+              label: `فرۆشگای شۆرۆم • وەسڵ #${b.manualReceiptNo}`,
+              date: b.date,
+              weightKg: b.totalWeightKg,
+              ageDays,
+              targetTab: 'pos' as TabType,
+            };
+          })
+      : []),
   ].filter(w => w.ageDays >= Math.max(2, freshWindowDays - 1));
 
   const formatIQD = (val: number) => `${val.toLocaleString()} د.ع`;

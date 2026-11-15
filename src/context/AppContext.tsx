@@ -1,23 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  INITIAL_PRODUCTS,
-  INITIAL_INTAKES,
-  INITIAL_YIELDS,
-  INITIAL_CUSTOMERS,
-  INITIAL_SUPPLIERS,
-  INITIAL_DISPATCHES,
-  INITIAL_RETURNS,
-  INITIAL_EXPENSES,
-  INITIAL_VOUCHERS,
-  INITIAL_POS_SALES,
-  INITIAL_BRANCH_STOCK,
-  INITIAL_BRANCH_DELIVERIES,
-  INITIAL_BRANCH_EXPENSES,
-  INITIAL_CUSTODY_TRANSFERS,
-  INITIAL_DAILY_SETTLEMENTS,
-  INITIAL_USERS,
-} from '../data/mockData';
-import {
   ProductItem,
   ProductCategory,
   LiveIntake,
@@ -112,6 +94,7 @@ interface AppContextType {
   logout: () => void;
   hasAccess: (tab: string) => boolean;
   isAuthenticated: boolean;
+  isHydratedFromCloud: boolean;
 
   // Actions
   addIntake: (intake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => void;
@@ -196,6 +179,15 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const TOKEN_KEY = 'ffc_session_token_v1';
 const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
 
+const UNAUTHENTICATED_USER: User = {
+  id: '',
+  name: '',
+  phone: '',
+  role: 'CASHIER',
+  roleTitleKu: '',
+  isSuperAdmin: false,
+};
+
 const STORAGE_KEYS = {
   PRODUCTS: 'fresh_chicken_products_v4',
   INTAKES: 'fresh_chicken_intakes_v4',
@@ -219,6 +211,15 @@ const STORAGE_KEYS = {
   ACTIVITY_LOGS: 'fresh_chicken_activity_logs_v4',
 };
 
+const purgeBrowserStorage = () => {
+  try {
+    localStorage.removeItem('fresh_chicken_auth_v4');
+    Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+  } catch {
+    // ignore storage errors
+  }
+};
+
 const DEFAULT_FACTORY_SETTINGS: FactorySettings = {
   factoryName: 'فروج فریش چیکن',
   shortCode: 'FFC-ERP',
@@ -234,144 +235,40 @@ const DEFAULT_FACTORY_SETTINGS: FactorySettings = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<ProductItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
-
-  const [intakes, setIntakes] = useState<LiveIntake[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.INTAKES);
-    return saved ? JSON.parse(saved) : INITIAL_INTAKES;
-  });
-
-  const [yields, setYields] = useState<YieldRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.YIELDS);
-    return saved ? JSON.parse(saved) : INITIAL_YIELDS;
-  });
-
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-  });
-
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
-    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
-  });
-
-  const [dispatches, setDispatches] = useState<DispatchOrder[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DISPATCHES);
-    return saved ? JSON.parse(saved) : INITIAL_DISPATCHES;
-  });
-
-  const [returns, setReturns] = useState<ReturnOrder[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.RETURNS);
-    return saved ? JSON.parse(saved) : INITIAL_RETURNS;
-  });
-
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-  });
-
-  const [vouchers, setVouchers] = useState<PaymentVoucher[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.VOUCHERS);
-    return saved ? JSON.parse(saved) : INITIAL_VOUCHERS;
-  });
-
-  const [posSales, setPosSales] = useState<POSSale[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.POS_SALES);
-    return saved ? JSON.parse(saved) : INITIAL_POS_SALES;
-  });
-
-  const [branchStock, setBranchStock] = useState<BranchStockItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BRANCH_STOCK);
-    return saved ? JSON.parse(saved) : INITIAL_BRANCH_STOCK;
-  });
-
-  const [branchDeliveries, setBranchDeliveries] = useState<BranchDelivery[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BRANCH_DELIVERIES);
-    return saved ? JSON.parse(saved) : INITIAL_BRANCH_DELIVERIES;
-  });
-
-  const [branchExpenses, setBranchExpenses] = useState<BranchExpense[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BRANCH_EXPENSES);
-    return saved ? JSON.parse(saved) : INITIAL_BRANCH_EXPENSES;
-  });
-
-  const [custodyTransfers, setCustodyTransfers] = useState<CustodyTransfer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTODY_TRANSFERS);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTODY_TRANSFERS;
-  });
-
-  const [settlements, setSettlements] = useState<DailySettlement[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DAILY_SETTLEMENTS);
-    return saved ? JSON.parse(saved) : INITIAL_DAILY_SETTLEMENTS;
-  });
-
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
-
-  const [factorySettings, setFactorySettings] = useState<FactorySettings>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FACTORY_SETTINGS);
-    if (saved) {
-      try {
-        return { ...DEFAULT_FACTORY_SETTINGS, ...JSON.parse(saved) };
-      } catch {}
-    }
-    return DEFAULT_FACTORY_SETTINGS;
-  });
-
-  const [trashItems, setTrashItems] = useState<SoftDeletedItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TRASH_ITEMS);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOGS);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return INITIAL_USERS[0];
-  });
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [intakes, setIntakes] = useState<LiveIntake[]>([]);
+  const [yields, setYields] = useState<YieldRecord[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [dispatches, setDispatches] = useState<DispatchOrder[]>([]);
+  const [returns, setReturns] = useState<ReturnOrder[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [vouchers, setVouchers] = useState<PaymentVoucher[]>([]);
+  const [posSales, setPosSales] = useState<POSSale[]>([]);
+  const [branchStock, setBranchStock] = useState<BranchStockItem[]>([]);
+  const [branchDeliveries, setBranchDeliveries] = useState<BranchDelivery[]>([]);
+  const [branchExpenses, setBranchExpenses] = useState<BranchExpense[]>([]);
+  const [custodyTransfers, setCustodyTransfers] = useState<CustodyTransfer[]>([]);
+  const [settlements, setSettlements] = useState<DailySettlement[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [factorySettings, setFactorySettings] = useState<FactorySettings>(DEFAULT_FACTORY_SETTINGS);
+  const [trashItems, setTrashItems] = useState<SoftDeletedItem[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [currentUser, setCurrentUser] = useState<User>(UNAUTHENTICATED_USER);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    () => localStorage.getItem('fresh_chicken_auth_v4') === '1' && !!localStorage.getItem(TOKEN_KEY)
+    () => Boolean(localStorage.getItem(TOKEN_KEY))
   );
-  useEffect(() => {
-    localStorage.setItem('fresh_chicken_auth_v4', isAuthenticated ? '1' : '0');
-  }, [isAuthenticated]);
+  const [isHydratedFromCloud, setIsHydratedFromCloud] = useState<boolean>(false);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.INTAKES, JSON.stringify(intakes)); }, [intakes]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.YIELDS, JSON.stringify(yields)); }, [yields]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers)); }, [customers]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers)); }, [suppliers]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.DISPATCHES, JSON.stringify(dispatches)); }, [dispatches]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.RETURNS, JSON.stringify(returns)); }, [returns]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses)); }, [expenses]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers)); }, [vouchers]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.POS_SALES, JSON.stringify(posSales)); }, [posSales]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.BRANCH_STOCK, JSON.stringify(branchStock)); }, [branchStock]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.BRANCH_DELIVERIES, JSON.stringify(branchDeliveries)); }, [branchDeliveries]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.BRANCH_EXPENSES, JSON.stringify(branchExpenses)); }, [branchExpenses]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTODY_TRANSFERS, JSON.stringify(custodyTransfers)); }, [custodyTransfers]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.DAILY_SETTLEMENTS, JSON.stringify(settlements)); }, [settlements]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser)); }, [currentUser]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.FACTORY_SETTINGS, JSON.stringify(factorySettings)); }, [factorySettings]);
+  // Never keep business data cached in localStorage on disk
+  useEffect(() => {
+    purgeBrowserStorage();
+  }, []);
+
   useEffect(() => {
     document.title = `${factorySettings.factoryName} | ${factorySettings.shortCode}`;
   }, [factorySettings.factoryName, factorySettings.shortCode]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.TRASH_ITEMS, JSON.stringify(trashItems)); }, [trashItems]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(activityLogs)); }, [activityLogs]);
 
   // ==========================================
   // CLOUDFLARE D1 CLOUD SYNC ENGINE
@@ -384,6 +281,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const keyVersionsRef = useRef<Record<string, string>>({});
   const lastSyncedJsonByKeyRef = useRef<Record<string, string>>({});
   const pushTimerRef = useRef<number | null>(null);
+
+  const clearMemoryState = useCallback(() => {
+    if (pushTimerRef.current !== null) {
+      window.clearTimeout(pushTimerRef.current);
+      pushTimerRef.current = null;
+    }
+    setProducts([]);
+    setIntakes([]);
+    setYields([]);
+    setCustomers([]);
+    setSuppliers([]);
+    setDispatches([]);
+    setReturns([]);
+    setExpenses([]);
+    setVouchers([]);
+    setPosSales([]);
+    setBranchStock([]);
+    setBranchDeliveries([]);
+    setBranchExpenses([]);
+    setCustodyTransfers([]);
+    setSettlements([]);
+    setUsers([]);
+    setFactorySettings(DEFAULT_FACTORY_SETTINGS);
+    setTrashItems([]);
+    setActivityLogs([]);
+    setCurrentUser(UNAUTHENTICATED_USER);
+    setIsHydratedFromCloud(false);
+    isHydratedFromCloudRef.current = false;
+    lastServerUpdatedAtRef.current = null;
+    keyVersionsRef.current = {};
+    lastSyncedJsonByKeyRef.current = {};
+  }, []);
 
   const buildSnapshot = useCallback(
     () => ({
@@ -565,6 +494,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         if (res.status === 401) {
           localStorage.removeItem(TOKEN_KEY);
+          purgeBrowserStorage();
+          clearMemoryState();
           setIsAuthenticated(false);
           return;
         }
@@ -602,8 +533,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudSyncStatus('LOCAL_ONLY');
       }
     },
-    [applyCloudState]
+    [applyCloudState, clearMemoryState]
   );
+
+  const buildSnapshotRef = useRef(buildSnapshot);
+  useEffect(() => {
+    buildSnapshotRef.current = buildSnapshot;
+  }, [buildSnapshot]);
 
   const pullStateFromD1 = useCallback(
     async (initializeIfEmpty = false) => {
@@ -614,11 +550,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         if (res.status === 401) {
           localStorage.removeItem(TOKEN_KEY);
+          purgeBrowserStorage();
+          clearMemoryState();
           setIsAuthenticated(false);
           return;
         }
         if (!res.ok) {
-          setCloudSyncStatus(res.status === 503 || res.status === 404 ? 'LOCAL_ONLY' : 'ERROR');
+          if (!isHydratedFromCloudRef.current) {
+            localStorage.removeItem(TOKEN_KEY);
+            purgeBrowserStorage();
+            clearMemoryState();
+            setIsAuthenticated(false);
+          } else {
+            setCloudSyncStatus(res.status === 503 || res.status === 404 ? 'LOCAL_ONLY' : 'ERROR');
+          }
           return;
         }
         const data = (await res.json()) as {
@@ -626,44 +571,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           empty?: boolean;
           serverUpdatedAt?: string | null;
           keyVersions?: Record<string, string>;
+          callerUser?: User;
           state?: Record<string, unknown>;
         };
         if (!data.ok) {
-          setCloudSyncStatus('ERROR');
-          return;
-        }
-        if (data.empty) {
-          if (initializeIfEmpty) {
-            await pushStateToD1(buildSnapshot(), true);
+          if (!isHydratedFromCloudRef.current) {
+            localStorage.removeItem(TOKEN_KEY);
+            purgeBrowserStorage();
+            clearMemoryState();
+            setIsAuthenticated(false);
+          } else {
+            setCloudSyncStatus('ERROR');
           }
           return;
         }
-        if (data.state && data.serverUpdatedAt !== lastServerUpdatedAtRef.current) {
+        if (data.callerUser && typeof data.callerUser === 'object') {
+          skipNextPushRef.current = true;
+          setCurrentUser(data.callerUser);
+        }
+        if (data.empty) {
+          if (initializeIfEmpty) {
+            await pushStateToD1(buildSnapshotRef.current(), true);
+          }
+          isHydratedFromCloudRef.current = true;
+          setIsHydratedFromCloud(true);
+          return;
+        }
+        if (data.state && (!isHydratedFromCloudRef.current || data.serverUpdatedAt !== lastServerUpdatedAtRef.current)) {
           applyCloudState(data.state, data.keyVersions);
           lastServerUpdatedAtRef.current = data.serverUpdatedAt || null;
         }
+        isHydratedFromCloudRef.current = true;
+        setIsHydratedFromCloud(true);
         setLastSyncedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         setCloudSyncStatus('SYNCED');
       } catch {
-        setCloudSyncStatus('LOCAL_ONLY');
+        if (!isHydratedFromCloudRef.current) {
+          localStorage.removeItem(TOKEN_KEY);
+          purgeBrowserStorage();
+          clearMemoryState();
+          setIsAuthenticated(false);
+        } else {
+          setCloudSyncStatus('LOCAL_ONLY');
+        }
       }
     },
-    [applyCloudState, buildSnapshot, pushStateToD1]
+    [applyCloudState, clearMemoryState, pushStateToD1]
   );
 
   // Initial D1 hydration + 20s background pull from other devices
   useEffect(() => {
     if (!isAuthenticated) {
-      isHydratedFromCloudRef.current = false;
-      lastServerUpdatedAtRef.current = null;
+      clearMemoryState();
+      purgeBrowserStorage();
       return;
     }
     let active = true;
     (async () => {
       await pullStateFromD1(true);
-      if (active) {
-        isHydratedFromCloudRef.current = true;
-      }
+      if (!active) return;
     })();
 
     const pollInterval = window.setInterval(() => {
@@ -676,7 +642,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       active = false;
       window.clearInterval(pollInterval);
     };
-  }, [pullStateFromD1, isAuthenticated]);
+  }, [pullStateFromD1, isAuthenticated, clearMemoryState]);
 
   // Debounced auto-save to Cloudflare D1 whenever local state changes
   const snapshotObj = useMemo(() => buildSnapshot(), [buildSnapshot]);
@@ -703,6 +669,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [snapshotObj, pushStateToD1]);
 
   const syncNow = useCallback(async () => {
+    if (!isHydratedFromCloudRef.current) return;
     await pushStateToD1(buildSnapshot());
   }, [pushStateToD1, buildSnapshot]);
 
@@ -735,7 +702,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const hasAccess = (tab: string): boolean => {
-    if (!currentUser) return false;
+    if (!isAuthenticated || !currentUser || !currentUser.id) return false;
     if (currentUser.isSuperAdmin || currentUser.role === 'SUPER_ADMIN') {
       return true;
     }
@@ -768,16 +735,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const serverUser = data.user;
       localStorage.setItem(TOKEN_KEY, data.token);
-      const found = users.find(u => u.id === serverUser.id) || serverUser;
-      setCurrentUser(found);
+      setCurrentUser(serverUser);
       setIsAuthenticated(true);
       recordActivity(
         'AUTH',
         'LOGIN',
         'چوونەژوورەوە بۆ سیستەم',
-        found.isSuperAdmin ? 'چوونەژوورەوەی بەڕێوەبەر' : `ئەکاونتی ${found.name} (${found.roleTitleKu}) چووە ژوورەوە`,
+        serverUser.isSuperAdmin
+          ? 'چوونەژوورەوەی بەڕێوەبەر'
+          : `ئەکاونتی ${serverUser.name} (${serverUser.roleTitleKu}) چووە ژوورەوە`,
         undefined,
-        found
+        serverUser
       );
       return { ok: true };
     } catch {
@@ -786,10 +754,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
-    recordActivity('AUTH', 'LOGOUT', 'چوونەدەرەوە لە سیستەم', 'بەکارهێنەر لە سیستەم چووە دەرەوە');
     localStorage.removeItem(TOKEN_KEY);
-    keyVersionsRef.current = {};
-    lastSyncedJsonByKeyRef.current = {};
+    purgeBrowserStorage();
+    clearMemoryState();
     setIsAuthenticated(false);
   };
 
@@ -879,6 +846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addIntake = (newIntake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => {
+    if (!hasAccess('intake') && !hasAccess('accounting')) return;
     const id = `int-${genId()}`;
     const intake: LiveIntake = {
       ...newIntake,
@@ -907,6 +875,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addYieldRecord = (newYield: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => {
+    if (!hasAccess('production')) return;
     const id = `yld-${genId()}`;
     const targetIntake = intakes.find(i => i.id === newYield.intakeId);
     const prevRemaining = targetIntake ? targetIntake.remainingLiveWeightKg : 0;
@@ -951,6 +920,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('gifts')) return;
     const id = `disp-${genId()}`;
     const dispatch: DispatchOrder = { ...newDispatch, id };
     setDispatches(prev => [dispatch, ...prev]);
@@ -1009,6 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addReturn = (newReturn: Omit<ReturnOrder, 'id'>) => {
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale')) return;
     const id = `ret-${genId()}`;
     const deduction = newReturn.totalCustomerDeduction !== undefined 
       ? newReturn.totalCustomerDeduction 
@@ -1063,6 +1034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     outputs: { productId: string; productName: string; weightKg: number }[],
     notes?: string
   ) => {
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale')) return;
     const today = toLocalISODate();
 
     setReturns(prev =>
@@ -1103,6 +1075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addExpense = (newExpense: Omit<ExpenseRecord, 'id'>) => {
+    if (!hasAccess('reports') && !hasAccess('accounting')) return;
     const id = `exp-${genId()}`;
     setExpenses(prev => [{ ...newExpense, id }, ...prev]);
     recordActivity('FINANCE', 'CREATE', 'تۆمارکردنی خەرجی کارگە', `${newExpense.title} • ${newExpense.amount.toLocaleString()} د.ع`, newExpense.receiptNo);
@@ -1120,6 +1093,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addSupplier = (newSupplier: Omit<Supplier, 'id' | 'createdAt'>) => {
+    if (!hasAccess('intake') && !hasAccess('accounting')) return;
     const id = `supp-${genId()}`;
     const supplier: Supplier = {
       ...newSupplier,
@@ -1132,6 +1106,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Enhanced addVoucher: tracks previousDebt, amount, discount, remainingDebt, and time!
   const addVoucher = (newVoucher: Omit<PaymentVoucher, 'id' | 'previousDebt' | 'remainingDebt'>) => {
+    if (!hasAccess('accounting')) return;
     const id = `vouch-${genId()}`;
     const totalSettled = newVoucher.amount + (newVoucher.discount || 0);
 
@@ -1516,6 +1491,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDailySettlement = (data: Omit<DailySettlement, 'id'>): DailySettlement => {
+    if (!hasAccess('reports') && !hasAccess('accounting')) {
+      return { ...data, id: '' };
+    }
     const id = `set-${genId()}`;
     const record: DailySettlement = { ...data, id };
     setSettlements(prev => [record, ...prev]);
@@ -1533,6 +1511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // FACTORY SETTINGS, ACCOUNTS, SOFT DELETE & LOGS
   // ==========================================
   const updateFactorySettings = (updates: Partial<FactorySettings>) => {
+    if (!hasAccess('settings')) return;
     const updatedAt = new Date().toLocaleString('en-GB');
     setFactorySettings(prev => ({ ...prev, ...updates, updatedAt }));
     recordActivity(
@@ -1544,6 +1523,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (userData: Omit<User, 'id'>): { ok: boolean; error?: string; user?: User } => {
+    if (!hasAccess('settings')) {
+      return { ok: false, error: 'دەسەڵاتی بەڕێوەبردنی ئەکاونتت نییە' };
+    }
     const cleanPhone = userData.phone.trim();
     if (!userData.name.trim() || !cleanPhone || !userData.password?.trim()) {
       return { ok: false, error: 'تکایە ناو، ژمارەی مۆبایل و وشەی نهێنی بنووسە' };
@@ -1576,6 +1558,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     userId: string,
     updates: Partial<Omit<User, 'id' | 'isSuperAdmin'>>
   ): { ok: boolean; error?: string } => {
+    if (!hasAccess('settings')) {
+      return { ok: false, error: 'دەسەڵاتی دەستکاریکردنی ئەکاونتت نییە' };
+    }
     const existing = users.find(u => u.id === userId && !u.isSuperAdmin);
     if (!existing) return { ok: false, error: 'ئەکاونت نەدۆزرایەوە' };
 
@@ -1620,6 +1605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     entityId: string,
     reason?: string
   ): boolean => {
+    if (!hasAccess('settings')) return false;
     const now = new Date();
     const deletedAt = toLocalISODate(now);
     const deletedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -1877,6 +1863,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const restoreTrashItem = (trashId: string): boolean => {
+    if (!hasAccess('settings')) return false;
     const item = trashItems.find(t => t.id === trashId);
     if (!item) return false;
 
@@ -2035,6 +2022,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const permanentlyDeleteTrashItem = (trashId: string) => {
+    if (!hasAccess('settings')) return;
     const item = trashItems.find(t => t.id === trashId);
     if (!item) return;
     setTrashItems(prev => prev.filter(t => t.id !== trashId));
@@ -2048,12 +2036,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const emptyTrash = () => {
+    if (!hasAccess('settings')) return;
     const count = trashItems.length;
     setTrashItems([]);
     recordActivity('TRASH', 'PURGE', 'بەتاڵکردنەوەی سەبەتەی سۆفت دیلیت', `${count} تۆمار بە یەکجاری سڕدرانەوە`);
   };
 
   const clearActivityLogs = () => {
+    if (!hasAccess('settings')) return;
     const now = new Date();
     const isHiddenSuper = currentUser?.isSuperAdmin || currentUser?.role === 'SUPER_ADMIN';
     setActivityLogs([
@@ -2125,6 +2115,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const importSystemBackup = (
     jsonStr: string
   ): { ok: boolean; error?: string; stats?: string } => {
+    if (!hasAccess('settings')) {
+      return { ok: false, error: 'دەسەڵاتی گەڕاندنەوەی باکئەپت نییە' };
+    }
     try {
       const parsed = JSON.parse(jsonStr);
       const d = parsed?.data || parsed;
@@ -2170,6 +2163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetToCleanStart = (options?: { clearParties?: boolean }) => {
+    if (!hasAccess('settings')) return;
     setIntakes([]);
     setYields([]);
     setDispatches([]);
@@ -2225,6 +2219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         hasAccess,
         isAuthenticated,
+        isHydratedFromCloud,
         addIntake,
         addYieldRecord,
         addDispatch,

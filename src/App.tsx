@@ -47,7 +47,7 @@ function AppContent() {
   const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
   const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
-  const { hasAccess, currentUser, isAuthenticated } = useApp();
+  const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud } = useApp();
 
   const handleSendToSlaughter = (intakeId: string) => {
     setSelectedIntakeForProductionId(intakeId);
@@ -56,7 +56,7 @@ function AppContent() {
 
   // Redirect if current role/account lacks permission for activeTab
   useEffect(() => {
-    if (isAuthenticated && !hasAccess(activeTab)) {
+    if (isAuthenticated && isHydratedFromCloud && !hasAccess(activeTab)) {
       const fallbackOrder: TabType[] = [
         'dashboard',
         'rep-sales',
@@ -75,10 +75,26 @@ function AppContent() {
         setActiveTab(firstAllowed);
       }
     }
-  }, [currentUser, activeTab, hasAccess, isAuthenticated]);
+  }, [currentUser, activeTab, hasAccess, isAuthenticated, isHydratedFromCloud]);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  if (!isHydratedFromCloud) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] p-6">
+        <div className="apple-card p-8 text-center space-y-3 max-w-xs w-full">
+          <div className="w-8 h-8 border-2 border-[#0071E3] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="text-xs font-extrabold text-[#1D1D1F]">
+            پشکنینی ناسنامە و بارکردنی داتای پارێزراو...
+          </div>
+          <div className="text-[11px] text-[#86868B]">
+            تکایە چاوەڕێ بە تا سێرڤەر دەسەڵاتەکان پشتڕاست دەکاتەوە
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -102,7 +118,9 @@ function AppContent() {
             </div>
           }
         >
-          {activeTab === 'dashboard' && <DashboardView setActiveTab={setActiveTab} />}
+          {activeTab === 'dashboard' && hasAccess('dashboard') && (
+            <DashboardView setActiveTab={setActiveTab} />
+          )}
           {activeTab === 'intake' && hasAccess('intake') && (
             <LiveIntakeView
               onNavigate={setActiveTab}

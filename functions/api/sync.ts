@@ -84,6 +84,25 @@ const WRITE_KEY_TABS: Record<string, string[]> = {
   vouchers: ['accounting'],
 };
 
+// State key -> tabs permitted to read it for non-admin staff
+const READ_KEY_TABS: Record<string, string[]> = {
+  products: ALL_TABS,
+  intakes: ['intake', 'production', 'accounting', 'reports'],
+  suppliers: ['intake', 'production', 'accounting', 'reports'],
+  yields: ['production', 'ready-for-sale', 'reports'],
+  customers: ['ready-for-sale', 'rep-sales', 'pos', 'gifts', 'accounting', 'reports'],
+  dispatches: ['ready-for-sale', 'custody', 'rep-sales', 'pos', 'gifts', 'accounting', 'reports'],
+  returns: ['ready-for-sale', 'custody', 'rep-sales', 'pos', 'accounting', 'reports'],
+  custodyTransfers: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'accounting', 'reports'],
+  posSales: ['ready-for-sale', 'pos', 'accounting', 'reports'],
+  branchStock: ['ready-for-sale', 'pos', 'accounting', 'reports'],
+  branchDeliveries: ['ready-for-sale', 'pos', 'accounting', 'reports'],
+  branchExpenses: ['ready-for-sale', 'pos', 'accounting', 'reports'],
+  expenses: ['accounting', 'reports'],
+  vouchers: ['accounting', 'reports'],
+  settlements: ['accounting', 'reports'],
+};
+
 interface UserRecord {
   id?: string;
   name?: string;
@@ -130,6 +149,7 @@ interface CallerAccess {
   isAdmin: boolean;
   canReadSettings: boolean;
   allowedTabs: Set<string>;
+  callerUser: UserRecord;
 }
 
 const resolveCallerAccess = (
@@ -142,43 +162,53 @@ const resolveCallerAccess = (
       isAdmin: true,
       canReadSettings: true,
       allowedTabs: new Set(ALL_TABS),
+      callerUser: {
+        id: 'user-super-admin',
+        name: 'سوپەر ئەدمین',
+        phone: '',
+        role: 'SUPER_ADMIN',
+        roleTitleKu: 'سوپەر ئەدمین (دەسەڵاتی گشتی)',
+        isSuperAdmin: true,
+        avatarEmoji: '👑',
+        allowedTabs: ALL_TABS,
+      },
     };
   }
 
-  if (usersPayload) {
-    try {
-      const parsedUsers = JSON.parse(usersPayload) as UserRecord[];
-      if (Array.isArray(parsedUsers)) {
-        const me = parsedUsers.find(u => u && u.id === session.uid);
-        if (!me || me.isActive === false) {
-          return { ok: false };
-        }
-        const effectiveRole = me.role || session.role;
-        const isAdmin = ADMIN_ROLES.has(effectiveRole);
-        const tabsList = Array.isArray(me.allowedTabs)
-          ? me.allowedTabs
-          : getDefaultTabsForRole(effectiveRole);
-        const allowedTabs = new Set(tabsList);
-        return {
-          ok: true,
-          isAdmin,
-          canReadSettings: isAdmin || allowedTabs.has('settings'),
-          allowedTabs,
-        };
-      }
-    } catch {
-      // Ignore parse error and fall back to token role
-    }
+  if (!usersPayload) {
+    return { ok: false };
   }
 
-  const isAdmin = ADMIN_ROLES.has(session.role);
-  const allowedTabs = new Set(getDefaultTabsForRole(session.role));
-  return {
-    ok: true,
-    isAdmin,
-    canReadSettings: isAdmin || allowedTabs.has('settings'),
-    allowedTabs,
-  };
+  try {
+    const parsedUsers = JSON.parse(usersPayload) as UserRecord[];
+    if (Array.isArray(parsedUsers)) {
+      const me = parsedUsers.find(u => u && u.id === session.uid);
+      if (!me || me.isActive === false) {
+        return { ok: false };
+      }
+      const effectiveRole = me.role || session.role;
+      const isAdmin = ADMIN_ROLES.has(effectiveRole);
+      const tabsList = Array.isArray(me.allowedTabs)
+        ? me.allowedTabs
+        : getDefaultTabsForRole(effectiveRole);
+      const allowedTabs = new Set(tabsList);
+      return {
+        ok: true,
+        isAdmin,
+        canReadSettings: isAdmin || allowedTabs.has('settings'),
+        allowedTabs,
+        callerUser: sanitizeUserForAdmin({
+          ...me,
+          role: effectiveRole,
+          allowedTabs: tabsList,
+        }),
+      };
+    }
+  } catch {
+    // Reject access if users payload is corrupted
+  }
+
+  return { ok: false };
 };
 
 export const onRequestGet = async (context: { request: Request; env: Env }) => {
@@ -200,7 +230,7 @@ export const onRequestGet = async (context: { request: Request; env: Env }) => {
     if (!caller.ok) {
       return jsonResponse({ ok: false, error: 'Account disabled' }, 401);
     }
-    const { canReadSettings } = caller;
+    const { isAdmin, canReadSettings, allowedTabs, callerUser } = caller;
 
     const state: Record<string, unknown> = {};
     const keyVersions: Record<string, string> = {};
@@ -208,7 +238,22 @@ export const onRequestGet = async (context: { request: Request; env: Env }) => {
 
     for (const row of results || []) {
       if (!ALLOWED_KEYS.has(row.state_key)) continue;
-      if (ADMIN_ONLY_READ_KEYS.has(row.state_key) && !canReadSettings) continue;
+      if (ADMIN_ONLY_READ_KEYS.has(row.state_key) && !canReadSettings) {
+        state[row.state_key] = [];
+        continue;
+      }
+      if (
+        !isAdmin &&
+        row.state_key !== 'factorySettings' &&
+        row.state_key !== 'users' &&
+        !ADMIN_ONLY_READ_KEYS.has(row.state_key)
+      ) {
+        const permittedReadTabs = READ_KEY_TABS[row.state_key];
+        if (!permittedReadTabs || !permittedReadTabs.some(t => allowedTabs.has(t))) {
+          state[row.state_key] = [];
+          continue;
+        }
+      }
 
       try {
         let value: unknown = JSON.parse(row.payload);
@@ -236,9 +281,10 @@ export const onRequestGet = async (context: { request: Request; env: Env }) => {
 
     return jsonResponse({
       ok: true,
-      empty: Object.keys(state).length === 0,
+      empty: (results || []).length === 0,
       serverUpdatedAt: latestUpdatedAt || null,
       keyVersions,
+      callerUser,
       state,
     });
   } catch {
