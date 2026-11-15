@@ -2,6 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Menubar } from './components/layout/Menubar';
 import type { PosSubTab } from './components/pos/POSView';
+import type { AccountingSubTab } from './components/accounting/AccountingView';
+import type { ReportSubTab } from './components/reports/ReportsView';
 import { TabType } from './types';
 import { LoginScreen } from './components/auth/LoginScreen';
 
@@ -42,6 +44,8 @@ const SettingsView = lazy(() =>
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [posSubTab, setPosSubTab] = useState<PosSubTab>('REGISTER');
+  const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
+  const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
   const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
   const { hasAccess, currentUser, isAuthenticated } = useApp();
 
@@ -84,6 +88,10 @@ function AppContent() {
         setActiveTab={setActiveTab}
         activePosSubTab={posSubTab}
         setPosSubTab={setPosSubTab}
+        activeAccountingSubTab={accountingSubTab}
+        setAccountingSubTab={setAccountingSubTab}
+        activeReportSubTab={reportSubTab}
+        setReportSubTab={setReportSubTab}
       />
 
       <main className="flex-1 p-4 md:p-6 lg:p-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">
@@ -119,8 +127,12 @@ function AppContent() {
           {activeTab === 'pos' && hasAccess('pos') && (
             <POSView activeSubTab={posSubTab} onSubTabChange={setPosSubTab} />
           )}
-          {activeTab === 'accounting' && hasAccess('accounting') && <AccountingView />}
-          {activeTab === 'reports' && hasAccess('reports') && <ReportsView />}
+          {activeTab === 'accounting' && hasAccess('accounting') && (
+            <AccountingView activeSubTab={accountingSubTab} />
+          )}
+          {activeTab === 'reports' && hasAccess('reports') && (
+            <ReportsView activeReportTab={reportSubTab} />
+          )}
           {activeTab === 'settings' && hasAccess('settings') && <SettingsView />}
         </Suspense>
       </main>

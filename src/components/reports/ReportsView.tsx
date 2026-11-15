@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   FileSpreadsheet,
@@ -23,7 +23,15 @@ import { FactoryLogo } from '../layout/FactoryLogo';
 
 type DatePreset = 'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM';
 
-export const ReportsView: React.FC = () => {
+export type ReportSubTab = 'PNL' | 'DAILY';
+
+interface ReportsViewProps {
+  activeReportTab?: ReportSubTab;
+}
+
+export const ReportsView: React.FC<ReportsViewProps> = ({
+  activeReportTab: controlledReportTab,
+}) => {
   const {
     intakes,
     dispatches,
@@ -38,7 +46,13 @@ export const ReportsView: React.FC = () => {
     factorySettings,
   } = useApp();
 
-  const [activeReportTab, setActiveReportTab] = useState<'PNL' | 'DAILY'>('PNL');
+  const [activeReportTab, setActiveReportTab] = useState<ReportSubTab>(controlledReportTab || 'PNL');
+
+  useEffect(() => {
+    if (controlledReportTab && controlledReportTab !== activeReportTab) {
+      setActiveReportTab(controlledReportTab);
+    }
+  }, [controlledReportTab]);
   const todayISO = new Date().toISOString().split('T')[0];
   const [datePreset, setDatePreset] = useState<DatePreset>('ALL');
   const [fromDate, setFromDate] = useState<string>(todayISO);
@@ -285,30 +299,6 @@ export const ReportsView: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      {/* Top Apple Segmented Switch */}
-      <div className={`apple-segmented w-fit ${activeReportTab === 'DAILY' ? 'no-print' : ''}`}>
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('PNL')}
-          className={`apple-segment-btn flex items-center gap-1.5 ${
-            activeReportTab === 'PNL' ? 'apple-segment-btn-active' : ''
-          }`}
-        >
-          <TrendingUp className="w-3.5 h-3.5 text-[#34C759]" />
-          <span>ڕاپۆرتی قازانج و زەرەر (P&amp;L)</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('DAILY')}
-          className={`apple-segment-btn flex items-center gap-1.5 ${
-            activeReportTab === 'DAILY' ? 'apple-segment-btn-active' : ''
-          }`}
-        >
-          <Calendar className="w-3.5 h-3.5 text-[#AF52DE]" />
-          <span>ڕاپۆرت و تەسفییەی ڕۆژانە (مەندوب و شۆرۆم)</span>
-        </button>
-      </div>
-
       {activeReportTab === 'DAILY' && <DailySettlementView />}
 
       {activeReportTab === 'PNL' && (

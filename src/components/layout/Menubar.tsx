@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { TabType } from '../../types';
 import { FactoryLogo } from './FactoryLogo';
 import type { PosSubTab } from '../pos/POSView';
+import type { AccountingSubTab } from '../accounting/AccountingView';
+import type { ReportSubTab } from '../reports/ReportsView';
 import {
   LayoutDashboard,
   Truck,
@@ -16,7 +18,10 @@ import {
   Boxes,
   Receipt,
   Calculator,
-  FileSpreadsheet,
+  Users,
+  Building2,
+  TrendingUp,
+  Calendar,
   LogOut,
   Clock,
   Menu,
@@ -34,11 +39,17 @@ interface MenubarProps {
   setActiveTab: (tab: TabType) => void;
   activePosSubTab?: PosSubTab;
   setPosSubTab?: (tab: PosSubTab) => void;
+  activeAccountingSubTab?: AccountingSubTab;
+  setAccountingSubTab?: (tab: AccountingSubTab) => void;
+  activeReportSubTab?: ReportSubTab;
+  setReportSubTab?: (tab: ReportSubTab) => void;
 }
 
 interface MenuSubItem {
   id: TabType;
   posSubTab?: PosSubTab;
+  accountingSubTab?: AccountingSubTab;
+  reportSubTab?: ReportSubTab;
   label: string;
   description: string;
   badge: string;
@@ -164,17 +175,43 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       {
         id: 'accounting',
-        label: '٧. کەشف حساب و دانەوەی قەرز',
-        description: 'کەشف حسابی کڕیار و کێڵگە و سەنەدەکان',
-        badge: 'قۆناغی ٧',
-        icon: Calculator,
+        accountingSubTab: 'VOUCHERS',
+        label: '١. سەنەدانی سافکردنی قەرز',
+        description: 'سەنەدی قەبز (وەرگرتن) و سەنەدی سەرف (دانەوە بە کێڵگە)',
+        badge: 'سەنەد',
+        icon: Receipt,
+      },
+      {
+        id: 'accounting',
+        accountingSubTab: 'CUSTOMERS',
+        label: '٢. کەشف حسابی کڕیاران',
+        description: 'کەشف حسابی مارکێت و کڕیارە قەرزارەکان',
+        badge: 'کڕیاران',
+        icon: Users,
+      },
+      {
+        id: 'accounting',
+        accountingSubTab: 'SUPPLIERS',
+        label: '٣. کەشف حسابی کێڵگەکان',
+        description: 'کەشف حسابی کێڵگە و دابینکەران',
+        badge: 'کێڵگەکان',
+        icon: Building2,
       },
       {
         id: 'reports',
-        label: '٨. قازانج و زەرەر و ڕاپۆرتی ڕۆژانە',
-        description: 'ڕاپۆرتی P&L و تەسفییەی ڕۆژانەی مەندوب و شۆرۆم',
-        badge: 'قۆناغی ٨',
-        icon: FileSpreadsheet,
+        reportSubTab: 'PNL',
+        label: '٤. ڕاپۆرتی قازانج و زەرەر (P&L)',
+        description: 'ڕاپۆرتی داهات، تێچوو، خەرجی و قازانجی گشتی',
+        badge: 'P&L',
+        icon: TrendingUp,
+      },
+      {
+        id: 'reports',
+        reportSubTab: 'DAILY',
+        label: '٥. ڕاپۆرت و تەسفییەی ڕۆژانە',
+        description: 'تەسفییەی ڕۆژانەی مەندوب و شۆرۆم',
+        badge: 'تەسفییە',
+        icon: Calendar,
       },
     ],
   },
@@ -185,6 +222,10 @@ export const Menubar: React.FC<MenubarProps> = ({
   setActiveTab,
   activePosSubTab = 'REGISTER',
   setPosSubTab,
+  activeAccountingSubTab = 'VOUCHERS',
+  setAccountingSubTab,
+  activeReportSubTab = 'PNL',
+  setReportSubTab,
 }) => {
   const {
     currentUser,
@@ -235,6 +276,12 @@ export const Menubar: React.FC<MenubarProps> = ({
     if (item.posSubTab) {
       return activeTab === item.id && activePosSubTab === item.posSubTab;
     }
+    if (item.accountingSubTab) {
+      return activeTab === item.id && activeAccountingSubTab === item.accountingSubTab;
+    }
+    if (item.reportSubTab) {
+      return activeTab === item.id && activeReportSubTab === item.reportSubTab;
+    }
     return item.id === activeTab || (item.matchTabs ? item.matchTabs.includes(activeTab) : false);
   };
 
@@ -250,11 +297,16 @@ export const Menubar: React.FC<MenubarProps> = ({
       }
     : activeGroupObj?.items.find(isItemActive) || activeGroupObj?.items[0];
 
-  const handleSelectTab = (tab: TabType, posSubTab?: PosSubTab) => {
+  const handleSelectItem = (item: MenuSubItem) => {
+    setActiveTab(item.id);
+    if (item.posSubTab && setPosSubTab) setPosSubTab(item.posSubTab);
+    if (item.accountingSubTab && setAccountingSubTab) setAccountingSubTab(item.accountingSubTab);
+    if (item.reportSubTab && setReportSubTab) setReportSubTab(item.reportSubTab);
+    setMobileOpen(false);
+  };
+
+  const handleSelectTab = (tab: TabType) => {
     setActiveTab(tab);
-    if (posSubTab && setPosSubTab) {
-      setPosSubTab(posSubTab);
-    }
     setMobileOpen(false);
   };
 
@@ -346,7 +398,7 @@ export const Menubar: React.FC<MenubarProps> = ({
                     type="button"
                     onClick={() => {
                       if (!active && firstItem) {
-                        handleSelectTab(firstItem.id, firstItem.posSubTab);
+                        handleSelectItem(firstItem);
                       }
                     }}
                     className={`px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
@@ -486,9 +538,9 @@ export const Menubar: React.FC<MenubarProps> = ({
                 const subActive = isItemActive(sub);
                 return (
                   <button
-                    key={`${sub.id}-${sub.posSubTab ?? ''}`}
+                    key={`${sub.id}-${sub.posSubTab ?? sub.accountingSubTab ?? sub.reportSubTab ?? ''}`}
                     type="button"
-                    onClick={() => handleSelectTab(sub.id, sub.posSubTab)}
+                    onClick={() => handleSelectItem(sub)}
                     className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       subActive
                         ? 'bg-white text-[#0071E3] font-extrabold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-[#0071E3]/25'
@@ -543,9 +595,9 @@ export const Menubar: React.FC<MenubarProps> = ({
                   const itemActive = isItemActive(item);
                   return (
                     <button
-                      key={`${item.id}-${item.posSubTab ?? ''}`}
+                      key={`${item.id}-${item.posSubTab ?? item.accountingSubTab ?? item.reportSubTab ?? ''}`}
                       type="button"
-                      onClick={() => handleSelectTab(item.id, item.posSubTab)}
+                      onClick={() => handleSelectItem(item)}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all ${
                         itemActive
                           ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'

@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Calculator,
-  Users,
-  Building2,
   FileText,
   Plus,
   Printer,
@@ -20,10 +18,26 @@ import {
 import { Customer, Supplier } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
-export const AccountingView: React.FC = () => {
+export type AccountingSubTab = 'VOUCHERS' | 'CUSTOMERS' | 'SUPPLIERS';
+
+interface AccountingViewProps {
+  activeSubTab?: AccountingSubTab;
+}
+
+export const AccountingView: React.FC<AccountingViewProps> = ({
+  activeSubTab: controlledSubTab,
+}) => {
   const { customers, suppliers, vouchers, dispatches, posSales, returns, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'VOUCHERS' | 'CUSTOMERS' | 'SUPPLIERS'>('VOUCHERS');
+  const [activeSubTab, setActiveSubTab] = useState<AccountingSubTab>(controlledSubTab || 'VOUCHERS');
+
+  useEffect(() => {
+    if (controlledSubTab && controlledSubTab !== activeSubTab) {
+      setActiveSubTab(controlledSubTab);
+      if (controlledSubTab === 'CUSTOMERS') setSelectedSupplier(null);
+      if (controlledSubTab === 'SUPPLIERS') setSelectedCustomer(null);
+    }
+  }, [controlledSubTab]);
 
   // Customer Statement Modal with Date Range Filter!
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -320,45 +334,6 @@ export const AccountingView: React.FC = () => {
             سەنەدی سەرف (دانەوە بە کێڵگە)
           </button>
         </div>
-      </div>
-
-      {/* Apple Segmented Control */}
-      <div className="p-1 bg-[#EAEAEA] rounded-full inline-flex flex-wrap gap-1">
-        <button
-          onClick={() => setActiveSubTab('VOUCHERS')}
-          className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all ${
-            activeSubTab === 'VOUCHERS'
-              ? 'bg-white text-[#1D1D1F] shadow-sm font-bold'
-              : 'text-[#515154] hover:text-[#1D1D1F]'
-          }`}
-        >
-          <Receipt className="w-3.5 h-3.5 text-[#34C759]" />
-          سەنەداتی سافکردنی قەرز ({vouchers.length})
-        </button>
-
-        <button
-          onClick={() => { setActiveSubTab('CUSTOMERS'); setSelectedSupplier(null); }}
-          className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all ${
-            activeSubTab === 'CUSTOMERS'
-              ? 'bg-white text-[#1D1D1F] shadow-sm font-bold'
-              : 'text-[#515154] hover:text-[#1D1D1F]'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5 text-[#0071E3]" />
-          کەشف حسابی کڕیاران (مارکێتەکان)
-        </button>
-
-        <button
-          onClick={() => { setActiveSubTab('SUPPLIERS'); setSelectedCustomer(null); }}
-          className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all ${
-            activeSubTab === 'SUPPLIERS'
-              ? 'bg-white text-[#1D1D1F] shadow-sm font-bold'
-              : 'text-[#515154] hover:text-[#1D1D1F]'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5 text-[#FF9500]" />
-          کەشف حسابی کێڵگەکان
-        </button>
       </div>
 
       {/* View 1: Vouchers List */}
