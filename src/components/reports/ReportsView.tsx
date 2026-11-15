@@ -20,10 +20,11 @@ import {
 import { ExpenseRecord } from '../../types';
 import { DailySettlementView } from '../accounting/DailySettlementView';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 type DatePreset = 'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM';
 
-export type ReportSubTab = 'PNL' | 'DAILY';
+export type ReportSubTab = 'PNL' | 'EXPENSES' | 'DAILY';
 
 interface ReportsViewProps {
   activeReportTab?: ReportSubTab;
@@ -53,7 +54,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       setActiveReportTab(controlledReportTab);
     }
   }, [controlledReportTab]);
-  const todayISO = new Date().toISOString().split('T')[0];
+  const todayISO = toLocalISODate();
   const [datePreset, setDatePreset] = useState<DatePreset>('ALL');
   const [fromDate, setFromDate] = useState<string>(todayISO);
   const [toDate, setToDate] = useState<string>(todayISO);
@@ -70,7 +71,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (datePreset === 'WEEK') {
       const d = new Date();
       d.setDate(d.getDate() - 6);
-      return { start: d.toISOString().split('T')[0], end: todayISO };
+      return { start: toLocalISODate(d), end: todayISO };
     }
     if (datePreset === 'MONTH') {
       return { start: `${todayISO.slice(0, 7)}-01`, end: todayISO };
@@ -244,7 +245,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
 
     addExpense({
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalISODate(),
       category: expenseCategory,
       title: expenseTitle.trim(),
       amount: Number(expenseAmount),
@@ -302,105 +303,131 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReportTab === 'DAILY' && <DailySettlementView />}
 
       {activeReportTab === 'PNL' && (
-        <>
-          {/* Header */}
-          <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <FactoryLogo size="md" />
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-                ڕاپۆرتی قازانج و خەرجی (P & L)
-              </h2>
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#86868B] bg-black/[0.04] px-2 py-0.5 rounded-full">
-                <FileSpreadsheet className="w-3 h-3 text-[#FF9500]" />
-                {factorySettings.factoryName} • {factorySettings.shortCode}
-              </span>
+        <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <FactoryLogo size="md" />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
+                  ڕاپۆرتی قازانج و زەرەر (P & L)
+                </h2>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#86868B] bg-black/[0.04] px-2 py-0.5 rounded-full">
+                  <FileSpreadsheet className="w-3 h-3 text-[#FF9500]" />
+                  {factorySettings.factoryName} • {factorySettings.shortCode}
+                </span>
+              </div>
+              <p className="text-xs text-[#86868B] mt-0.5">
+                شیکاری تەواوی داهاتی مەندوب و شۆرۆم، تێچووی کێڵگە، تەلەفی ٣ ڕۆژ و خەرجییەکان
+              </p>
             </div>
-            <p className="text-xs text-[#86868B] mt-0.5">
-              شیکاری تەواوی داهاتی مەندوب و شۆرۆم، تێچووی کێڵگە، تەلەفی ٣ ڕۆژ و خەرجییەکان
-            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 no-print">
+            <button
+              type="button"
+              onClick={handleExportPnLCsv}
+              className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Excel / CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
+            >
+              <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
+              چاپکردن
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="flex flex-wrap items-center gap-2 no-print">
+      {activeReportTab === 'EXPENSES' && (
+        <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-[#FF9500]/12 text-[#FF9500] flex items-center justify-center shrink-0">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
+                  خەرجییەکانی کارگە
+                </h2>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#FF9500] bg-[#FF9500]/10 px-2.5 py-0.5 rounded-full tabular-nums">
+                  {filteredExpenses.length} تۆمار • {totalFactoryExpenses.toLocaleString()} د.ع
+                </span>
+              </div>
+              <p className="text-xs text-[#86868B] mt-0.5">
+                تۆمارکردن و بەدواداچوونی خەرجییەکانی سووتەمەنی، کارەبا، سەهۆڵ، پاکەتج و مووچە
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={handleExportPnLCsv}
-            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel / CSV
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
-            چاپکردن
-          </button>
-          <button
             onClick={() => setShowExpenseModal(true)}
-            className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+            className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full flex items-center gap-1.5 shadow-sm transition-all active:scale-95 w-fit no-print"
           >
             <Plus className="w-3.5 h-3.5" />
             خەرجی نوێ
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Date Range Filter Bar */}
-      <div className="apple-card p-3.5 flex flex-wrap items-center justify-between gap-3 no-print">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold text-[#515154] flex items-center gap-1 ml-2">
-            <Calendar className="w-3.5 h-3.5 text-[#0071E3]" />
-            ماوەی ڕاپۆرت:
-          </span>
-          {(
-            [
-              { id: 'ALL', label: 'کۆی گشتی' },
-              { id: 'TODAY', label: 'ئەمڕۆ' },
-              { id: 'WEEK', label: '٧ ڕۆژی ڕابردوو' },
-              { id: 'MONTH', label: 'ئەم مانگە' },
-              { id: 'CUSTOM', label: 'بەرواری دیاریکراو' },
-            ] as { id: DatePreset; label: string }[]
-          ).map(btn => (
-            <button
-              key={btn.id}
-              type="button"
-              onClick={() => setDatePreset(btn.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                datePreset === btn.id
-                  ? 'bg-[#0071E3] text-white shadow-xs'
-                  : 'bg-[#F5F5F7] text-[#515154] hover:bg-[#E8E8ED]'
-              }`}
-            >
-              {btn.label}
-            </button>
-          ))}
-        </div>
-
-        {datePreset === 'CUSTOM' && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-[#86868B] font-semibold">لە:</span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={e => setFromDate(e.target.value)}
-              className="apple-input px-2.5 py-1.5 font-bold tabular-nums"
-            />
-            <span className="text-[#86868B] font-semibold">بۆ:</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={e => setToDate(e.target.value)}
-              className="apple-input px-2.5 py-1.5 font-bold tabular-nums"
-            />
+      {(activeReportTab === 'PNL' || activeReportTab === 'EXPENSES') && (
+        <div className="apple-card p-3.5 flex flex-wrap items-center justify-between gap-3 no-print">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-[#515154] flex items-center gap-1 ml-2">
+              <Calendar className="w-3.5 h-3.5 text-[#0071E3]" />
+              ماوەی ڕاپۆرت:
+            </span>
+            {(
+              [
+                { id: 'ALL', label: 'کۆی گشتی' },
+                { id: 'TODAY', label: 'ئەمڕۆ' },
+                { id: 'WEEK', label: '٧ ڕۆژی ڕابردوو' },
+                { id: 'MONTH', label: 'ئەم مانگە' },
+                { id: 'CUSTOM', label: 'بەرواری دیاریکراو' },
+              ] as { id: DatePreset; label: string }[]
+            ).map(btn => (
+              <button
+                key={btn.id}
+                type="button"
+                onClick={() => setDatePreset(btn.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  datePreset === btn.id
+                    ? 'bg-[#0071E3] text-white shadow-xs'
+                    : 'bg-[#F5F5F7] text-[#515154] hover:bg-[#E8E8ED]'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* P & L Statement Card */}
+          {datePreset === 'CUSTOM' && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[#86868B] font-semibold">لە:</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="apple-input px-2.5 py-1.5 font-bold tabular-nums"
+              />
+              <span className="text-[#86868B] font-semibold">بۆ:</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className="apple-input px-2.5 py-1.5 font-bold tabular-nums"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeReportTab === 'PNL' && (
       <div className="apple-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-black/[0.06] pb-3.5">
           <h3 className="font-extrabold text-[#1D1D1F] text-sm flex items-center gap-2">
@@ -529,8 +556,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Expenses Table */}
+      {activeReportTab === 'EXPENSES' && (
       <div className="apple-card overflow-hidden">
         <div className="p-4 border-b border-black/[0.06] flex items-center justify-between">
           <h3 className="font-extrabold text-[#1D1D1F] text-sm">تۆماری خەرجییەکانی کارگە</h3>
@@ -573,7 +602,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </table>
         </div>
       </div>
-        </>
       )}
 
       {/* Add Expense Sheet */}

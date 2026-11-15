@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 export const GiftsView: React.FC = () => {
   const { dispatches, products, factorySettings, repNames, addDispatch, softDeleteRecord, hasAccess } = useApp();
@@ -23,7 +24,7 @@ export const GiftsView: React.FC = () => {
 
   // Form States
   const [manualReceiptNo, setManualReceiptNo] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(toLocalISODate());
   const [time, setTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );

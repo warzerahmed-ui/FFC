@@ -13,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { LiveIntake, TabType, ProductCategory } from '../../types';
+import { toLocalISODate } from '../../utils/date';
 
 interface SlaughterCuttingViewProps {
   onNavigate: (tab: TabType) => void;
@@ -41,7 +42,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
 
   const [showModal, setShowModal] = useState(false);
   const [selectedIntakeId, setSelectedIntakeId] = useState('');
-  const [batchDate, setBatchDate] = useState(new Date().toISOString().split('T')[0]);
+  const [batchDate, setBatchDate] = useState(toLocalISODate());
   const [batchLiveWeightKg, setBatchLiveWeightKg] = useState<number | ''>('');
   const [cutWeights, setCutWeights] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
@@ -62,7 +63,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   const openSlaughterModal = (intake?: LiveIntake) => {
     const target = intake || pendingIntakes[0];
     setSelectedIntakeId(target?.id || '');
-    setBatchDate(new Date().toISOString().split('T')[0]);
+    setBatchDate(toLocalISODate());
     setBatchLiveWeightKg(target ? target.remainingLiveWeightKg : '');
     const initial: Record<string, number> = {};
     products.forEach(p => {

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 // ==========================================
 // AUDIO FEEDBACK (Web Audio API)
@@ -284,7 +285,11 @@ export const POSView: React.FC<POSViewProps> = ({
     const branchItem = branchStock.find(b => b.productId === product.id);
     const availableStock = branchItem ? branchItem.inStockKg : 0;
     const existingIndex = cart.findIndex(item => item.productId === product.id && item.pricePerKg === pricePerKg);
-    const existingWeight = existingIndex > -1 ? cart[existingIndex].weightKg : 0;
+    // Count ALL cart lines of this product (priced barcodes can create several lines with different per-kg prices)
+    const existingWeight = cart
+      .filter(item => item.productId === product.id)
+      .reduce((s, item) => s + item.weightKg, 0);
+    void existingIndex;
     const newTotalWeight = Math.round((existingWeight + weightKg) * 1000) / 1000;
 
     if (newTotalWeight > availableStock + 0.001) {
@@ -461,12 +466,21 @@ export const POSView: React.FC<POSViewProps> = ({
       return;
     }
 
-    const stockShortages: string[] = [];
+    const neededByProduct = new Map<string, { name: string; weightKg: number }>();
     cart.forEach(item => {
-      const branchItem = branchStock.find(b => b.productId === item.productId);
+      const cur = neededByProduct.get(item.productId);
+      neededByProduct.set(item.productId, {
+        name: item.productName,
+        weightKg: Math.round(((cur?.weightKg || 0) + item.weightKg) * 1000) / 1000,
+      });
+    });
+
+    const stockShortages: string[] = [];
+    neededByProduct.forEach(({ name, weightKg }, productId) => {
+      const branchItem = branchStock.find(b => b.productId === productId);
       const avail = branchItem ? branchItem.inStockKg : 0;
-      if (item.weightKg > avail + 0.001) {
-        stockShortages.push(`• ${item.productName}: داواکراو ${item.weightKg.toFixed(3)} کگم / بەردەست ${avail.toFixed(1)} کگم`);
+      if (weightKg > avail + 0.001) {
+        stockShortages.push(`• ${name}: داواکراو ${weightKg.toFixed(3)} کگم / بەردەست ${avail.toFixed(1)} کگم`);
       }
     });
 
@@ -482,7 +496,7 @@ export const POSView: React.FC<POSViewProps> = ({
         : customerNameInput.trim() || 'کڕیاری ئاسایی نەقد';
 
     const sale = addPOSSale({
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       items: [...cart],
       subtotal,
@@ -513,10 +527,11 @@ export const POSView: React.FC<POSViewProps> = ({
   // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)
   // ==========================================
   const showroomInboundReceipts = useMemo(() => {
+    const showroomNameNorm = (factorySettings.showroomName || '').trim().replace(/\s+/g, ' ').toLowerCase();
     const repDeliveries = dispatches
       .filter(d => {
-        const t = (d.customerName || d.destinationName || '').toLowerCase();
-        return t.includes('شۆرۆم') || t.includes('فرۆشگا') || (factorySettings.showroomName && t.includes(factorySettings.showroomName.toLowerCase()));
+        const t = (d.customerName || d.destinationName || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        return t === 'شۆرۆم' || t === 'فرۆشگای شۆرۆم' || (!!showroomNameNorm && t === showroomNameNorm);
       })
       .map(d => ({
         id: d.id,
@@ -624,7 +639,7 @@ export const POSView: React.FC<POSViewProps> = ({
     const cleanItems = receiveItems.map(({ trayCount: _tc, ...rest }) => rest);
     addBranchDelivery({
       manualReceiptNo: receiveReceiptNo.trim() || `SH-IN-${Date.now().toString().slice(-4)}`,
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       repName: receiveRepName.trim() || 'مەندوب / گەیاندنی ناوخۆ',
       items: cleanItems,
@@ -661,7 +676,7 @@ export const POSView: React.FC<POSViewProps> = ({
       return;
     }
     addBranchExpense({
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       title: expTitle.trim(),
       amount: roundTo250(amount),
@@ -1812,7 +1827,7 @@ export const POSView: React.FC<POSViewProps> = ({
                       {factorySettings.showroomName} • Z-Report
                     </p>
                     <p className="text-[10px] text-[#86868B] font-sans">
-                      بەروار: {new Date().toISOString().split('T')[0]} •{' '}
+                      بەروار: {toLocalISODate()} •{' '}
                       {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>

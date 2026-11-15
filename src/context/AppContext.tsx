@@ -43,6 +43,14 @@ import {
   ActivityLogEntry,
   UserRole,
 } from '../types';
+import { toLocalISODate } from '../utils/date';
+
+// Collision-resistant record IDs (safe across multiple devices syncing to D1)
+const genId = (): string =>
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeName = (s: string | undefined | null): string =>
+  (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: string }[] = [
   { id: 'dashboard', label: 'داشبۆردی سەرەکی', groupLabel: 'سەرەکی' },
@@ -712,7 +720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const entry: ActivityLogEntry = {
       id: `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestamp: now.toISOString(),
-      date: now.toISOString().slice(0, 10),
+      date: toLocalISODate(now),
       time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       userId: actor?.id || 'system',
       userName: isHiddenSuper ? 'بەڕێوەبەری کارگە' : actor?.name || 'بەکارهێنەر',
@@ -871,7 +879,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addIntake = (newIntake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => {
-    const id = `int-${Date.now()}`;
+    const id = `int-${genId()}`;
     const intake: LiveIntake = {
       ...newIntake,
       id,
@@ -899,7 +907,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addYieldRecord = (newYield: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => {
-    const id = `yld-${Date.now()}`;
+    const id = `yld-${genId()}`;
     const targetIntake = intakes.find(i => i.id === newYield.intakeId);
     const prevRemaining = targetIntake ? targetIntake.remainingLiveWeightKg : 0;
     const remainingAfter = Math.max(0, prevRemaining - newYield.batchLiveWeightKg);
@@ -943,7 +951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
-    const id = `disp-${Date.now()}`;
+    const id = `disp-${genId()}`;
     const dispatch: DispatchOrder = { ...newDispatch, id };
     setDispatches(prev => [dispatch, ...prev]);
     recordActivity(
@@ -958,16 +966,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if ((dispatch.destinationType === 'REP' || dispatch.destinationType === 'DIRECT') && dispatch.paymentType === 'CREDIT') {
       const custName = dispatch.customerName || dispatch.destinationName;
       if (custName) {
+        const target = normalizeName(custName);
         setCustomers(prev => {
-          const matchIndex = prev.findIndex(c => 
-            c.name.toLowerCase().includes(custName.toLowerCase()) || 
-            custName.toLowerCase().includes(c.name.toLowerCase())
-          );
+          // Exact (normalized) name match only — partial matching assigned debt to the wrong customer
+          const matchIndex = prev.findIndex(c => normalizeName(c.name) === target);
           if (matchIndex >= 0) {
             return prev.map((c, i) => i === matchIndex ? { ...c, currentDebt: c.currentDebt + dispatch.totalAmount } : c);
           } else {
             const newCust: Customer = {
-              id: `cust-${Date.now()}`,
+              id: `cust-${genId()}`,
               name: custName,
               phone: dispatch.driverOrRepPhone || '',
               type: 'SUPERMARKET',
@@ -996,22 +1003,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     }
 
-    // When a rep delivers goods to the showroom with a sales receipt, replenish showroom branchStock for POS!
-    const targetName = (dispatch.customerName || dispatch.destinationName || '').toLowerCase();
-    const isShowroom = targetName.includes('شۆرۆم') || targetName.includes('فرۆشگا') || (factorySettings.showroomName && targetName.includes(factorySettings.showroomName.toLowerCase()));
-    if (isShowroom && Array.isArray(dispatch.items)) {
-      setBranchStock(prev => prev.map(bs => {
-        const arrived = dispatch.items.find(i => i.productId === bs.productId);
-        if (arrived) {
-          return { ...bs, inStockKg: Math.round((bs.inStockKg + arrived.weightKg) * 1000) / 1000 };
-        }
-        return bs;
-      }));
-    }
+    // NOTE: Goods delivered to the showroom are NOT auto-added to showroom stock here.
+    // The showroom must accept them itself (scan trays / receive in POS → کۆگا و وەرگرتنی بار),
+    // otherwise the same goods were counted twice and any customer named "فرۆشگا…" polluted showroom stock.
   };
 
   const addReturn = (newReturn: Omit<ReturnOrder, 'id'>) => {
-    const id = `ret-${Date.now()}`;
+    const id = `ret-${genId()}`;
     const deduction = newReturn.totalCustomerDeduction !== undefined 
       ? newReturn.totalCustomerDeduction 
       : newReturn.totalLossAmount;
@@ -1065,7 +1063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     outputs: { productId: string; productName: string; weightKg: number }[],
     notes?: string
   ) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalISODate();
 
     setReturns(prev =>
       prev.map(r => {
@@ -1105,28 +1103,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addExpense = (newExpense: Omit<ExpenseRecord, 'id'>) => {
-    const id = `exp-${Date.now()}`;
+    const id = `exp-${genId()}`;
     setExpenses(prev => [{ ...newExpense, id }, ...prev]);
     recordActivity('FINANCE', 'CREATE', 'تۆمارکردنی خەرجی کارگە', `${newExpense.title} • ${newExpense.amount.toLocaleString()} د.ع`, newExpense.receiptNo);
   };
 
   const addCustomer = (newCustomer: Omit<Customer, 'id' | 'createdAt'>) => {
-    const id = `cust-${Date.now()}`;
+    const id = `cust-${genId()}`;
     const customer: Customer = {
       ...newCustomer,
       id,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: toLocalISODate(),
     };
     setCustomers(prev => [...prev, customer]);
     recordActivity('FINANCE', 'CREATE', 'زیادکردنی کڕیار / مارکێت', `${customer.name} (${customer.phone || 'بێ ژمارە'})`);
   };
 
   const addSupplier = (newSupplier: Omit<Supplier, 'id' | 'createdAt'>) => {
-    const id = `supp-${Date.now()}`;
+    const id = `supp-${genId()}`;
     const supplier: Supplier = {
       ...newSupplier,
       id,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: toLocalISODate(),
     };
     setSuppliers(prev => [...prev, supplier]);
     recordActivity('INTAKE', 'CREATE', 'زیادکردنی کێڵگە / دابینکەر', `${supplier.name} (${supplier.phone})`);
@@ -1134,7 +1132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Enhanced addVoucher: tracks previousDebt, amount, discount, remainingDebt, and time!
   const addVoucher = (newVoucher: Omit<PaymentVoucher, 'id' | 'previousDebt' | 'remainingDebt'>) => {
-    const id = `vouch-${Date.now()}`;
+    const id = `vouch-${genId()}`;
     const totalSettled = newVoucher.amount + (newVoucher.discount || 0);
 
     let previousDebt = 0;
@@ -1142,7 +1140,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (newVoucher.partyType === 'CUSTOMER') {
       const customer = customers.find(c => c.id === newVoucher.partyId);
       previousDebt = customer ? customer.currentDebt : 0;
-      const remainingDebt = Math.max(0, previousDebt - totalSettled);
+      const remainingDebt = previousDebt - totalSettled;
 
       const voucher: PaymentVoucher = {
         ...newVoucher,
@@ -1163,7 +1161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       const supplier = suppliers.find(s => s.id === newVoucher.partyId);
       previousDebt = supplier ? supplier.currentBalance : 0;
-      const remainingDebt = Math.max(0, previousDebt - totalSettled);
+      const remainingDebt = previousDebt - totalSettled;
 
       const voucher: PaymentVoucher = {
         ...newVoucher,
@@ -1185,8 +1183,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPOSSale = (saleData: Omit<POSSale, 'id' | 'saleNo'>): POSSale => {
-    const id = `pos-${Date.now()}`;
-    const saleNo = `POS-${String(posSales.length + 1).padStart(4, '0')}`;
+    const id = `pos-${genId()}`;
+    // Next number = highest existing number + 1 (stable after deletions)
+    const maxNo = posSales.reduce((m, s) => {
+      const n = parseInt(String(s.saleNo || '').replace(/\D/g, ''), 10);
+      return Number.isFinite(n) && n > m ? n : m;
+    }, 0);
+    const saleNo = `POS-${String(maxNo + 1).padStart(4, '0')}`;
     const sale: POSSale = { ...saleData, id, saleNo };
     setPosSales(prev => [sale, ...prev]);
     recordActivity(
@@ -1197,11 +1200,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sale.saleNo
     );
 
-    // Deduct from branch's dedicated stock
+    // Deduct from branch's dedicated stock — SUM all cart lines of the same product
+    // (the same product can appear on several lines with different per-kg prices from priced barcodes)
+    const soldByProduct = new Map<string, number>();
+    sale.items.forEach(i => soldByProduct.set(i.productId, (soldByProduct.get(i.productId) || 0) + i.weightKg));
     setBranchStock(prev => prev.map(bs => {
-      const item = sale.items.find(i => i.productId === bs.productId);
-      if (item) {
-        return { ...bs, inStockKg: Math.max(0, Number((bs.inStockKg - item.weightKg).toFixed(2))) };
+      const soldKg = soldByProduct.get(bs.productId);
+      if (soldKg) {
+        return { ...bs, inStockKg: Math.max(0, Number((bs.inStockKg - soldKg).toFixed(3))) };
       }
       return bs;
     }));
@@ -1209,13 +1215,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // If Showroom POS sale is on DEBT, add to the customer's debt ledger
     if (sale.paymentType === 'DEBT' && sale.total > 0) {
       const targetName = (sale.customerName || '').trim();
+      const target = normalizeName(targetName);
       setCustomers(prev => {
         const matchIndex = prev.findIndex(
           c =>
             (sale.customerId && c.id === sale.customerId) ||
-            (targetName &&
-              (c.name.toLowerCase().includes(targetName.toLowerCase()) ||
-                targetName.toLowerCase().includes(c.name.toLowerCase())))
+            (!sale.customerId && target && normalizeName(c.name) === target)
         );
         if (matchIndex >= 0) {
           return prev.map((c, i) =>
@@ -1224,7 +1229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (targetName) {
           const newCust: Customer = {
-            id: `cust-${Date.now()}`,
+            id: `cust-${genId()}`,
             name: targetName,
             phone: '',
             type: 'SUPERMARKET',
@@ -1243,31 +1248,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addBranchDelivery = (deliveryData: Omit<BranchDelivery, 'id'>) => {
-    const id = `bdel-${Date.now()}`;
+    const id = `bdel-${genId()}`;
     const delivery: BranchDelivery = { ...deliveryData, id };
     setBranchDeliveries(prev => [delivery, ...prev]);
 
-    // Add received weight to branch store stock
+    // Add received weight to branch store stock (sum per product)
+    const arrivedByProduct = new Map<string, number>();
+    delivery.items.forEach(i => arrivedByProduct.set(i.productId, (arrivedByProduct.get(i.productId) || 0) + i.weightKg));
     setBranchStock(prev => prev.map(bs => {
-      const arrived = delivery.items.find(i => i.productId === bs.productId);
-      if (arrived) {
-        return { ...bs, inStockKg: bs.inStockKg + arrived.weightKg };
+      const arrivedKg = arrivedByProduct.get(bs.productId);
+      if (arrivedKg) {
+        return { ...bs, inStockKg: Math.round((bs.inStockKg + arrivedKg) * 1000) / 1000 };
       }
       return bs;
     }));
 
-    // Deduct from factory inventory
-    setProducts(prev => prev.map(p => {
-      const arrived = delivery.items.find(i => i.productId === p.id);
-      if (arrived) {
-        return { ...p, inStockKg: Math.max(0, p.inStockKg - arrived.weightKg) };
-      }
-      return p;
-    }));
+    // Factory stock is NOT deducted here: goods reaching the showroom were already deducted
+    // from factory stock when loaded to the rep (custody) or dispatched directly.
+    recordActivity(
+      'SALES',
+      'CREATE',
+      'وەرگرتنی بار لە شۆرۆم',
+      `${delivery.repName} • ${delivery.totalWeightKg.toLocaleString()} کگم`,
+      delivery.manualReceiptNo
+    );
   };
 
   const addBranchExpense = (expData: Omit<BranchExpense, 'id'>) => {
-    const id = `bexp-${Date.now()}`;
+    const id = `bexp-${genId()}`;
     setBranchExpenses(prev => [{ ...expData, id }, ...prev]);
     recordActivity('FINANCE', 'CREATE', 'خەرجی شۆرۆم (POS)', `${expData.title} • ${expData.amount.toLocaleString()} د.ع`);
   };
@@ -1302,7 +1310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextCodeNum = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 107;
     const code = String(nextCodeNum);
     const barcodePrefix = `2100${code}`;
-    const id = `prod-${Date.now()}`;
+    const id = `prod-${genId()}`;
 
     const created: ProductItem = {
       id,
@@ -1508,7 +1516,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDailySettlement = (data: Omit<DailySettlement, 'id'>): DailySettlement => {
-    const id = `set-${Date.now()}`;
+    const id = `set-${genId()}`;
     const record: DailySettlement = { ...data, id };
     setSettlements(prev => [record, ...prev]);
     recordActivity(
@@ -1545,13 +1553,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const newUser: User = {
       ...userData,
-      id: `user-${Date.now()}`,
+      id: `user-${genId()}`,
       name: userData.name.trim(),
       phone: cleanPhone,
       password: userData.password.trim(),
       isSuperAdmin: false,
       isActive: userData.isActive !== false,
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: toLocalISODate(),
     };
     setUsers(prev => [...prev, newUser]);
     recordActivity(
@@ -1613,7 +1621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reason?: string
   ): boolean => {
     const now = new Date();
-    const deletedAt = now.toISOString().slice(0, 10);
+    const deletedAt = toLocalISODate(now);
     const deletedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const actorName =
       currentUser?.role === 'SUPER_ADMIN' ? 'بەڕێوەبەری کارگە' : currentUser?.name || 'بەڕێوەبەر';
@@ -2050,9 +2058,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isHiddenSuper = currentUser?.isSuperAdmin || currentUser?.role === 'SUPER_ADMIN';
     setActivityLogs([
       {
-        id: `act-${Date.now()}`,
+        id: `act-${genId()}`,
         timestamp: now.toISOString(),
-        date: now.toISOString().slice(0, 10),
+        date: toLocalISODate(now),
         time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         userId: currentUser?.id || 'system',
         userName: isHiddenSuper ? 'بەڕێوەبەری کارگە' : currentUser?.name || 'بەڕێوەبەر',

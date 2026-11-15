@@ -37,6 +37,7 @@ import {
   User,
   UserRole,
 } from '../../types';
+import { toLocalISODate } from '../../utils/date';
 
 type SettingsSubTab = 'FACTORY_INFO' | 'ACCOUNTS' | 'SOFT_DELETE' | 'ACTIVITY_LOG';
 
@@ -164,7 +165,7 @@ export const SettingsView: React.FC = () => {
     const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const dateStamp = new Date().toISOString().slice(0, 10);
+    const dateStamp = toLocalISODate();
     a.href = url;
     a.download = `${factorySettings.shortCode || 'FFC-POS'}-Backup-${dateStamp}.json`;
     a.click();
@@ -449,7 +450,7 @@ export const SettingsView: React.FC = () => {
   const [logSearch, setLogSearch] = useState('');
   const [confirmClearLogs, setConfirmClearLogs] = useState(false);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalISODate();
 
   const filteredLogs = useMemo(() => {
     const q = logSearch.trim().toLowerCase();

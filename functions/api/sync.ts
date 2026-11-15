@@ -35,6 +35,55 @@ const ADMIN_ONLY_READ_KEYS = new Set(['trashItems', 'activityLogs']);
 const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'ADMIN']);
 const MAX_BODY_CHARS = 4_000_000;
 
+const ALL_TABS = [
+  'dashboard',
+  'intake',
+  'production',
+  'ready-for-sale',
+  'custody',
+  'rep-sales',
+  'pos',
+  'gifts',
+  'accounting',
+  'reports',
+  'settings',
+];
+
+const getDefaultTabsForRole = (role: string): string[] => {
+  switch (role) {
+    case 'SUPER_ADMIN':
+    case 'ADMIN':
+      return ALL_TABS;
+    case 'ACCOUNTANT':
+      return ['dashboard', 'accounting', 'reports'];
+    case 'REP':
+      return ['dashboard', 'custody', 'rep-sales', 'gifts'];
+    case 'CASHIER':
+      return ['dashboard', 'pos'];
+    default:
+      return ['dashboard'];
+  }
+};
+
+// State key -> tabs permitted to write it for non-admin staff
+const WRITE_KEY_TABS: Record<string, string[]> = {
+  intakes: ['intake', 'production', 'accounting'],
+  suppliers: ['intake', 'production', 'accounting'],
+  yields: ['production'],
+  products: ['production', 'ready-for-sale', 'custody', 'rep-sales', 'gifts'],
+  custodyTransfers: ['ready-for-sale', 'custody', 'rep-sales', 'gifts'],
+  dispatches: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
+  returns: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
+  customers: ['rep-sales', 'pos', 'accounting'],
+  posSales: ['pos', 'ready-for-sale'],
+  branchStock: ['pos', 'ready-for-sale'],
+  branchDeliveries: ['pos', 'ready-for-sale'],
+  branchExpenses: ['pos', 'ready-for-sale'],
+  expenses: ['reports', 'accounting'],
+  settlements: ['reports', 'accounting'],
+  vouchers: ['accounting'],
+};
+
 interface UserRecord {
   id?: string;
   name?: string;
@@ -76,6 +125,62 @@ const sanitizeUserForStaff = (u: UserRecord): UserRecord => ({
   isActive: u.isActive,
 });
 
+interface CallerAccess {
+  ok: true;
+  isAdmin: boolean;
+  canReadSettings: boolean;
+  allowedTabs: Set<string>;
+}
+
+const resolveCallerAccess = (
+  session: { uid: string; role: string },
+  usersPayload?: string
+): CallerAccess | { ok: false } => {
+  if (session.role === 'SUPER_ADMIN') {
+    return {
+      ok: true,
+      isAdmin: true,
+      canReadSettings: true,
+      allowedTabs: new Set(ALL_TABS),
+    };
+  }
+
+  if (usersPayload) {
+    try {
+      const parsedUsers = JSON.parse(usersPayload) as UserRecord[];
+      if (Array.isArray(parsedUsers)) {
+        const me = parsedUsers.find(u => u && u.id === session.uid);
+        if (!me || me.isActive === false) {
+          return { ok: false };
+        }
+        const effectiveRole = me.role || session.role;
+        const isAdmin = ADMIN_ROLES.has(effectiveRole);
+        const tabsList = Array.isArray(me.allowedTabs)
+          ? me.allowedTabs
+          : getDefaultTabsForRole(effectiveRole);
+        const allowedTabs = new Set(tabsList);
+        return {
+          ok: true,
+          isAdmin,
+          canReadSettings: isAdmin || allowedTabs.has('settings'),
+          allowedTabs,
+        };
+      }
+    } catch {
+      // Ignore parse error and fall back to token role
+    }
+  }
+
+  const isAdmin = ADMIN_ROLES.has(session.role);
+  const allowedTabs = new Set(getDefaultTabsForRole(session.role));
+  return {
+    ok: true,
+    isAdmin,
+    canReadSettings: isAdmin || allowedTabs.has('settings'),
+    allowedTabs,
+  };
+};
+
 export const onRequestGet = async (context: { request: Request; env: Env }) => {
   const { request, env } = context;
   const auth = await requireSession(request, env);
@@ -90,24 +195,12 @@ export const onRequestGet = async (context: { request: Request; env: Env }) => {
       .prepare('SELECT state_key, payload, updated_at FROM app_state')
       .all<{ state_key: string; payload: string; updated_at: string }>();
 
-    const isAdmin = ADMIN_ROLES.has(auth.session.role);
-    let canReadSettings = isAdmin;
-
-    // Check if caller has custom 'settings' access granted by Admin
     const usersRow = (results || []).find(r => r.state_key === 'users');
-    if (!isAdmin && usersRow) {
-      try {
-        const parsedUsers = JSON.parse(usersRow.payload) as UserRecord[];
-        const me = Array.isArray(parsedUsers)
-          ? parsedUsers.find(u => u && u.id === auth.session.uid)
-          : undefined;
-        if (me && Array.isArray(me.allowedTabs) && me.allowedTabs.includes('settings')) {
-          canReadSettings = true;
-        }
-      } catch {
-        // ignore parse errors
-      }
+    const caller = resolveCallerAccess(auth.session, usersRow?.payload);
+    if (!caller.ok) {
+      return jsonResponse({ ok: false, error: 'Account disabled' }, 401);
     }
+    const { canReadSettings } = caller;
 
     const state: Record<string, unknown> = {};
     const keyVersions: Record<string, string> = {};
@@ -157,8 +250,6 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
   const { request, env } = context;
   const auth = await requireSession(request, env);
   if ('error' in auth) return auth.error;
-  const role = auth.session.role;
-  const isAdmin = ADMIN_ROLES.has(role);
 
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'D1 binding missing' }, 503);
@@ -190,6 +281,12 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
       (existingAll.results || []).map(r => [r.state_key, r])
     );
 
+    const caller = resolveCallerAccess(auth.session, existingByKey.get('users')?.payload);
+    if (!caller.ok) {
+      return jsonResponse({ ok: false, error: 'Account disabled' }, 401);
+    }
+    const { isAdmin, allowedTabs } = caller;
+
     const nowIso = new Date().toISOString();
     const statements: D1PreparedStatementLike[] = [];
     const nextKeyVersions: Record<string, string> = {};
@@ -200,6 +297,12 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
     for (const [key, rawValue] of Object.entries(incoming)) {
       if (!ALLOWED_KEYS.has(key) || rawValue === undefined) continue;
       if (ADMIN_ONLY_WRITE_KEYS.has(key) && !isAdmin) continue;
+      if (!isAdmin && key !== 'activityLogs') {
+        const permittedTabs = WRITE_KEY_TABS[key];
+        if (!permittedTabs || !permittedTabs.some(t => allowedTabs.has(t))) {
+          continue;
+        }
+      }
 
       const existingRow = existingByKey.get(key);
       const clientBaseVersion = baseVersions[key];
@@ -260,6 +363,26 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
           next.push(stored ? { ...rest, password: stored } : { ...rest });
         }
         value = next;
+      }
+
+      if (key === 'activityLogs') {
+        if (!Array.isArray(rawValue)) continue;
+        if (!isAdmin && existingRow) {
+          let existingLogs: { id?: string }[] = [];
+          try {
+            const parsed = JSON.parse(existingRow.payload);
+            if (Array.isArray(parsed)) existingLogs = parsed;
+          } catch {
+            existingLogs = [];
+          }
+          const existingIds = new Set(
+            existingLogs.map(l => (l && typeof l.id === 'string' ? l.id : '')).filter(Boolean)
+          );
+          const newLogs = (rawValue as { id?: string }[]).filter(
+            l => l && typeof l.id === 'string' && !existingIds.has(l.id)
+          );
+          value = [...newLogs, ...existingLogs].slice(0, 500);
+        }
       }
 
       nextKeyVersions[key] = nowIso;

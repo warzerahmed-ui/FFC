@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2 } from 'lucide-react';
 import { TabType, roundTo250 } from '../../types';
+import { toLocalISODate } from '../../utils/date';
 
 interface LiveIntakeViewProps {
   onNavigate?: (tab: TabType) => void;
@@ -18,7 +19,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
 
   // Form states
   const [manualReceiptNo, setManualReceiptNo] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(toLocalISODate());
   const [farmName, setFarmName] = useState('');
   const [showAddFarmBox, setShowAddFarmBox] = useState(false);
   const [newFarmName, setNewFarmName] = useState('');

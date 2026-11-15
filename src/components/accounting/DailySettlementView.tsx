@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { DailySettlement, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 const BRANCH_ACCOUNT_NAME = 'فرۆشگای تایبەت (POS / شۆرۆم)';
 
@@ -75,7 +76,7 @@ export const DailySettlementView: React.FC = () => {
     repNames,
   } = useApp();
 
-  const todayISO = new Date().toISOString().split('T')[0];
+  const todayISO = toLocalISODate();
   const [selectedDate, setSelectedDate] = useState<string>(todayISO);
   const [accountFilter, setAccountFilter] = useState<'ALL' | 'BRANCH' | 'REP'>('ALL');
   const [historyScope, setHistoryScope] = useState<'DATE' | 'ALL'>('ALL');
@@ -422,7 +423,7 @@ export const DailySettlementView: React.FC = () => {
     addDailySettlement({
       settlementNo: settlementNo.trim(),
       date: selectedDate,
-      settledAtDate: new Date().toISOString().split('T')[0],
+      settledAtDate: toLocalISODate(),
       settledAtTime: new Date().toLocaleTimeString('ckb-IQ', {
         hour: '2-digit',
         minute: '2-digit',

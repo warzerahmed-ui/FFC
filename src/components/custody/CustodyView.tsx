@@ -14,6 +14,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { TabType } from '../../types';
+import { toLocalISODate } from '../../utils/date';
 
 interface CustodyViewProps {
   onNavigate?: (tab: TabType) => void;
@@ -60,7 +61,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [loadHolderKey, setLoadHolderKey] = useState<string>(repNames[0] || '');
   const [loadReceiptNo, setLoadReceiptNo] = useState('');
-  const [loadDate, setLoadDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loadDate, setLoadDate] = useState(toLocalISODate());
   const [loadTime, setLoadTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
@@ -190,7 +191,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     const holder = defaultHolder || repNames[0] || 'مەندوب';
     setLoadHolderKey(holder);
     setLoadReceiptNo(`LD-${Math.floor(110 + Math.random() * 890)}`);
-    setLoadDate(new Date().toISOString().split('T')[0]);
+    setLoadDate(toLocalISODate());
     setLoadTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setLoadNotes('');
     setLoadItems([]);
@@ -303,7 +304,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
     returnUnsoldToReadyStock({
       receiptNo: returnReceiptNo.trim() || `RET-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
+      date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       holderType: returnTarget.holderType,
       holderName: returnTarget.holderName,

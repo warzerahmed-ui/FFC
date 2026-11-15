@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 type SubTabType = 'sales' | 'returns';
 
@@ -41,7 +42,7 @@ export const RepSalesView: React.FC = () => {
   // Sale Modal States
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [manualReceiptNo, setManualReceiptNo] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(toLocalISODate());
   const [time, setTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
@@ -72,7 +73,7 @@ export const RepSalesView: React.FC = () => {
 
   // Standalone Return Modal States (uses SAME sales receipt #)
   const [showReturnModal, setShowReturnModal] = useState(false);
-  const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [returnDate, setReturnDate] = useState(toLocalISODate());
   const [returnTime, setReturnTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
@@ -224,7 +225,7 @@ export const RepSalesView: React.FC = () => {
   // --- Sale Modal Handlers ---
   const handleOpenSaleModal = () => {
     setManualReceiptNo(`D-${Math.floor(800 + Math.random() * 200)}`);
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(toLocalISODate());
     setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setItemsList([]);
     setItemWeight('');
@@ -420,7 +421,7 @@ export const RepSalesView: React.FC = () => {
   };
 
   const handleOpenReturnModal = (preselectedReceipt?: DispatchOrder) => {
-    setReturnDate(new Date().toISOString().split('T')[0]);
+    setReturnDate(toLocalISODate());
     setReturnTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setReturnNotes('گەڕاوەی تەلەفی ٣ ڕۆژ لە مارکێتەوە');
     setSearchReceiptQuery('');

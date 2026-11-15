@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { TabType } from '../../types';
+import { toLocalISODate } from '../../utils/date';
 
 interface DashboardViewProps {
   setActiveTab: (tab: TabType) => void;
@@ -37,7 +38,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
     hasAccess,
   } = useApp();
 
-  const todayISO = new Date().toISOString().split('T')[0];
+  const todayISO = toLocalISODate();
 
   const remainingLiveKg = intakes.reduce((sum, i) => sum + i.remainingLiveWeightKg, 0);
   const todayLiveIntakeKg = intakes

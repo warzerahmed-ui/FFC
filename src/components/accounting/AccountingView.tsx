@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Customer, Supplier } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 export type AccountingSubTab = 'VOUCHERS' | 'CUSTOMERS' | 'SUPPLIERS';
 
@@ -42,7 +43,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   // Customer Statement Modal with Date Range Filter!
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [startDate, setStartDate] = useState<string>('2026-10-01');
-  const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState<string>(toLocalISODate());
 
   // Supplier Statement Modal
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -51,7 +52,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [voucherType, setVoucherType] = useState<'RECEIPT' | 'PAYMENT'>('RECEIPT');
   const [selectedPartyId, setSelectedPartyId] = useState('');
-  const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
+  const [voucherDate, setVoucherDate] = useState(toLocalISODate());
   const [voucherTime, setVoucherTime] = useState(
     new Date().toLocaleTimeString('ckb-IQ', { hour: '2-digit', minute: '2-digit' })
   );
@@ -310,7 +311,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             onClick={() => {
               setVoucherType('RECEIPT');
               setSelectedPartyId(customers[0]?.id || '');
-              setVoucherDate(new Date().toISOString().split('T')[0]);
+              setVoucherDate(toLocalISODate());
               setVoucherTime(new Date().toLocaleTimeString('ckb-IQ', { hour: '2-digit', minute: '2-digit' }));
               setShowVoucherModal(true);
             }}
@@ -324,7 +325,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             onClick={() => {
               setVoucherType('PAYMENT');
               setSelectedPartyId(suppliers[0]?.id || '');
-              setVoucherDate(new Date().toISOString().split('T')[0]);
+              setVoucherDate(toLocalISODate());
               setVoucherTime(new Date().toLocaleTimeString('ckb-IQ', { hour: '2-digit', minute: '2-digit' }));
               setShowVoucherModal(true);
             }}
@@ -637,8 +638,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                     onClick={() => {
                       const d = new Date();
                       d.setDate(1); // First of month
-                      setStartDate(d.toISOString().split('T')[0]);
-                      setEndDate(new Date().toISOString().split('T')[0]);
+                      setStartDate(toLocalISODate(d));
+                      setEndDate(toLocalISODate());
                     }}
                     className="px-3 py-1 bg-white hover:bg-[#F5F5F7] text-[#0071E3] border border-[#0071E3]/20 rounded-lg font-bold"
                   >
@@ -647,7 +648,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   <button
                     onClick={() => {
                       setStartDate('2026-01-01');
-                      setEndDate(new Date().toISOString().split('T')[0]);
+                      setEndDate(toLocalISODate());
                     }}
                     className="px-3 py-1 bg-white hover:bg-[#F5F5F7] text-[#515154] border border-black/[0.08] rounded-lg font-bold"
                   >
@@ -823,7 +824,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 </div>
               </div>
               <div className="text-left text-xs">
-                <div>بەروار: <strong>{new Date().toISOString().split('T')[0]}</strong></div>
+                <div>بەروار: <strong>{toLocalISODate()}</strong></div>
                 <div className="text-[#FF9500] font-bold text-sm">ماوەی قەرز: {selectedSupplier.currentBalance.toLocaleString()} د.ع</div>
               </div>
             </div>
@@ -841,7 +842,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   type="button"
                   onClick={() => {
                     const csvRows = [
-                      [factorySettings.factoryName, 'کەشف حسابی کێڵگە', selectedSupplier.name, new Date().toISOString().split('T')[0]],
+                      [factorySettings.factoryName, 'کەشف حسابی کێڵگە', selectedSupplier.name, toLocalISODate()],
                       ['ناوی کێڵگە', 'تەلەفۆن', 'شوێن', 'قەرزی ماوە (د.ع)'],
                       [selectedSupplier.name, selectedSupplier.phone, selectedSupplier.farmLocation, String(selectedSupplier.currentBalance)],
                     ];

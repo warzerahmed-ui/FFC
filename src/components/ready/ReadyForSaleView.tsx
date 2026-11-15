@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ProductItem, ReturnOrder, TabType, ProductCategory } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
+import { toLocalISODate } from '../../utils/date';
 
 type SubTabType = 'inventory' | 'returns-conversion';
 
@@ -845,7 +846,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                       </text>
                     </svg>
                     <div className="text-[10px] text-[#86868B]">
-                      بەرواری بەرهەمهێنان: {new Date().toISOString().slice(0, 10)} • ماوەی فرێش: {factorySettings.returnWindowDays} ڕۆژ
+                      بەرواری بەرهەمهێنان: {toLocalISODate()} • ماوەی فرێش: {factorySettings.returnWindowDays} ڕۆژ
                     </div>
                   </div>
                 )}
