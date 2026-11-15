@@ -22,6 +22,10 @@ import {
   Edit3,
   AlertCircle,
   MessageCircle,
+  PauseCircle,
+  PlayCircle,
+  Clock,
+  FileText,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, ReturnItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -159,6 +163,31 @@ export const POSView: React.FC = () => {
   // Thermal Receipt Print Modal
   const [printReceipt, setPrintReceipt] = useState<POSSale | null>(null);
 
+  // Z-Report (Shift / Cash Drawer Closing) Modal
+  const [showZReportModal, setShowZReportModal] = useState(false);
+
+  // Hold / Park Orders (ڕاگرتنی کاتیی وەسڵ)
+  interface HeldOrder {
+    id: string;
+    label: string;
+    time: string;
+    items: POSSaleItem[];
+    discountPercent: number;
+    discountAmount: number;
+    customerName: string;
+  }
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem('ffc_pos_held_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem('ffc_pos_held_orders', JSON.stringify(heldOrders));
+  }, [heldOrders]);
+
   // Price Editor Modal (replaces native browser prompt)
   const [editingPriceItem, setEditingPriceItem] = useState<BranchStockItem | null>(null);
   const [newPriceInput, setNewPriceInput] = useState<string>('');
@@ -170,6 +199,69 @@ export const POSView: React.FC = () => {
       scannerInputRef.current.focus();
     }
   }, [activeSubTab]);
+
+  // Keyboard shortcuts for speed: F2 (Focus Scanner), F4 (Checkout), Escape (Close Modals)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setActiveSubTab('REGISTER');
+        setTimeout(() => scannerInputRef.current?.focus(), 50);
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        if (activeSubTab === 'REGISTER' && cart.length > 0 && !printReceipt && !weightModalProduct && !showZReportModal) {
+          handleCompleteSale();
+        }
+      } else if (e.key === 'Escape') {
+        setWeightModalProduct(null);
+        setPrintReceipt(null);
+        setEditingPriceItem(null);
+        setShowZReportModal(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
+  const handleHoldOrder = () => {
+    if (cart.length === 0) return;
+    const newHeld: HeldOrder = {
+      id: `hold-${Date.now()}`,
+      label: customerNameInput && customerNameInput !== 'کڕیاری ئاسایی نەقد' ? customerNameInput : `وەسڵی ڕاگیراو #${heldOrders.length + 1}`,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      items: [...cart],
+      discountPercent,
+      discountAmount,
+      customerName: customerNameInput,
+    };
+    setHeldOrders(prev => [newHeld, ...prev]);
+    setCart([]);
+    setDiscountAmount(0);
+    setDiscountPercent(0);
+    setCashGiven('');
+    setCustomerNameInput('کڕیاری ئاسایی نەقد');
+    playPosBeep('scale');
+    showToast('وەسڵەکە بە کاتی ڕاگیرا (Hold)', 'info');
+  };
+
+  const handleResumeHeldOrder = (orderId: string) => {
+    const target = heldOrders.find(o => o.id === orderId);
+    if (!target) return;
+    if (cart.length > 0) {
+      handleHoldOrder();
+    }
+    setCart(target.items);
+    setDiscountPercent(target.discountPercent);
+    setDiscountAmount(target.discountAmount);
+    setCustomerNameInput(target.customerName || 'کڕیاری ئاسایی نەقد');
+    setHeldOrders(prev => prev.filter(o => o.id !== orderId));
+    playPosBeep('success');
+    showToast(`وەسڵی "${target.label}" گەڕێندرایەوە سەبەتە`, 'success');
+  };
+
+  const handleDeleteHeldOrder = (orderId: string) => {
+    setHeldOrders(prev => prev.filter(o => o.id !== orderId));
+  };
 
   const showToast = (text: string, type: 'success' | 'warn' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -204,7 +296,7 @@ export const POSView: React.FC = () => {
       if (weight + inCartWeight > currentStock + 0.001) {
         playPosBeep('error');
         alert(
-          `ڕێگری لە سکانکردن:\nبڕی کێش لە بارکۆدەدا (${weight.toFixed(3)} کگم) لەگەڵ ئەوەی لە سەبەتەدایە (${inCartWeight.toFixed(3)} کگم) لە ستۆکی بەردەستی شۆرۆم (${currentStock.toFixed(1)} کگم) زیاترە!\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر شۆرۆم.`
+          `ڕێگری لە سکانکردن:\nبڕی کێش لە بارکۆدەدا (${weight.toFixed(3)} کگم) لەگەڵ ئەوەی لە سەبەتەدایە (${inCartWeight.toFixed(3)} کگم) لە ستۆکی بەردەستی شۆرۆم (${currentStock.toFixed(1)} کگم) زیاترە!\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ شۆرۆم بهێنە.`
         );
         setScannerInput('');
         return;
@@ -233,7 +325,7 @@ export const POSView: React.FC = () => {
     if (newTotalWeight > availableStock + 0.001) {
       playPosBeep('error');
       alert(
-        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە بڕی بەردەستی کۆگای شۆرۆم زیاتر بفرۆشیت!\n\nبەرهەم: ${product.nameKu}\nبەردەست لە کۆگا: ${availableStock.toFixed(1)} کگم\nکێشی داواکراو: ${newTotalWeight.toFixed(3)} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر کۆگای شۆرۆم.`
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە بڕی بەردەستی کۆگای شۆرۆم زیاتر بفرۆشیت!\n\nبەرهەم: ${product.nameKu}\nبەردەست لە کۆگا: ${availableStock.toFixed(1)} کگم\nکێشی داواکراو: ${newTotalWeight.toFixed(3)} کگم\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ کۆگای شۆرۆم بهێنە.`
       );
       return false;
     }
@@ -333,7 +425,7 @@ export const POSView: React.FC = () => {
     if (stockShortages.length > 0) {
       playPosBeep('error');
       alert(
-        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تەواو بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای شۆرۆمدا لە کێشی داواکراو کەمترە:\n\n${stockShortages.join('\n')}\n\nتکایە کێشەکەیان کەم بکەرەوە یان سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر شۆرۆم.`
+        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تەواو بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای شۆرۆمدا لە کێشی داواکراو کەمترە:\n\n${stockShortages.join('\n')}\n\nتکایە کێشەکەیان کەم بکەرەوە یان سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ شۆرۆم بهێنە.`
       );
       return;
     }
@@ -618,7 +710,7 @@ export const POSView: React.FC = () => {
                   <span className="w-2 h-2 rounded-full bg-[#34C759]" />
                   <span>سکانەری بارکۆد کارایە (USB / Wireless)</span>
                 </div>
-                <span className="text-[11px] font-mono text-[#86868B]">EAN-13 Scale & Direct Code</span>
+                <span className="text-[11px] font-mono text-[#86868B]">F2: سکانەر • F4: تەواوکردن • EAN-13</span>
               </div>
 
               <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
@@ -734,7 +826,7 @@ export const POSView: React.FC = () => {
                       onClick={() => {
                         if (inStock <= 0) {
                           playPosBeep('error');
-                          alert(`ئەم بەرهەمە (${product.nameKu}) لە کۆگای شۆرۆمدا بەردەست نییە و تەواوبووە!\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) کاڵا بار بکە سەر کۆگای شۆرۆم.`);
+                          alert(`ئەم بەرهەمە (${product.nameKu}) لە کۆگای شۆرۆمدا بەردەست نییە و تەواوبووە!\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ کۆگای شۆرۆم بهێنە.`);
                           return;
                         }
                         setWeightModalProduct(product);
@@ -753,12 +845,18 @@ export const POSView: React.FC = () => {
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
                               inStock > 20
                                 ? 'bg-[#34C759]/12 text-[#248A3D]'
-                                : inStock > 0
+                                : inStock >= 5
                                 ? 'bg-[#FF9500]/12 text-[#B25000]'
-                                : 'bg-[#FF3B30]/12 text-[#D70015]'
+                                : inStock > 0
+                                ? 'bg-[#FF3B30]/12 text-[#D70015]'
+                                : 'bg-[#FF3B30]/15 text-[#D70015]'
                             }`}
                           >
-                            {inStock.toFixed(1)} کگم
+                            {inStock <= 0
+                              ? 'نەماوە'
+                              : inStock < 5
+                              ? `${inStock.toFixed(1)} کگم • کەمە!`
+                              : `${inStock.toFixed(1)} کگم`}
                           </span>
                         </div>
                         <h4 className="font-bold text-xs text-[#1D1D1F] group-hover:text-[#0071E3] transition-colors line-clamp-2">
@@ -798,15 +896,63 @@ export const POSView: React.FC = () => {
                   </div>
 
                   {cart.length > 0 && (
-                    <button
-                      onClick={clearCart}
-                      className="px-2.5 py-1 rounded-full text-[#FF3B30] hover:bg-[#FF3B30]/10 text-xs font-semibold transition-colors flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      پاککردنەوە
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleHoldOrder}
+                        className="px-2.5 py-1 rounded-full text-[#FF9500] bg-[#FF9500]/10 hover:bg-[#FF9500]/18 text-xs font-bold transition-colors flex items-center gap-1"
+                        title="ڕاگرتنی کاتیی وەسڵ (Hold)"
+                      >
+                        <PauseCircle className="w-3.5 h-3.5" />
+                        ڕاگرتن
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearCart}
+                        className="px-2.5 py-1 rounded-full text-[#FF3B30] hover:bg-[#FF3B30]/10 text-xs font-semibold transition-colors flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        پاککردنەوە
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Held / Parked Orders Bar */}
+                {heldOrders.length > 0 && (
+                  <div className="mt-2.5 p-2.5 rounded-2xl bg-[#FF9500]/8 border border-[#FF9500]/20 space-y-1.5">
+                    <div className="text-[10px] font-extrabold text-[#B25000] flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>وەسڵە ڕاگیراوەکان ({heldOrders.length}) — کلیک بکە بۆ گەڕاندنەوە:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {heldOrders.map(order => (
+                        <div
+                          key={order.id}
+                          className="inline-flex items-center gap-1 bg-white border border-[#FF9500]/30 rounded-full pl-1.5 pr-2.5 py-1 text-[11px] shadow-2xs"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleResumeHeldOrder(order.id)}
+                            className="flex items-center gap-1 font-bold text-[#1D1D1F] hover:text-[#0071E3]"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5 text-[#34C759]" />
+                            <span>{order.label}</span>
+                            <span className="text-[10px] text-[#86868B] font-mono">({order.time})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteHeldOrder(order.id)}
+                            className="text-[#86868B] hover:text-[#FF3B30] p-0.5"
+                            title="سڕینەوە"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Cart Items */}
                 <div className="divide-y divide-black/[0.05] max-h-[250px] overflow-y-auto my-2">
@@ -985,22 +1131,49 @@ export const POSView: React.FC = () => {
 
                 {/* Cash Paid & Change Return */}
                 {paymentType === 'CASH' && (
-                  <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#34C759]/8 border border-[#34C759]/20 text-xs">
-                    <div>
-                      <span className="text-[#515154] font-semibold block mb-1">پارەی وەرگیراو:</span>
-                      <input
-                        type="number"
-                        value={cashGiven}
-                        onChange={e => setCashGiven(e.target.value)}
-                        placeholder={netTotal > 0 ? netTotal.toString() : '25000'}
-                        className="w-full px-3 py-1.5 bg-white border border-black/[0.08] rounded-xl font-bold text-sm text-[#1D1D1F] tabular-nums outline-none focus:border-[#34C759]"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[#515154] font-semibold block mb-1">پارەی گەڕاوە (باقی):</span>
-                      <div className="font-extrabold text-base text-[#248A3D] tabular-nums py-1">
-                        {changeDue > 0 ? `${changeDue.toLocaleString()} د.ع` : '٠ د.ع'}
+                  <div className="p-3 rounded-2xl bg-[#34C759]/8 border border-[#34C759]/20 text-xs space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <span className="text-[#515154] font-semibold block mb-1">پارەی وەرگیراو:</span>
+                        <input
+                          type="number"
+                          value={cashGiven}
+                          onChange={e => setCashGiven(e.target.value)}
+                          placeholder={netTotal > 0 ? netTotal.toString() : '25000'}
+                          className="w-full px-3 py-1.5 bg-white border border-black/[0.08] rounded-xl font-bold text-sm text-[#1D1D1F] tabular-nums outline-none focus:border-[#34C759]"
+                        />
                       </div>
+                      <div>
+                        <span className="text-[#515154] font-semibold block mb-1">پارەی گەڕاوە (باقی):</span>
+                        <div className="font-extrabold text-base text-[#248A3D] tabular-nums py-1">
+                          {changeDue > 0 ? `${changeDue.toLocaleString()} د.ع` : '٠ د.ع'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Cash Denomination Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#34C759]/15">
+                      <button
+                        type="button"
+                        onClick={() => setCashGiven(netTotal > 0 ? netTotal.toString() : '')}
+                        className="px-2.5 py-1 rounded-full bg-[#34C759] text-white font-bold text-[10px] hover:bg-[#28B34C] transition-colors"
+                      >
+                        تەواو
+                      </button>
+                      {[5000, 10000, 25000, 50000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setCashGiven(amt.toString())}
+                          className={`px-2.5 py-1 rounded-full font-mono font-bold text-[10px] border transition-colors ${
+                            Number(cashGiven) === amt
+                              ? 'bg-[#1D1D1F] text-white border-[#1D1D1F]'
+                              : 'bg-white text-[#1D1D1F] border-black/[0.08] hover:bg-[#F5F5F7]'
+                          }`}
+                        >
+                          {amt.toLocaleString()}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1014,6 +1187,7 @@ export const POSView: React.FC = () => {
                 >
                   <Printer className="w-4 h-4" />
                   <span>تەواوکردن و چاپکردنی وەسڵ (80mm)</span>
+                  <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded-md">F4</span>
                 </button>
               </div>
             </div>
@@ -1345,6 +1519,27 @@ export const POSView: React.FC = () => {
       {/* ========================================================================= */}
       {activeSubTab === 'REGISTER_REPORT' && (
         <div className="space-y-5">
+          {/* Z-Report Bar */}
+          <div className="apple-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-[#1D1D1F] flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#0071E3]" />
+                ڕاپۆرتی سندوقی کاشێر و داخستنی شەفت (Z-Report)
+              </h3>
+              <p className="text-[11px] text-[#86868B] mt-0.5">
+                پوختەی فرۆشتنی نەقد، کارت، قەرز، خەرجی و صافی پارەی ناو قاسە بە 80mm
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowZReportModal(true)}
+              className="px-4 py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 shrink-0"
+            >
+              <Printer className="w-4 h-4" />
+              چاپکردنی Z-Report (داخستنی سندوق)
+            </button>
+          </div>
+
           {/* Apple Bento KPI Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="apple-card p-4">
@@ -1893,6 +2088,113 @@ export const POSView: React.FC = () => {
               تۆمارکردنی خەرجی
             </button>
           </form>
+        </div>
+      )}
+
+      {/* 80mm Z-REPORT (END OF SHIFT CASH DRAWER CLOSING) MODAL */}
+      {showZReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
+            <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
+              <span className="text-xs font-bold text-[#86868B]">Z-Report (داخستنی سندوق 80mm)</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  چاپکردن
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowZReportModal(false)}
+                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {(() => {
+              const cardSalesTotal = posSales
+                .filter(s => s.paymentType === 'FIB_OR_CARD')
+                .reduce((sum, s) => sum + s.total, 0);
+              const debtSalesTotal = posSales
+                .filter(s => s.paymentType === 'DEBT')
+                .reduce((sum, s) => sum + s.total, 0);
+              const totalSoldKg = posSales.reduce(
+                (sum, s) => sum + s.items.reduce((is, i) => is + i.weightKg, 0),
+                0
+              );
+
+              return (
+                <div className="space-y-3 text-center font-mono text-xs text-[#1D1D1F]">
+                  <div className="space-y-1">
+                    <div className="flex justify-center">
+                      <FactoryLogo size="sm" />
+                    </div>
+                    <h4 className="font-black text-base font-sans">{factorySettings.factoryName}</h4>
+                    <p className="text-[11px] font-bold text-[#0071E3] font-sans">
+                      {factorySettings.showroomName} • Z-Report
+                    </p>
+                    <p className="text-[10px] text-[#86868B] font-sans">
+                      بەروار: {new Date().toISOString().split('T')[0]} • {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right font-sans">
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">کاشێر:</span>
+                      <span className="font-bold">{currentUser?.name || '---'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">ژمارەی وەسڵەکان:</span>
+                      <span className="font-bold tabular-nums">{posSales.length} وەسڵ</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">کۆی کێشی فرۆشراو:</span>
+                      <span className="font-bold tabular-nums">{totalSoldKg.toFixed(2)} کگم</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-right text-[11px] font-sans border-b border-dashed border-black/20 pb-2.5">
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">فرۆشتنی نەقد:</span>
+                      <span className="font-bold text-[#248A3D] tabular-nums">{totalCashSales.toLocaleString()} د.ع</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">فرۆشتنی کارت / FIB:</span>
+                      <span className="font-bold text-[#0071E3] tabular-nums">{cardSalesTotal.toLocaleString()} د.ع</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#86868B]">فرۆشتنی قەرز:</span>
+                      <span className="font-bold text-[#D70015] tabular-nums">{debtSalesTotal.toLocaleString()} د.ع</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-black/[0.06]">
+                      <span className="font-bold">کۆی گشتی فرۆش:</span>
+                      <span className="font-black tabular-nums">{totalAllSales.toLocaleString()} د.ع</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-right font-sans">
+                    <div className="flex justify-between text-[11px] text-[#FF3B30]">
+                      <span>کۆی خەرجییەکانی شۆرۆم:</span>
+                      <span className="font-bold tabular-nums">-{totalBranchExpenses.toLocaleString()} د.ع</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-black pt-1.5 border-t border-black/15">
+                      <span>صافی پارەی ناو قاسە:</span>
+                      <span className="text-[#0071E3] tabular-nums">{netCashInDrawer.toLocaleString()} د.ع</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-[#86868B] font-sans pt-2">
+                    راپۆرتی فەرمی داخستنی سندوق • FFC-POS
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
     </div>

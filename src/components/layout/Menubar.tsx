@@ -41,7 +41,7 @@ interface MenuSubItem {
 }
 
 interface MenuGroup {
-  key: 'dashboard' | 'factory' | 'sales' | 'finance';
+  key: 'dashboard' | 'factory' | 'sales' | 'showroom' | 'finance';
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   directTab?: TabType;
@@ -112,18 +112,26 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: Send,
       },
       {
-        id: 'pos',
-        label: '٦. فرۆشگای شۆرۆم (POS)',
-        description: 'کاشێری بارکۆد، قەرز، ئەلکترۆنی و گەڕاوەی شۆرۆم',
-        badge: 'قۆناغی ٦',
-        icon: ShoppingBag,
-      },
-      {
         id: 'gifts',
-        label: '٧. دیاری و هەدیە',
+        label: '٦. دیاری و هەدیە',
         description: 'بەخشینی بێبەرامبەر بە تێچووی کارگە',
-        badge: 'قۆناغی ٧',
+        badge: 'قۆناغی ٦',
         icon: Gift,
+      },
+    ],
+  },
+  {
+    key: 'showroom',
+    label: 'فرۆشگای شۆرۆم (POS)',
+    icon: ShoppingBag,
+    directTab: 'pos',
+    items: [
+      {
+        id: 'pos',
+        label: 'فرۆشگای شۆرۆم (POS)',
+        description: 'کاشێری بارکۆد، قەرز، ئەلکترۆنی و گەڕاوەی شۆرۆم',
+        badge: 'POS',
+        icon: ShoppingBag,
       },
     ],
   },
