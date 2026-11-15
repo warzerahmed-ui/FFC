@@ -5,7 +5,6 @@ import {
   Plus,
   Send,
   RotateCcw,
-  Store,
   User,
   CheckCircle,
   AlertCircle,
@@ -30,7 +29,7 @@ interface ProductBreakdown {
 }
 
 interface HolderSummary {
-  holderType: 'REP' | 'BRANCH';
+  holderType: 'REP';
   holderName: string;
   loadedKg: number;
   soldKg: number;
@@ -422,11 +421,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 : 'bg-white text-[#515154] border border-black/[0.06] hover:bg-[#F5F5F7]'
             }`}
           >
-            {h.holderType === 'BRANCH' ? (
-              <Store className="w-3 h-3" />
-            ) : (
-              <User className="w-3 h-3" />
-            )}
+            <User className="w-3 h-3" />
             <span>{h.holderName.split(' (')[0]}</span>
             {h.remainingKg > 0 && (
               <span
@@ -453,25 +448,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 {/* Card Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.05]">
                   <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                        holder.holderType === 'BRANCH'
-                          ? 'bg-[#AF52DE]/12 text-[#AF52DE]'
-                          : 'bg-[#0071E3]/12 text-[#0071E3]'
-                      }`}
-                    >
-                      {holder.holderType === 'BRANCH' ? (
-                        <Store className="w-4 h-4" />
-                      ) : (
-                        <User className="w-4 h-4" />
-                      )}
+                    <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 bg-[#0071E3]/12 text-[#0071E3]">
+                      <User className="w-4 h-4" />
                     </div>
                     <div>
                       <h3 className="text-sm font-extrabold text-[#1D1D1F]">{holder.holderName}</h3>
                       <span className="text-[10px] text-[#86868B] font-semibold">
-                        {holder.holderType === 'BRANCH'
-                          ? 'حسابی فرۆشگای تایبەت (POS)'
-                          : 'حسابی عەهدەی مەندوب'}
+                        حسابی عەهدەی مەندوب
                       </span>
                     </div>
                   </div>
@@ -566,11 +549,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-black/[0.05]">
                 <button
                   type="button"
-                  onClick={() =>
-                    handleOpenLoadModal(
-                      holder.holderType === 'BRANCH' ? 'BRANCH' : holder.holderName
-                    )
-                  }
+                  onClick={() => handleOpenLoadModal(holder.holderName)}
                   className="px-3.5 py-2 rounded-full bg-[#0071E3]/10 hover:bg-[#0071E3] text-[#0071E3] hover:text-white text-[11px] font-bold flex items-center gap-1 transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -591,9 +570,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 {onNavigate && (
                   <button
                     type="button"
-                    onClick={() =>
-                      onNavigate(holder.holderType === 'BRANCH' ? 'pos' : 'rep-sales')
-                    }
+                    onClick={() => onNavigate('rep-sales')}
                     className="mr-auto px-3 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] text-[11px] font-semibold flex items-center gap-1 transition-all"
                   >
                     <ArrowRight className="w-3 h-3" />
