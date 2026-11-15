@@ -234,7 +234,7 @@ export const POSView: React.FC<POSViewProps> = ({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
-        setActiveSubTab('REGISTER');
+        handleSubTabChange('REGISTER');
         setTimeout(() => scannerInputRef.current?.focus(), 50);
       } else if (e.key === 'F4') {
         e.preventDefault();
@@ -677,39 +677,15 @@ export const POSView: React.FC<POSViewProps> = ({
           </div>
         </div>
 
-        <div className="apple-segmented overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => handleSubTabChange('REGISTER')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'REGISTER' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <Barcode className="w-3.5 h-3.5 text-[#0071E3]" />
-            <span>کاشێر و فرۆشتن</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSubTabChange('INVENTORY')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'INVENTORY' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] font-bold">
             <Boxes className="w-3.5 h-3.5 text-[#34C759]" />
-            <span>کۆگا و وەرگرتنی بار ({totalShowroomStockKg.toFixed(0)} کگم)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSubTabChange('REGISTER_REPORT')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'REGISTER_REPORT' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
+            <span>کۆگای ئێستا: {totalShowroomStockKg.toFixed(0)} کگم</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] font-bold">
             <TrendingUp className="w-3.5 h-3.5 text-[#FF9500]" />
-            <span>سەندوق، خەرجی و وەسڵەکان ({posSales.length})</span>
-          </button>
+            <span>وەسڵی تۆمارکراو: {posSales.length}</span>
+          </span>
         </div>
       </div>
 
