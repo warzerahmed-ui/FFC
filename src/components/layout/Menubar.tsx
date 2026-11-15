@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { TabType } from '../../types';
 import { FactoryLogo } from './FactoryLogo';
+import type { PosSubTab } from '../pos/POSView';
 import {
   LayoutDashboard,
   Truck,
@@ -11,6 +12,9 @@ import {
   Send,
   Gift,
   ShoppingBag,
+  Barcode,
+  Boxes,
+  Receipt,
   Calculator,
   FileSpreadsheet,
   ChevronDown,
@@ -29,10 +33,13 @@ import {
 interface MenubarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  activePosSubTab?: PosSubTab;
+  setPosSubTab?: (tab: PosSubTab) => void;
 }
 
 interface MenuSubItem {
   id: TabType;
+  posSubTab?: PosSubTab;
   label: string;
   description: string;
   badge: string;
@@ -124,14 +131,30 @@ const MENU_GROUPS: MenuGroup[] = [
     key: 'showroom',
     label: 'فرۆشگای شۆرۆم (POS)',
     icon: ShoppingBag,
-    directTab: 'pos',
     items: [
       {
         id: 'pos',
-        label: 'فرۆشگای شۆرۆم (POS)',
-        description: 'کاشێری بارکۆد، وەسڵی 80mm، کۆگا و سەندوقی شۆرۆم',
+        posSubTab: 'REGISTER',
+        label: '١. کاشێر و فرۆشتن',
+        description: 'سکانەری بارکۆد و تەرازوو، سەبەتەی فرۆشتن و چاپی وەسڵی 80mm',
         badge: 'POS',
-        icon: ShoppingBag,
+        icon: Barcode,
+      },
+      {
+        id: 'pos',
+        posSubTab: 'INVENTORY',
+        label: '٢. کۆگا و وەرگرتنی بار',
+        description: 'بەڕێوەبردنی کۆگای شۆرۆم و وەرگرتنی باری نێردراوی کارگە',
+        badge: 'کۆگا',
+        icon: Boxes,
+      },
+      {
+        id: 'pos',
+        posSubTab: 'REGISTER_REPORT',
+        label: '٣. سەندوق، خەرجی و وەسڵەکان',
+        description: 'تەسفیەی سەندوقی ڕۆژانە، خەرجی لق و مێژووی وەسڵەکان',
+        badge: 'سەندوق',
+        icon: Receipt,
       },
     ],
   },
@@ -158,7 +181,12 @@ const MENU_GROUPS: MenuGroup[] = [
   },
 ];
 
-export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => {
+export const Menubar: React.FC<MenubarProps> = ({
+  activeTab,
+  setActiveTab,
+  activePosSubTab = 'REGISTER',
+  setPosSubTab,
+}) => {
   const {
     currentUser,
     hasAccess,
@@ -214,8 +242,12 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
     items: group.items.filter(item => hasAccess(item.id)),
   })).filter(group => group.items.length > 0);
 
-  const isItemActive = (item: MenuSubItem) =>
-    item.id === activeTab || (item.matchTabs ? item.matchTabs.includes(activeTab) : false);
+  const isItemActive = (item: MenuSubItem) => {
+    if (item.posSubTab) {
+      return activeTab === item.id && activePosSubTab === item.posSubTab;
+    }
+    return item.id === activeTab || (item.matchTabs ? item.matchTabs.includes(activeTab) : false);
+  };
 
   const isGroupActive = (group: MenuGroup) => group.items.some(isItemActive);
 
@@ -229,8 +261,11 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
       }
     : activeGroupObj?.items.find(isItemActive) || activeGroupObj?.items[0];
 
-  const handleSelectTab = (tab: TabType) => {
+  const handleSelectTab = (tab: TabType, posSubTab?: PosSubTab) => {
     setActiveTab(tab);
+    if (posSubTab && setPosSubTab) {
+      setPosSubTab(posSubTab);
+    }
     setOpenGroup(null);
     setMobileOpen(false);
   };
@@ -364,9 +399,9 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                           const itemActive = isItemActive(item);
                           return (
                             <button
-                              key={item.id}
+                              key={`${item.id}-${item.posSubTab ?? ''}`}
                               type="button"
-                              onClick={() => handleSelectTab(item.id)}
+                              onClick={() => handleSelectTab(item.id, item.posSubTab)}
                               className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-2xl text-right transition-all cursor-pointer ${
                                 itemActive
                                   ? 'bg-[#0071E3]/10 text-[#0071E3]'
@@ -592,9 +627,9 @@ export const Menubar: React.FC<MenubarProps> = ({ activeTab, setActiveTab }) => 
                   const itemActive = isItemActive(item);
                   return (
                     <button
-                      key={item.id}
+                      key={`${item.id}-${item.posSubTab ?? ''}`}
                       type="button"
-                      onClick={() => handleSelectTab(item.id)}
+                      onClick={() => handleSelectTab(item.id, item.posSubTab)}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all ${
                         itemActive
                           ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'

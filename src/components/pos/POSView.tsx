@@ -127,7 +127,17 @@ interface HeldOrder {
   customerName: string;
 }
 
-export const POSView: React.FC = () => {
+export type PosSubTab = 'REGISTER' | 'INVENTORY' | 'REGISTER_REPORT';
+
+interface POSViewProps {
+  activeSubTab?: PosSubTab;
+  onSubTabChange?: (tab: PosSubTab) => void;
+}
+
+export const POSView: React.FC<POSViewProps> = ({
+  activeSubTab: controlledSubTab,
+  onSubTabChange,
+}) => {
   const {
     products,
     posSales,
@@ -148,7 +158,18 @@ export const POSView: React.FC = () => {
   } = useApp();
 
   // Standalone Showroom Navigation Tabs
-  const [activeSubTab, setActiveSubTab] = useState<'REGISTER' | 'INVENTORY' | 'REGISTER_REPORT'>('REGISTER');
+  const [activeSubTab, setActiveSubTab] = useState<PosSubTab>(controlledSubTab || 'REGISTER');
+
+  useEffect(() => {
+    if (controlledSubTab && controlledSubTab !== activeSubTab) {
+      setActiveSubTab(controlledSubTab);
+    }
+  }, [controlledSubTab]);
+
+  const handleSubTabChange = (tab: PosSubTab) => {
+    setActiveSubTab(tab);
+    onSubTabChange?.(tab);
+  };
 
   // POS Register State
   const [cart, setCart] = useState<POSSaleItem[]>([]);
@@ -659,7 +680,7 @@ export const POSView: React.FC = () => {
         <div className="apple-segmented overflow-x-auto max-w-full">
           <button
             type="button"
-            onClick={() => setActiveSubTab('REGISTER')}
+            onClick={() => handleSubTabChange('REGISTER')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'REGISTER' ? 'apple-segment-btn-active' : ''
             }`}
@@ -670,7 +691,7 @@ export const POSView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('INVENTORY')}
+            onClick={() => handleSubTabChange('INVENTORY')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'INVENTORY' ? 'apple-segment-btn-active' : ''
             }`}
@@ -681,7 +702,7 @@ export const POSView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveSubTab('REGISTER_REPORT')}
+            onClick={() => handleSubTabChange('REGISTER_REPORT')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'REGISTER_REPORT' ? 'apple-segment-btn-active' : ''
             }`}

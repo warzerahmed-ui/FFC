@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Menubar } from './components/layout/Menubar';
+import type { PosSubTab } from './components/pos/POSView';
 import { TabType } from './types';
 import { LoginScreen } from './components/auth/LoginScreen';
 
@@ -40,6 +41,7 @@ const SettingsView = lazy(() =>
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [posSubTab, setPosSubTab] = useState<PosSubTab>('REGISTER');
   const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
   const { hasAccess, currentUser, isAuthenticated } = useApp();
 
@@ -77,7 +79,12 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] flex flex-col selection:bg-[#0071E3] selection:text-white">
-      <Menubar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Menubar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        activePosSubTab={posSubTab}
+        setPosSubTab={setPosSubTab}
+      />
 
       <main className="flex-1 p-4 md:p-6 lg:p-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">
         <Suspense
@@ -109,7 +116,9 @@ function AppContent() {
           )}
           {activeTab === 'rep-sales' && hasAccess('rep-sales') && <RepSalesView />}
           {activeTab === 'gifts' && hasAccess('gifts') && <GiftsView />}
-          {activeTab === 'pos' && hasAccess('pos') && <POSView />}
+          {activeTab === 'pos' && hasAccess('pos') && (
+            <POSView activeSubTab={posSubTab} onSubTabChange={setPosSubTab} />
+          )}
           {activeTab === 'accounting' && hasAccess('accounting') && <AccountingView />}
           {activeTab === 'reports' && hasAccess('reports') && <ReportsView />}
           {activeTab === 'settings' && hasAccess('settings') && <SettingsView />}

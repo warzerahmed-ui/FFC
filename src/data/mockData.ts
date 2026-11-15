@@ -263,36 +263,7 @@ export const INITIAL_VOUCHERS: PaymentVoucher[] = [
   },
 ];
 
-export const INITIAL_POS_SALES: POSSale[] = [
-  {
-    id: 'pos-1',
-    saleNo: 'POS-001',
-    date: '2026-11-04 11:20',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش', barcode: '2100101002200', weightKg: 2.2, pricePerKg: 3500, total: 7700 },
-      { productId: 'prod-2', productName: 'سنگی مریشکی بێ ئێسک', barcode: '2100102001150', weightKg: 1.15, pricePerKg: 6500, total: 7475 },
-    ],
-    subtotal: 15175,
-    discount: 175,
-    total: 15000,
-    paymentType: 'CASH',
-    cashierName: 'ئاراس ئەحمەد',
-  },
-  {
-    id: 'pos-2',
-    saleNo: 'POS-002',
-    date: '2026-11-05 09:30',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش', barcode: '2100101004500', weightKg: 4.5, pricePerKg: 3500, total: 15750 },
-      { productId: 'prod-3', productName: 'ڕانی مریشک', barcode: '2100103002000', weightKg: 2.0, pricePerKg: 4200, total: 8400 },
-    ],
-    subtotal: 24150,
-    discount: 150,
-    total: 24000,
-    paymentType: 'CASH',
-    cashierName: 'ئاراس ئەحمەد',
-  },
-];
+export const INITIAL_POS_SALES: POSSale[] = [];
 
 // ==========================================
 // DEDICATED STORE (BRANCH) INITIAL SEED DATA
@@ -303,7 +274,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'مریشکی تەواو فرێش (پاكکراو)',
     code: '101',
     barcode: '2100101',
-    inStockKg: 145.5,
+    inStockKg: 0,
     minAlertKg: 30,
     retailPricePerKg: 3500,
     factoryCostPerKg: 2900,
@@ -315,7 +286,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'سنگی مریشکی بێ ئێسک',
     code: '102',
     barcode: '2100102',
-    inStockKg: 42.0,
+    inStockKg: 0,
     minAlertKg: 15,
     retailPricePerKg: 6500,
     factoryCostPerKg: 5500,
@@ -327,7 +298,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'ڕانی مریشک (تەواو)',
     code: '103',
     barcode: '2100103',
-    inStockKg: 58.5,
+    inStockKg: 0,
     minAlertKg: 20,
     retailPricePerKg: 4200,
     factoryCostPerKg: 3400,
@@ -339,7 +310,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'باڵ و گەردەنی مریشک',
     code: '104',
     barcode: '2100104',
-    inStockKg: 28.0,
+    inStockKg: 0,
     minAlertKg: 10,
     retailPricePerKg: 3800,
     factoryCostPerKg: 3000,
@@ -351,7 +322,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'جگەر و دڵ و قەسیل',
     code: '105',
     barcode: '2100105',
-    inStockKg: 19.0,
+    inStockKg: 0,
     minAlertKg: 8,
     retailPricePerKg: 3000,
     factoryCostPerKg: 2000,
@@ -363,7 +334,7 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
     productName: 'شلمک و ئێسکی مریشک',
     code: '106',
     barcode: '2100106',
-    inStockKg: 35.0,
+    inStockKg: 0,
     minAlertKg: 15,
     retailPricePerKg: 850,
     factoryCostPerKg: 400,
@@ -372,46 +343,9 @@ export const INITIAL_BRANCH_STOCK: BranchStockItem[] = [
   },
 ];
 
-export const INITIAL_BRANCH_DELIVERIES: BranchDelivery[] = [
-  {
-    id: 'bdel-1',
-    manualReceiptNo: 'BR-701',
-    date: '2026-11-04',
-    time: '08:15 ص',
-    repName: 'مەندوب شوان (ئۆتۆمبێلی گواستنەوەی کارگە)',
-    driverPhone: '0770 234 5678',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش', weightKg: 150.0, factoryPricePerKg: 2900, totalCost: 435000 },
-      { productId: 'prod-2', productName: 'سنگی مریشکی بێ ئێسک', weightKg: 45.0, factoryPricePerKg: 5500, totalCost: 247500 },
-      { productId: 'prod-3', productName: 'ڕانی مریشک', weightKg: 60.0, factoryPricePerKg: 3400, totalCost: 204000 },
-      { productId: 'prod-4', productName: 'باڵ و گەردەن', weightKg: 30.0, factoryPricePerKg: 3000, totalCost: 90000 },
-    ],
-    totalWeightKg: 285.0,
-    totalCost: 976500,
-    notes: 'باری بەیانی زووی کارگە بە وەسڵی دەستی BR-701 گەیشت',
-  },
-];
+export const INITIAL_BRANCH_DELIVERIES: BranchDelivery[] = [];
 
-export const INITIAL_BRANCH_EXPENSES: BranchExpense[] = [
-  {
-    id: 'bexp-1',
-    date: '2026-11-02',
-    time: '11:00 ص',
-    title: 'کڕینی عەلاگە و نایلۆنی تێرمال بۆ کاشێر',
-    category: 'PACKAGING',
-    amount: 35000,
-    notes: '١٠ کیلۆ عەلاگەی چاپکراوی لۆگۆدار',
-  },
-  {
-    id: 'bexp-2',
-    date: '2026-11-03',
-    time: '02:00 پ.ن',
-    title: 'پارەی مۆلیدە و کارەبای سەلاجەکان',
-    category: 'ELECTRICITY',
-    amount: 85000,
-    notes: 'مانگی ١١',
-  },
-];
+export const INITIAL_BRANCH_EXPENSES: BranchExpense[] = [];
 
 export const INITIAL_CUSTODY_TRANSFERS: CustodyTransfer[] = [];
 
