@@ -100,25 +100,23 @@ export const LoginScreen: React.FC = () => {
           <div className="pointer-events-none absolute -top-16 -left-16 w-48 h-48 rounded-full bg-white/10 blur-2xl" />
           <div className="pointer-events-none absolute -bottom-20 -right-14 w-56 h-56 rounded-full bg-sky-400/20 blur-2xl" />
 
-          <div className="relative z-10">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3.5">
-                <FactoryLogo size="lg" className="shadow-2xl ring-4 ring-white/15" />
-                <div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-white/15 text-sky-100 border border-white/20">
-                    RAND SUITE • ENTERPRISE ERP
-                  </span>
-                  <h2 className="mt-1 text-xl font-black tracking-tight text-white">
-                    {factorySettings.shortCode}
-                  </h2>
-                </div>
+          <div className="relative z-10 text-center">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <FactoryLogo size="lg" className="shadow-2xl ring-4 ring-white/15" />
+              <div className="space-y-1">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-white/15 text-sky-100 border border-white/20">
+                  RAND SUITE • ENTERPRISE ERP
+                </span>
+                <h2 className="text-xl font-black tracking-tight text-white">
+                  {factorySettings.shortCode}
+                </h2>
               </div>
             </div>
 
-            <p className="mt-4 text-sm font-bold text-white/95">
+            <p className="mt-3 text-sm font-bold text-white/95">
               {factorySettings.factoryName}
             </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-sky-100/80">
+            <p className="mt-1.5 text-xs leading-relaxed text-sky-100/80 max-w-md mx-auto">
               سیستەمی یەکگرتووی بەڕێوەبردنی کارگە، بەرهەمهێنان، فرۆشتنی مەندوب، خاڵی فرۆشتن (POS) و ژمێریاریی گشتی
             </p>
           </div>
