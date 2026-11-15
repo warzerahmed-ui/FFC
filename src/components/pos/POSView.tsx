@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   ShoppingBag,
@@ -16,7 +16,6 @@ import {
   Scale,
   Receipt,
   Percent,
-  Check,
   Edit3,
   AlertCircle,
   MessageCircle,
@@ -24,12 +23,13 @@ import {
   PlayCircle,
   Clock,
   FileText,
+  Truck,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 // ==========================================
-// AUDIO FEEDBACK HELPER (Web Audio API)
+// AUDIO FEEDBACK (Web Audio API)
 // ==========================================
 const playPosBeep = (type: 'success' | 'scale' | 'error' = 'success') => {
   try {
@@ -72,7 +72,7 @@ const playPosBeep = (type: 'success' | 'scale' | 'error' = 'success') => {
 };
 
 // ==========================================
-// SVG BARCODE COMPONENT
+// SVG BARCODE GENERATOR
 // ==========================================
 const BarcodeSVG: React.FC<{ code: string; width?: number; height?: number }> = ({
   code,
@@ -117,16 +117,29 @@ const BarcodeSVG: React.FC<{ code: string; width?: number; height?: number }> = 
   );
 };
 
+interface HeldOrder {
+  id: string;
+  label: string;
+  time: string;
+  items: POSSaleItem[];
+  discountPercent: number;
+  discountAmount: number;
+  customerName: string;
+}
+
 export const POSView: React.FC = () => {
   const {
     products,
     posSales,
     branchStock,
+    branchDeliveries,
+    dispatches,
     customers,
     branchExpenses,
     currentUser,
     factorySettings,
     addPOSSale,
+    addBranchDelivery,
     addBranchExpense,
     updateBranchStockItem,
     parseWeightBarcode,
@@ -134,12 +147,10 @@ export const POSView: React.FC = () => {
     hasAccess,
   } = useApp();
 
-  // Apple Segmented Tabs
+  // Standalone Showroom Navigation Tabs
   const [activeSubTab, setActiveSubTab] = useState<'REGISTER' | 'INVENTORY' | 'REGISTER_REPORT'>('REGISTER');
 
-  // ==========================================
-  // POS REGISTER STATE
-  // ==========================================
+  // POS Register State
   const [cart, setCart] = useState<POSSaleItem[]>([]);
   const [scannerInput, setScannerInput] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
@@ -152,26 +163,7 @@ export const POSView: React.FC = () => {
   const [selectedDebtCustomerId, setSelectedDebtCustomerId] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warn' | 'info' } | null>(null);
 
-  // Numeric Weight Scale Modal
-  const [weightModalProduct, setWeightModalProduct] = useState<ProductItem | null>(null);
-  const [weightKeypadValue, setWeightKeypadValue] = useState<string>('1.000');
-
-  // Thermal Receipt Print Modal
-  const [printReceipt, setPrintReceipt] = useState<POSSale | null>(null);
-
-  // Z-Report (Shift / Cash Drawer Closing) Modal
-  const [showZReportModal, setShowZReportModal] = useState(false);
-
-  // Hold / Park Orders (ڕاگرتنی کاتیی وەسڵ)
-  interface HeldOrder {
-    id: string;
-    label: string;
-    time: string;
-    items: POSSaleItem[];
-    discountPercent: number;
-    discountAmount: number;
-    customerName: string;
-  }
+  // Hold / Park Orders
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(() => {
     try {
       const saved = localStorage.getItem('ffc_pos_held_orders');
@@ -184,9 +176,29 @@ export const POSView: React.FC = () => {
     localStorage.setItem('ffc_pos_held_orders', JSON.stringify(heldOrders));
   }, [heldOrders]);
 
-  // Price Editor Modal (replaces native browser prompt)
+  // Modals
+  const [weightModalProduct, setWeightModalProduct] = useState<ProductItem | null>(null);
+  const [weightKeypadValue, setWeightKeypadValue] = useState<string>('1.000');
+  const [printReceipt, setPrintReceipt] = useState<POSSale | null>(null);
+  const [showZReportModal, setShowZReportModal] = useState(false);
   const [editingPriceItem, setEditingPriceItem] = useState<BranchStockItem | null>(null);
   const [newPriceInput, setNewPriceInput] = useState<string>('');
+
+  // Inbound Stock Receipt Modal (Manual Receive at Showroom)
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [receiveReceiptNo, setReceiveReceiptNo] = useState('');
+  const [receiveRepName, setReceiveRepName] = useState('');
+  const [receiveProdId, setReceiveProdId] = useState(products[0]?.id || '');
+  const [receiveWeight, setReceiveWeight] = useState('');
+  const [receiveItems, setReceiveItems] = useState<
+    { productId: string; productName: string; weightKg: number; factoryPricePerKg: number; totalCost: number }[]
+  >([]);
+
+  // Expenses Modal
+  const [expTitle, setExpTitle] = useState('');
+  const [expAmount, setExpAmount] = useState<string>('');
+  const [expCategory, setExpCategory] = useState<'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER'>('PACKAGING');
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -196,7 +208,7 @@ export const POSView: React.FC = () => {
     }
   }, [activeSubTab]);
 
-  // Keyboard shortcuts for speed: F2 (Focus Scanner), F4 (Checkout), Escape (Close Modals)
+  // Keyboard Shortcuts: F2 (Focus Scanner), F4 (Checkout), Esc (Close Modals)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -205,7 +217,14 @@ export const POSView: React.FC = () => {
         setTimeout(() => scannerInputRef.current?.focus(), 50);
       } else if (e.key === 'F4') {
         e.preventDefault();
-        if (activeSubTab === 'REGISTER' && cart.length > 0 && !printReceipt && !weightModalProduct && !showZReportModal) {
+        if (
+          activeSubTab === 'REGISTER' &&
+          cart.length > 0 &&
+          !printReceipt &&
+          !weightModalProduct &&
+          !showZReportModal &&
+          !showReceiveModal
+        ) {
           handleCompleteSale();
         }
       } else if (e.key === 'Escape') {
@@ -213,51 +232,13 @@ export const POSView: React.FC = () => {
         setPrintReceipt(null);
         setEditingPriceItem(null);
         setShowZReportModal(false);
+        setShowReceiveModal(false);
+        setShowAddExpenseModal(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   });
-
-  const handleHoldOrder = () => {
-    if (cart.length === 0) return;
-    const newHeld: HeldOrder = {
-      id: `hold-${Date.now()}`,
-      label: customerNameInput && customerNameInput !== 'کڕیاری ئاسایی نەقد' ? customerNameInput : `وەسڵی ڕاگیراو #${heldOrders.length + 1}`,
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      items: [...cart],
-      discountPercent,
-      discountAmount,
-      customerName: customerNameInput,
-    };
-    setHeldOrders(prev => [newHeld, ...prev]);
-    setCart([]);
-    setDiscountAmount(0);
-    setDiscountPercent(0);
-    setCashGiven('');
-    setCustomerNameInput('کڕیاری ئاسایی نەقد');
-    playPosBeep('scale');
-    showToast('وەسڵەکە بە کاتی ڕاگیرا (Hold)', 'info');
-  };
-
-  const handleResumeHeldOrder = (orderId: string) => {
-    const target = heldOrders.find(o => o.id === orderId);
-    if (!target) return;
-    if (cart.length > 0) {
-      handleHoldOrder();
-    }
-    setCart(target.items);
-    setDiscountPercent(target.discountPercent);
-    setDiscountAmount(target.discountAmount);
-    setCustomerNameInput(target.customerName || 'کڕیاری ئاسایی نەقد');
-    setHeldOrders(prev => prev.filter(o => o.id !== orderId));
-    playPosBeep('success');
-    showToast(`وەسڵی "${target.label}" گەڕێندرایەوە سەبەتە`, 'success');
-  };
-
-  const handleDeleteHeldOrder = (orderId: string) => {
-    setHeldOrders(prev => prev.filter(o => o.id !== orderId));
-  };
 
   const showToast = (text: string, type: 'success' | 'warn' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -265,55 +246,11 @@ export const POSView: React.FC = () => {
   };
 
   // ==========================================
-  // BARCODE SCANNER HANDLER (POS REGISTER)
+  // CART & BARCODE LOGIC (AGGREGATED + 250 ROUNDING)
   // ==========================================
-  const handleBarcodeSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const rawBarcode = scannerInput.trim();
-    if (!rawBarcode) return;
-
-    const result = parseWeightBarcode(rawBarcode);
-
-    if (result.valid && (result.product || result.branchItem)) {
-      const prod = result.product || products.find(p => p.id === result.branchItem?.productId);
-      if (!prod) {
-        playPosBeep('error');
-        showToast('بەرهەم نەدۆزرایەوە لە سیستەمدا!', 'warn');
-        setScannerInput('');
-        return;
-      }
-
-      const branchItem = branchStock.find(b => b.productId === prod.id);
-      const retailPrice = branchItem ? branchItem.retailPricePerKg : prod.pricePerKg;
-      const weight = result.weightKg > 0 ? result.weightKg : 1.0;
-
-      const currentStock = branchItem ? branchItem.inStockKg : prod.inStockKg;
-      const inCartWeight = cart.filter(i => i.productId === prod.id).reduce((s, i) => s + i.weightKg, 0);
-      if (weight + inCartWeight > currentStock + 0.001) {
-        playPosBeep('error');
-        alert(
-          `ڕێگری لە سکانکردن:\nبڕی کێش لە بارکۆدەدا (${weight.toFixed(3)} کگم) لەگەڵ ئەوەی لە سەبەتەدایە (${inCartWeight.toFixed(3)} کگم) لە ستۆکی بەردەستی شۆرۆم (${currentStock.toFixed(1)} کگم) زیاترە!\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ شۆرۆم بهێنە.`
-        );
-        setScannerInput('');
-        return;
-      }
-
-      const added = addItemToCart(prod, weight, retailPrice, rawBarcode);
-      if (added) {
-        playPosBeep(rawBarcode.length === 13 ? 'scale' : 'success');
-        showToast(`سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم)`, 'success');
-      }
-      setScannerInput('');
-    } else {
-      playPosBeep('error');
-      showToast(`بارکۆدی (${rawBarcode}) نەناسراوە!`, 'warn');
-      setScannerInput('');
-    }
-  };
-
   const addItemToCart = (product: ProductItem, weightKg: number, pricePerKg: number, barcodeStr?: string): boolean => {
     const branchItem = branchStock.find(b => b.productId === product.id);
-    const availableStock = branchItem ? branchItem.inStockKg : product.inStockKg;
+    const availableStock = branchItem ? branchItem.inStockKg : 0;
     const existingIndex = cart.findIndex(item => item.productId === product.id && item.pricePerKg === pricePerKg);
     const existingWeight = existingIndex > -1 ? cart[existingIndex].weightKg : 0;
     const newTotalWeight = Math.round((existingWeight + weightKg) * 1000) / 1000;
@@ -321,7 +258,7 @@ export const POSView: React.FC = () => {
     if (newTotalWeight > availableStock + 0.001) {
       playPosBeep('error');
       alert(
-        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە بڕی بەردەستی کۆگای شۆرۆم زیاتر بفرۆشیت!\n\nبەرهەم: ${product.nameKu}\nبەردەست لە کۆگا: ${availableStock.toFixed(1)} کگم\nکێشی داواکراو: ${newTotalWeight.toFixed(3)} کگم\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ کۆگای شۆرۆم بهێنە.`
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە بڕی بەردەستی کۆگای شۆرۆم زیاتر بفرۆشیت!\n\nبەرهەم: ${product.nameKu}\nبەردەست لە کۆگا: ${availableStock.toFixed(1)} کگم\nکێشی داواکراو: ${newTotalWeight.toFixed(3)} کگم\n\nتکایە بار لە مەندوب یان بەشی کۆگا وەربگرە.`
       );
       return false;
     }
@@ -354,22 +291,66 @@ export const POSView: React.FC = () => {
     return true;
   };
 
-  const updateCartItemWeight = (index: number, delta: number) => {
-    setCart(prev => {
-      const item = prev[index];
-      const branchItem = branchStock.find(b => b.productId === item.productId);
-      const availableStock = branchItem ? branchItem.inStockKg : 9999;
-      const newWeight = Math.max(0.1, Math.round((item.weightKg + delta) * 1000) / 1000);
+  const handleBarcodeSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const rawBarcode = scannerInput.trim();
+    if (!rawBarcode) return;
 
-      if (delta > 0 && newWeight > availableStock + 0.001) {
+    const result = parseWeightBarcode(rawBarcode);
+    if (result.valid && (result.product || result.branchItem)) {
+      const prod = result.product || products.find(p => p.id === result.branchItem?.productId);
+      if (!prod) {
         playPosBeep('error');
-        alert(
-          `ڕێگری لە زیادکردنی کێش:\nبڕی بەردەست لە کۆگای شۆرۆم تەنها ${availableStock.toFixed(1)} کگم ـە، ناتوانیت زیاتری بکەیت!`
-        );
-        return prev;
+        showToast('بەرهەم نەدۆزرایەوە!', 'warn');
+        setScannerInput('');
+        return;
       }
 
+      const branchItem = branchStock.find(b => b.productId === prod.id);
+      const retailPrice = branchItem ? branchItem.retailPricePerKg : prod.pricePerKg;
+      const weight = result.weightKg > 0 ? result.weightKg : 1.0;
+
+      const added = addItemToCart(prod, weight, retailPrice, rawBarcode);
+      if (added) {
+        playPosBeep(rawBarcode.length === 13 ? 'scale' : 'success');
+        showToast(`سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم)`, 'success');
+      }
+      setScannerInput('');
+    } else {
+      playPosBeep('error');
+      showToast('بارکۆد نەناسراوە یان هەڵەیە', 'warn');
+      setScannerInput('');
+    }
+  };
+
+  const updateCartItemWeight = (index: number, delta: number) => {
+    const targetItem = cart[index];
+    if (!targetItem) return;
+
+    const newWeight = Math.round((targetItem.weightKg + delta) * 1000) / 1000;
+    if (newWeight <= 0) {
+      removeCartItem(index);
+      return;
+    }
+
+    if (delta > 0) {
+      const branchItem = branchStock.find(b => b.productId === targetItem.productId);
+      const avail = branchItem ? branchItem.inStockKg : 0;
+      const otherWeight = cart
+        .filter((i, idx) => idx !== index && i.productId === targetItem.productId)
+        .reduce((s, i) => s + i.weightKg, 0);
+
+      if (newWeight + otherWeight > avail + 0.001) {
+        playPosBeep('error');
+        showToast(`ناتوانیت لە کۆگای شۆرۆم (${avail.toFixed(1)} کگم) زیاتر زیاد بکەیت`, 'warn');
+        return;
+      }
+    }
+
+    setCart(prev => {
       const updated = [...prev];
+      const item = updated[index];
+      if (!item) return prev;
       updated[index] = {
         ...item,
         weightKg: newWeight,
@@ -385,16 +366,49 @@ export const POSView: React.FC = () => {
   };
 
   const clearCart = () => {
-    if (cart.length === 0) return;
     setCart([]);
     setDiscountAmount(0);
     setDiscountPercent(0);
     setCashGiven('');
-    playPosBeep('scale');
-    showToast('سەبەتەی فرۆشتن بەتاڵکرایەوە', 'info');
+    setSelectedDebtCustomerId('');
+    setCustomerNameInput('کڕیاری ئاسایی نەقد');
   };
 
-  // Cart Calculations (Strictly rounded to nearest 250 IQD)
+  // Hold / Resume
+  const handleHoldOrder = () => {
+    if (cart.length === 0) return;
+    const newHeld: HeldOrder = {
+      id: `hold-${Date.now()}`,
+      label:
+        customerNameInput && customerNameInput !== 'کڕیاری ئاسایی نەقد'
+          ? customerNameInput
+          : `وەسڵی ڕاگیراو #${heldOrders.length + 1}`,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      items: [...cart],
+      discountPercent,
+      discountAmount,
+      customerName: customerNameInput,
+    };
+    setHeldOrders(prev => [newHeld, ...prev]);
+    clearCart();
+    playPosBeep('scale');
+    showToast('وەسڵەکە بە کاتی ڕاگیرا (Hold)', 'info');
+  };
+
+  const handleResumeHeldOrder = (orderId: string) => {
+    const target = heldOrders.find(o => o.id === orderId);
+    if (!target) return;
+    if (cart.length > 0) handleHoldOrder();
+    setCart(target.items);
+    setDiscountPercent(target.discountPercent);
+    setDiscountAmount(target.discountAmount);
+    setCustomerNameInput(target.customerName || 'کڕیاری ئاسایی نەقد');
+    setHeldOrders(prev => prev.filter(o => o.id !== orderId));
+    playPosBeep('success');
+    showToast(`وەسڵی "${target.label}" گەڕێندرایەوە`, 'success');
+  };
+
+  // Totals (250 IQD rounded)
   const subtotal = roundTo250(cart.reduce((sum, item) => sum + item.total, 0));
   const rawDiscount = discountPercent > 0 ? (subtotal * discountPercent) / 100 : discountAmount;
   const calculatedDiscount = roundTo250(rawDiscount);
@@ -404,25 +418,22 @@ export const POSView: React.FC = () => {
 
   const handleCompleteSale = () => {
     if (cart.length === 0) {
-      showToast('سەبەتە بەتاڵە! تکایە بەرهەم هەڵبژێرە یان بارکۆد سکان بکە', 'warn');
+      showToast('سەبەتە بەتاڵە! تکایە بەرهەم هەڵبژێرە', 'warn');
       return;
     }
 
-    // Strict Stock Validation Check before issuing receipt:
     const stockShortages: string[] = [];
     cart.forEach(item => {
       const branchItem = branchStock.find(b => b.productId === item.productId);
       const avail = branchItem ? branchItem.inStockKg : 0;
       if (item.weightKg > avail + 0.001) {
-        stockShortages.push(`• ${item.productName}: لە وەسڵدایە ${item.weightKg.toFixed(3)} کگم / بەردەست لە کۆگا ${avail.toFixed(1)} کگم`);
+        stockShortages.push(`• ${item.productName}: داواکراو ${item.weightKg.toFixed(3)} کگم / بەردەست ${avail.toFixed(1)} کگم`);
       }
     });
 
     if (stockShortages.length > 0) {
       playPosBeep('error');
-      alert(
-        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تەواو بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای شۆرۆمدا لە کێشی داواکراو کەمترە:\n\n${stockShortages.join('\n')}\n\nتکایە کێشەکەیان کەم بکەرەوە یان سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ شۆرۆم بهێنە.`
-      );
+      alert(`ڕێگری لە دەرکردنی وەسڵ:\nبڕی پێویست لە کۆگای شۆرۆمدا نییە:\n\n${stockShortages.join('\n')}`);
       return;
     }
 
@@ -438,90 +449,169 @@ export const POSView: React.FC = () => {
       subtotal,
       discount: calculatedDiscount,
       total: netTotal,
-      paidAmount: paymentType === 'CASH' ? (numericCashGiven > 0 ? numericCashGiven : netTotal) : paymentType === 'DEBT' ? 0 : netTotal,
+      paidAmount:
+        paymentType === 'CASH'
+          ? numericCashGiven > 0
+            ? numericCashGiven
+            : netTotal
+          : paymentType === 'DEBT'
+          ? 0
+          : netTotal,
       changeAmount: changeDue,
       paymentType,
       customerId: paymentType === 'DEBT' ? selectedDebtCustomerId || undefined : undefined,
       customerName: resolvedCustomerName,
-      cashierName: currentUser?.name || 'کاشێری شۆروم',
+      cashierName: currentUser?.name || 'کاشێری شۆرۆم',
     });
 
     playPosBeep('success');
     setPrintReceipt(sale);
-    setCart([]);
-    setDiscountAmount(0);
-    setDiscountPercent(0);
-    setCashGiven('');
-    setSelectedDebtCustomerId('');
-    showToast(`وەسڵی ${sale.saleNo} بە سەرکەوتوویی تەواو کرا`, 'success');
+    clearCart();
+    showToast(`وەسڵی ${sale.saleNo} تەواو کرا`, 'success');
   };
 
   // ==========================================
-  // EXPENSES STATE
+  // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)
   // ==========================================
-  const [expTitle, setExpTitle] = useState('');
-  const [expAmount, setExpAmount] = useState<string>('');
-  const [expCategory, setExpCategory] = useState<'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER'>('PACKAGING');
-  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const showroomInboundReceipts = useMemo(() => {
+    const repDeliveries = dispatches
+      .filter(d => {
+        const t = (d.customerName || d.destinationName || '').toLowerCase();
+        return t.includes('شۆرۆم') || t.includes('فرۆشگا') || (factorySettings.showroomName && t.includes(factorySettings.showroomName.toLowerCase()));
+      })
+      .map(d => ({
+        id: d.id,
+        receiptNo: d.manualReceiptNo,
+        date: d.date,
+        time: d.time,
+        repName: d.repName || d.destinationName,
+        totalWeightKg: d.totalWeightKg,
+        itemsCount: d.items.length,
+        source: 'REP_RECEIPT' as const,
+      }));
 
+    const manualDeliveries = branchDeliveries.map(b => ({
+      id: b.id,
+      receiptNo: b.manualReceiptNo,
+      date: b.date,
+      time: b.time,
+      repName: b.repName,
+      totalWeightKg: b.totalWeightKg,
+      itemsCount: b.items.length,
+      source: 'DIRECT_INBOUND' as const,
+    }));
+
+    return [...repDeliveries, ...manualDeliveries].sort((a, b) => b.date.localeCompare(a.date));
+  }, [dispatches, branchDeliveries, factorySettings.showroomName]);
+
+  const handleAddReceiveItem = () => {
+    const prod = products.find(p => p.id === receiveProdId);
+    const w = parseFloat(receiveWeight);
+    if (!prod || isNaN(w) || w <= 0) {
+      showToast('تکایە بەرهەم و کێشێکی دروست بنووسە', 'warn');
+      return;
+    }
+    const cost = prod.costPerKg || 3000;
+    setReceiveItems(prev => {
+      const idx = prev.findIndex(i => i.productId === prod.id);
+      if (idx > -1) {
+        const updated = [...prev];
+        const newW = Math.round((updated[idx].weightKg + w) * 1000) / 1000;
+        updated[idx] = { ...updated[idx], weightKg: newW, totalCost: roundTo250(newW * cost) };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          productId: prod.id,
+          productName: prod.nameKu,
+          weightKg: w,
+          factoryPricePerKg: cost,
+          totalCost: roundTo250(w * cost),
+        },
+      ];
+    });
+    setReceiveWeight('');
+  };
+
+  const handleSubmitReceiveStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (receiveItems.length === 0) {
+      showToast('تکایە لانیکەم یەک بەرهەم زیاد بکە', 'warn');
+      return;
+    }
+    const totalKg = receiveItems.reduce((s, i) => s + i.weightKg, 0);
+    const totalCost = receiveItems.reduce((s, i) => s + i.totalCost, 0);
+    addBranchDelivery({
+      manualReceiptNo: receiveReceiptNo.trim() || `SH-IN-${Date.now().toString().slice(-4)}`,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      repName: receiveRepName.trim() || 'مەندوب / گەیاندنی ناوخۆ',
+      items: receiveItems,
+      totalWeightKg: totalKg,
+      totalCost,
+      notes: 'وەرگرتنی باری ڕاستەوخۆ لە شۆرۆم',
+    });
+    playPosBeep('success');
+    showToast(`${totalKg.toFixed(1)} کگم خرایە سەر کۆگای شۆرۆم`, 'success');
+    setReceiveItems([]);
+    setReceiveReceiptNo('');
+    setReceiveRepName('');
+    setShowReceiveModal(false);
+  };
+
+  // ==========================================
+  // EXPENSES & Z-REPORT TOTALS
+  // ==========================================
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(expAmount);
     if (!expTitle.trim() || isNaN(amount) || amount <= 0) {
-      showToast('تکایە ناوی خەرجی و بڕێکی دروست بنووسە', 'warn');
+      showToast('تکایە ناو و بڕی خەرجی بنووسە', 'warn');
       return;
     }
-
     addBranchExpense({
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       title: expTitle.trim(),
+      amount: roundTo250(amount),
       category: expCategory,
-      amount,
-      notes: 'تۆمارکراوی خەرجی شۆروم',
     });
-
+    playPosBeep('success');
+    showToast('خەرجی شۆرۆم تۆمارکرا', 'success');
     setExpTitle('');
     setExpAmount('');
     setShowAddExpenseModal(false);
-    showToast('خەرجی شۆروم تۆمارکرا', 'success');
-  };
-
-  // Price Update Handler
-  const handleSavePriceEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPriceItem) return;
-    const val = parseFloat(newPriceInput);
-    if (isNaN(val) || val <= 0) {
-      showToast('نرخێکی دروست بنووسە', 'warn');
-      return;
-    }
-    updateBranchStockItem(editingPriceItem.productId, { retailPricePerKg: val });
-    showToast(`نرخی ${editingPriceItem.productName} نوێکرایەوە`, 'success');
-    setEditingPriceItem(null);
   };
 
   const filteredProducts = products.filter(p => {
-    const matchCat = activeCategory === 'ALL' || p.category === activeCategory;
-    const matchSearch = p.nameKu.toLowerCase().includes(searchFilter.toLowerCase()) || p.code.includes(searchFilter);
-    return matchCat && matchSearch;
+    const matchesCat = activeCategory === 'ALL' || p.category === activeCategory;
+    const matchesSearch =
+      !searchFilter.trim() ||
+      p.nameKu.includes(searchFilter.trim()) ||
+      p.code.includes(searchFilter.trim());
+    return matchesCat && matchesSearch;
   });
 
   const totalCashSales = posSales.filter(s => s.paymentType === 'CASH').reduce((sum, s) => sum + s.total, 0);
+  const totalCardSales = posSales.filter(s => s.paymentType === 'FIB_OR_CARD').reduce((sum, s) => sum + s.total, 0);
+  const totalDebtSales = posSales.filter(s => s.paymentType === 'DEBT').reduce((sum, s) => sum + s.total, 0);
   const totalAllSales = posSales.reduce((sum, s) => sum + s.total, 0);
   const totalBranchExpenses = branchExpenses.reduce((sum, e) => sum + e.amount, 0);
   const netCashInDrawer = totalCashSales - totalBranchExpenses;
+  const totalShowroomStockKg = branchStock.reduce((sum, b) => sum + b.inStockKg, 0);
+  const lowStockCount = branchStock.filter(b => b.inStockKg < 5).length;
 
   return (
     <div className="space-y-5">
-      {/* Apple Floating Toast Pill */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed bottom-6 left-6 z-50 px-5 py-3 rounded-full shadow-lg border apple-glass apple-sheet flex items-center gap-2.5 text-xs font-bold ${
+          className={`fixed bottom-6 left-6 z-50 px-5 py-3 rounded-full shadow-xl border font-bold text-xs flex items-center gap-2.5 apple-glass apple-sheet ${
             toastMessage.type === 'success'
               ? 'border-[#34C759]/30 text-[#1D1D1F]'
               : toastMessage.type === 'warn'
-              ? 'border-[#FF9500]/40 text-[#B25000]'
+              ? 'border-[#FF3B30]/30 text-[#FF3B30]'
               : 'border-[#0071E3]/30 text-[#0071E3]'
           }`}
         >
@@ -530,39 +620,45 @@ export const POSView: React.FC = () => {
               toastMessage.type === 'success'
                 ? 'bg-[#34C759]'
                 : toastMessage.type === 'warn'
-                ? 'bg-[#FF9500]'
+                ? 'bg-[#FF3B30]'
                 : 'bg-[#0071E3]'
             }`}
           />
-          <span>{toastMessage.text}</span>
+          {toastMessage.text}
         </div>
       )}
 
-      {/* APPLE HEADER & SEGMENTED CONTROL */}
-      <div className="apple-card p-4 md:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      {/* STANDALONE SHOWROOM HEADER & SEGMENTED NAVIGATION */}
+      <div className="apple-card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#0071E3] text-white flex items-center justify-center shadow-sm shadow-[#0071E3]/30 shrink-0">
-            <ShoppingBag className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0071E3] to-[#005BB5] text-white flex items-center justify-center shadow-sm shrink-0">
+            <ShoppingBag className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-                فرۆشگای تایبەت (شۆرۆم - POS)
+                {factorySettings.showroomName || 'فرۆشگای تایبەت (شۆرۆم - POS)'}
               </h2>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#34C759]/12 text-[#248A3D]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
-                بارکۆد و تەرازوو ئامادەیە
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#248A3D] bg-[#34C759]/12 px-2.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
+                دووکانی سەربەخۆ
               </span>
+              {lowStockCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D70015] bg-[#FF3B30]/12 px-2.5 py-0.5 rounded-full">
+                  <AlertCircle className="w-3 h-3" />
+                  {lowStockCount} بەرهەم کەمبووە
+                </span>
+              )}
             </div>
             <p className="text-xs text-[#86868B] mt-0.5">
-              کاشێری ڕاستەوخۆ بە سکانەر، داخلکردنی کۆگا بە بارکۆد، وەسڵی 80mm و ژمێرەری سەندوق
+              کاشێری بارکۆد و تەرازوو • وەرگرتنی باری مەندوب • کۆگا و ژمێریاریی سەندوق
             </p>
           </div>
         </div>
 
-        {/* Apple Segmented Control */}
         <div className="apple-segmented overflow-x-auto max-w-full">
           <button
+            type="button"
             onClick={() => setActiveSubTab('REGISTER')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'REGISTER' ? 'apple-segment-btn-active' : ''
@@ -573,42 +669,46 @@ export const POSView: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveSubTab('INVENTORY')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'INVENTORY' ? 'apple-segment-btn-active' : ''
             }`}
           >
             <Boxes className="w-3.5 h-3.5 text-[#34C759]" />
-            <span>کۆگای شۆرۆم ({branchStock.length})</span>
+            <span>کۆگا و وەرگرتنی بار ({totalShowroomStockKg.toFixed(0)} کگم)</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveSubTab('REGISTER_REPORT')}
             className={`apple-segment-btn flex items-center gap-1.5 ${
               activeSubTab === 'REGISTER_REPORT' ? 'apple-segment-btn-active' : ''
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5 text-[#FF9500]" />
-            <span>مێژوو، سەندوق و خەرجی ({posSales.length})</span>
+            <span>سەندوق، خەرجی و وەسڵەکان ({posSales.length})</span>
           </button>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* TAB 1: APPLE POS REGISTER (فرۆشتنی خێرا بە بارکۆد و تاچ) */}
-      {/* ========================================================================= */}
+      {/* ===================================================================== */}
+      {/* TAB 1: POS REGISTER (کاشێر و فرۆشتن) */}
+      {/* ===================================================================== */}
       {activeSubTab === 'REGISTER' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* RIGHT/MAIN SIDE (7 cols): SCANNER + TOUCH GRID */}
+          {/* RIGHT SIDE (7 cols): BARCODE SCANNER & PRODUCT GRID */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Apple Frosted Barcode Input Card */}
-            <div className="apple-card p-4 space-y-3">
+            {/* Clean Barcode Scanner Bar */}
+            <div className="apple-card p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 font-bold text-[#1D1D1F]">
                   <span className="w-2 h-2 rounded-full bg-[#34C759]" />
-                  <span>سکانەری بارکۆد کارایە (USB / Wireless)</span>
+                  <span>سکانەری بارکۆد و تەرازوو ئامادەیە</span>
                 </div>
-                <span className="text-[11px] font-mono text-[#86868B]">F2: سکانەر • F4: تەواوکردن • EAN-13</span>
+                <span className="text-[11px] font-mono text-[#86868B]">
+                  F2: سکانەر • F4: تەواوکردن و چاپ
+                </span>
               </div>
 
               <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
@@ -618,7 +718,7 @@ export const POSView: React.FC = () => {
                   type="text"
                   value={scannerInput}
                   onChange={e => setScannerInput(e.target.value)}
-                  placeholder="سکانەر لێرە لێبدە یان بارکۆد بنووسە و Enter داگرە..."
+                  placeholder="بارکۆدی تەرازوو سکان بکە یان کۆد بنووسە و Enter دابگرە..."
                   className="apple-input w-full pr-11 pl-24 py-3 text-sm font-mono font-bold tabular-nums"
                   autoFocus
                 />
@@ -629,77 +729,38 @@ export const POSView: React.FC = () => {
                   تۆمارکردن
                 </button>
               </form>
-
-              {/* Quick Test Scale Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
-                <span className="text-[#86868B] font-medium ml-1">تاقیکردنەوەی خێرای بارکۆد:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    addItemToCart(products[0], 1.85, 3500, '2100101018503');
-                    playPosBeep('scale');
-                    showToast('سکان: مریشکی تەواو (1.850 کگم)', 'success');
-                  }}
-                  className="px-2.5 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-mono font-medium transition-colors"
-                >
-                  مریشک • 1.85 کگم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const prod = products.find(p => p.id === 'prod-2') || products[1];
-                    addItemToCart(prod, 1.25, 6500, '2100102012508');
-                    playPosBeep('scale');
-                    showToast('سکان: سنگی بێ ئێسک (1.250 کگم)', 'success');
-                  }}
-                  className="px-2.5 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-mono font-medium transition-colors"
-                >
-                  سنگ • 1.25 کگم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const prod = products.find(p => p.id === 'prod-3') || products[2];
-                    addItemToCart(prod, 2.0, 4200, '2100103020005');
-                    playPosBeep('scale');
-                    showToast('سکان: ڕانی مریشک (2.000 کگم)', 'success');
-                  }}
-                  className="px-2.5 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-mono font-medium transition-colors"
-                >
-                  ڕان • 2.00 کگم
-                </button>
-              </div>
             </div>
 
-            {/* Category Pills + Touch Grid */}
+            {/* Category Filter & Product Touch Grid */}
             <div className="apple-card p-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap gap-1.5">
                   {[
-                    { id: 'ALL', name: 'هەموو' },
-                    { id: 'WHOLE_CHICKEN', name: 'مریشکی تەواو' },
-                    { id: 'BREAST', name: 'سنگ' },
-                    { id: 'THIGH', name: 'ڕان' },
-                    { id: 'WINGS', name: 'باڵ و مل' },
-                    { id: 'GIBLET', name: 'جگەر و قەسیل' },
-                    { id: 'BONES_SCRAP', name: 'ئێسک' },
+                    { id: 'ALL', label: 'هەموو' },
+                    { id: 'WHOLE_CHICKEN', label: 'مریشکی تەواو' },
+                    { id: 'BREAST', label: 'سنگ' },
+                    { id: 'THIGH', label: 'ڕان' },
+                    { id: 'WINGS', label: 'باڵ و مل' },
+                    { id: 'GIBLETS', label: 'جگەر و قەسیل' },
+                    { id: 'BONES_SCRAP', label: 'ئێسک' },
                   ].map(cat => (
                     <button
+                      type="button"
                       key={cat.id}
                       onClick={() => setActiveCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                         activeCategory === cat.id
                           ? 'bg-[#1D1D1F] text-white shadow-xs'
                           : 'bg-[#F5F5F7] text-[#515154] hover:bg-[#E8E8ED]'
                       }`}
                     >
-                      {cat.name}
+                      {cat.label}
                     </button>
                   ))}
                 </div>
 
-                <div className="relative w-full sm:w-44 shrink-0">
-                  <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-2.5" />
+                <div className="relative flex-1 min-w-[160px] max-w-[220px]">
+                  <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchFilter}
@@ -710,11 +771,10 @@ export const POSView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Product Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {filteredProducts.map(product => {
                   const branchItem = branchStock.find(b => b.productId === product.id);
-                  const inStock = branchItem ? branchItem.inStockKg : product.inStockKg;
+                  const inStock = branchItem ? branchItem.inStockKg : 0;
                   const price = branchItem ? branchItem.retailPricePerKg : product.pricePerKg;
 
                   return (
@@ -724,15 +784,18 @@ export const POSView: React.FC = () => {
                       onClick={() => {
                         if (inStock <= 0) {
                           playPosBeep('error');
-                          alert(`ئەم بەرهەمە (${product.nameKu}) لە کۆگای شۆرۆمدا بەردەست نییە و تەواوبووە!\n\nتکایە سەرەتا لە قۆناغی ٥ (وەسڵی مەندوب) بار بۆ کۆگای شۆرۆم بهێنە.`);
+                          showToast(`"${product.nameKu}" لە کۆگای شۆرۆمدا نەماوە!`, 'warn');
                           return;
                         }
                         setWeightModalProduct(product);
-                        const initialWeight = inStock < 1 ? inStock.toFixed(3) : '1.000';
-                        setWeightKeypadValue(initialWeight);
+                        setWeightKeypadValue(inStock < 1 ? inStock.toFixed(3) : '1.000');
                         playPosBeep('scale');
                       }}
-                      className="text-right p-3.5 rounded-2xl bg-[#F5F5F7]/70 hover:bg-white border border-black/[0.05] hover:border-[#0071E3]/40 hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between min-h-[108px] group"
+                      className={`text-right p-3.5 rounded-2xl border transition-all active:scale-[0.98] flex flex-col justify-between min-h-[110px] group ${
+                        inStock <= 0
+                          ? 'bg-[#F5F5F7]/40 border-black/[0.04] opacity-65'
+                          : 'bg-[#F5F5F7]/80 hover:bg-white border-black/[0.05] hover:border-[#0071E3]/40 hover:shadow-md'
+                      }`}
                     >
                       <div className="w-full space-y-1.5">
                         <div className="flex items-center justify-between">
@@ -745,9 +808,7 @@ export const POSView: React.FC = () => {
                                 ? 'bg-[#34C759]/12 text-[#248A3D]'
                                 : inStock >= 5
                                 ? 'bg-[#FF9500]/12 text-[#B25000]'
-                                : inStock > 0
-                                ? 'bg-[#FF3B30]/12 text-[#D70015]'
-                                : 'bg-[#FF3B30]/15 text-[#D70015]'
+                                : 'bg-[#FF3B30]/12 text-[#D70015]'
                             }`}
                           >
                             {inStock <= 0
@@ -777,11 +838,11 @@ export const POSView: React.FC = () => {
             </div>
           </div>
 
-          {/* LEFT SIDE (5 cols): APPLE CART & CHECKOUT */}
+          {/* LEFT SIDE (5 cols): SMART CART & CHECKOUT */}
           <div className="lg:col-span-5">
-            <div className="apple-card p-5 flex flex-col justify-between min-h-[560px]">
-              {/* Cart Header */}
+            <div className="apple-card p-5 flex flex-col justify-between min-h-[580px]">
               <div>
+                {/* Cart Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
                   <div className="flex items-center gap-2.5">
                     <span className="w-7 h-7 rounded-full bg-[#0071E3] text-white font-bold text-xs flex items-center justify-center tabular-nums">
@@ -799,7 +860,7 @@ export const POSView: React.FC = () => {
                         type="button"
                         onClick={handleHoldOrder}
                         className="px-2.5 py-1 rounded-full text-[#FF9500] bg-[#FF9500]/10 hover:bg-[#FF9500]/18 text-xs font-bold transition-colors flex items-center gap-1"
-                        title="ڕاگرتنی کاتیی وەسڵ (Hold)"
+                        title="ڕاگرتنی کاتیی وەسڵ"
                       >
                         <PauseCircle className="w-3.5 h-3.5" />
                         ڕاگرتن
@@ -816,12 +877,12 @@ export const POSView: React.FC = () => {
                   )}
                 </div>
 
-                {/* Held / Parked Orders Bar */}
+                {/* Held Orders Pills */}
                 {heldOrders.length > 0 && (
                   <div className="mt-2.5 p-2.5 rounded-2xl bg-[#FF9500]/8 border border-[#FF9500]/20 space-y-1.5">
                     <div className="text-[10px] font-extrabold text-[#B25000] flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      <span>وەسڵە ڕاگیراوەکان ({heldOrders.length}) — کلیک بکە بۆ گەڕاندنەوە:</span>
+                      <span>وەسڵە ڕاگیراوەکان ({heldOrders.length}):</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {heldOrders.map(order => (
@@ -840,9 +901,8 @@ export const POSView: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteHeldOrder(order.id)}
+                            onClick={() => setHeldOrders(prev => prev.filter(o => o.id !== order.id))}
                             className="text-[#86868B] hover:text-[#FF3B30] p-0.5"
-                            title="سڕینەوە"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -860,11 +920,11 @@ export const POSView: React.FC = () => {
                         <Barcode className="w-6 h-6" />
                       </div>
                       <p className="font-bold text-xs text-[#1D1D1F]">سەبەتە بەتاڵە</p>
-                      <p className="text-[11px] text-[#86868B]">بارکۆد سکان بکە یان بەرهەم هەڵبژێرە</p>
+                      <p className="text-[11px] text-[#86868B]">بارکۆد سکان بکە یان لە بەرهەمەکان هەڵبژێرە</p>
                     </div>
                   ) : (
                     cart.map((item, idx) => (
-                      <div key={idx} className="py-2.5 flex items-center justify-between gap-2 group">
+                      <div key={idx} className="py-2.5 flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <h5 className="text-xs font-bold text-[#1D1D1F] truncate">{item.productName}</h5>
                           <div className="text-[10px] text-[#86868B] tabular-nums">
@@ -872,9 +932,9 @@ export const POSView: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Apple Pill Stepper */}
                         <div className="flex items-center gap-1 bg-[#F5F5F7] p-0.5 rounded-full border border-black/[0.04]">
                           <button
+                            type="button"
                             onClick={() => updateCartItemWeight(idx, -0.25)}
                             className="w-6 h-6 rounded-full bg-white text-[#1D1D1F] font-bold text-xs flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors shadow-2xs"
                           >
@@ -884,6 +944,7 @@ export const POSView: React.FC = () => {
                             {item.weightKg.toFixed(3)}
                           </span>
                           <button
+                            type="button"
                             onClick={() => updateCartItemWeight(idx, 0.25)}
                             className="w-6 h-6 rounded-full bg-white text-[#1D1D1F] font-bold text-xs flex items-center justify-center hover:bg-[#34C759] hover:text-white transition-colors shadow-2xs"
                           >
@@ -896,6 +957,7 @@ export const POSView: React.FC = () => {
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => removeCartItem(idx)}
                           className="text-[#86868B] hover:text-[#FF3B30] p-1 transition-colors"
                         >
@@ -907,14 +969,13 @@ export const POSView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Summary & Payment Controls */}
+              {/* Payment & Checkout Area */}
               <div className="pt-3 border-t border-black/[0.06] space-y-3">
-                {/* Customer & Discount */}
                 {paymentType === 'DEBT' && (
                   <div className="p-2.5 rounded-2xl bg-[#FF3B30]/8 border border-[#FF3B30]/20 space-y-1.5 text-xs">
                     <div className="flex items-center gap-1.5 text-[#D70015] font-bold">
                       <Users className="w-3.5 h-3.5" />
-                      <span>هەڵبژاردنی کڕیاری قەرز (ئەم بڕە دەچێتە سەر کەشف حسابی کڕیار):</span>
+                      <span>هەڵبژاردنی کڕیاری قەرز:</span>
                     </div>
                     <select
                       value={selectedDebtCustomerId}
@@ -968,9 +1029,7 @@ export const POSView: React.FC = () => {
                           setDiscountAmount(0);
                         }}
                         className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
-                          discountPercent === pct
-                            ? 'bg-[#FF9500] text-white'
-                            : 'bg-white text-[#515154]'
+                          discountPercent === pct ? 'bg-[#FF9500] text-white' : 'bg-white text-[#515154]'
                         }`}
                       >
                         {pct}%
@@ -979,7 +1038,7 @@ export const POSView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Net Payable Apple Surface */}
+                {/* Net Total & Payment Mode */}
                 <div className="p-3.5 rounded-2xl bg-[#F5F5F7] border border-black/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="text-[11px] font-semibold text-[#86868B] flex items-center gap-2">
@@ -993,7 +1052,6 @@ export const POSView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Apple Payment Segmented Control */}
                   <div className="apple-segmented">
                     <button
                       type="button"
@@ -1027,7 +1085,7 @@ export const POSView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Cash Paid & Change Return */}
+                {/* Cash Quick Denominations & Change */}
                 {paymentType === 'CASH' && (
                   <div className="p-3 rounded-2xl bg-[#34C759]/8 border border-[#34C759]/20 text-xs space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
@@ -1049,7 +1107,6 @@ export const POSView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Quick Cash Denomination Pills */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#34C759]/15">
                       <button
                         type="button"
@@ -1076,7 +1133,6 @@ export const POSView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Complete Sale Apple Pill Button */}
                 <button
                   type="button"
                   onClick={handleCompleteSale}
@@ -1093,93 +1149,133 @@ export const POSView: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: STORE INVENTORY (کۆگای شۆرۆم) */}
-      {/* ========================================================================= */}
+      {/* ===================================================================== */}
+      {/* TAB 2: SHOWROOM INVENTORY & INBOUND RECEIPTS (کۆگا و وەرگرتنی بار) */}
+      {/* ===================================================================== */}
       {activeSubTab === 'INVENTORY' && (
-        <div className="apple-card p-5 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+        <div className="space-y-5">
+          {/* Inventory Header + Receive Stock Button */}
+          <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-extrabold text-base text-[#1D1D1F] flex items-center gap-2">
-                <Boxes className="w-5 h-5 text-[#34C759]" />
-                کۆگای سەربەخۆی فرۆشگا
-              </h3>
-              <p className="text-xs text-[#86868B]">ئاستی کێشی ماوە و نرخی فرۆشتن بە کڕیاری شۆرۆم</p>
+              <h3 className="font-extrabold text-base text-[#1D1D1F]">کۆگای فرۆشگای شۆرۆم و نرخەکان</h3>
+              <p className="text-xs text-[#86868B] mt-0.5">
+                باری نێردراو لە وەسڵی مەندوبەوە ئۆتۆماتیکی دێتە ناو ئەم کۆگایە، هەروەها دەتوانیت بە دەستیش بار وەربگریت
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReceiveReceiptNo(`SH-IN-${Math.floor(100 + Math.random() * 900)}`);
+                setShowReceiveModal(true);
+              }}
+              className="px-4 py-2.5 rounded-full bg-[#34C759] hover:bg-[#2FB350] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              وەرگرتنی باری نوێ بۆ شۆرۆم
+            </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-[#F5F5F7] text-[#515154] font-semibold">
-                  <th className="p-3.5 rounded-r-xl">بەرهەم</th>
-                  <th className="p-3.5">کۆد / بارکۆد</th>
-                  <th className="p-3.5 text-center">کێشی ماوە</th>
-                  <th className="p-3.5 text-center">ئاستی ئاگاداری</th>
-                  <th className="p-3.5 text-center">نرخی فرۆشتن</th>
-                  <th className="p-3.5 text-center">تێچووی کارگە</th>
-                  <th className="p-3.5 text-center">دۆخ</th>
-                  <th className="p-3.5 text-center rounded-l-xl">دەستکاری</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.05]">
-                {branchStock.map(item => {
-                  const isLow = item.inStockKg <= item.minAlertKg;
-                  const isOut = item.inStockKg <= 0;
-
-                  return (
-                    <tr key={item.productId} className="hover:bg-[#F5F5F7]/60 transition-colors">
-                      <td className="p-3.5 font-bold text-[#1D1D1F]">{item.productName}</td>
-                      <td className="p-3.5 font-mono text-[#86868B]">
-                        {item.code} ({item.barcode || '2100' + item.code})
-                      </td>
-                      <td className="p-3.5 text-center font-extrabold text-[#0071E3] tabular-nums">
-                        {item.inStockKg.toFixed(2)} کگم
-                      </td>
-                      <td className="p-3.5 text-center text-[#86868B] tabular-nums">{item.minAlertKg} کگم</td>
-                      <td className="p-3.5 text-center font-bold text-[#248A3D] tabular-nums">
-                        {item.retailPricePerKg.toLocaleString()} د.ع
-                      </td>
-                      <td className="p-3.5 text-center text-[#515154] tabular-nums">
-                        {item.factoryCostPerKg.toLocaleString()} د.ع
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            isOut
-                              ? 'bg-[#FF3B30]/12 text-[#D70015]'
-                              : isLow
-                              ? 'bg-[#FF9500]/12 text-[#B25000]'
-                              : 'bg-[#34C759]/12 text-[#248A3D]'
-                          }`}
-                        >
-                          {isOut ? 'نەماوە' : isLow ? 'کەمە' : 'تەواوە'}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <button
-                          onClick={() => {
-                            setEditingPriceItem(item);
-                            setNewPriceInput(item.retailPricePerKg.toString());
-                          }}
-                          className="px-3 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-semibold text-xs transition-colors inline-flex items-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          نرخ
-                        </button>
-                      </td>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Stock & Prices Table */}
+            <div className="lg:col-span-8 apple-card overflow-hidden">
+              <div className="p-4 border-b border-black/[0.06] flex items-center justify-between">
+                <span className="font-extrabold text-sm text-[#1D1D1F]">بەردەستیی کاڵاکان ({branchStock.length})</span>
+                <span className="text-xs font-bold text-[#0071E3] tabular-nums">
+                  کۆی کێش: {totalShowroomStockKg.toFixed(1)} کگم
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-[#F5F5F7] text-[#515154] font-semibold border-b border-black/[0.06]">
+                    <tr>
+                      <th className="p-3.5">کۆد</th>
+                      <th className="p-3.5">بەرهەم</th>
+                      <th className="p-3.5">بەردەست (کگم)</th>
+                      <th className="p-3.5">نرخی فرۆشتن</th>
+                      <th className="p-3.5 text-center">گۆڕینی نرخ</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.05]">
+                    {branchStock.map(item => (
+                      <tr key={item.productId} className="hover:bg-[#F5F5F7]/50 transition-colors">
+                        <td className="p-3.5 font-mono font-bold text-[#515154]">{item.code}</td>
+                        <td className="p-3.5 font-bold text-[#1D1D1F]">{item.productName}</td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full font-bold tabular-nums ${
+                              item.inStockKg > 20
+                                ? 'bg-[#34C759]/12 text-[#248A3D]'
+                                : item.inStockKg >= 5
+                                ? 'bg-[#FF9500]/12 text-[#B25000]'
+                                : 'bg-[#FF3B30]/12 text-[#D70015]'
+                            }`}
+                          >
+                            {item.inStockKg.toFixed(1)} کگم
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-extrabold text-[#0071E3] tabular-nums">
+                          {item.retailPricePerKg.toLocaleString()} د.ع
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPriceItem(item);
+                              setNewPriceInput(item.retailPricePerKg.toString());
+                            }}
+                            className="px-3 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-semibold text-xs transition-colors inline-flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            نرخ
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Inbound Deliveries History */}
+            <div className="lg:col-span-4 apple-card p-5 space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+                <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#34C759]" />
+                  وەسڵە هاتووەکان بۆ شۆرۆم
+                </h4>
+                <span className="text-xs font-bold text-[#86868B]">{showroomInboundReceipts.length}</span>
+              </div>
+
+              <div className="divide-y divide-black/[0.05] max-h-[380px] overflow-y-auto">
+                {showroomInboundReceipts.length === 0 ? (
+                  <p className="py-10 text-center text-xs text-[#86868B]">هێشتا هیچ وەسڵێکی هاتوو نییە</p>
+                ) : (
+                  showroomInboundReceipts.map(rec => (
+                    <div key={rec.id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-[#0071E3]">{rec.receiptNo}</span>
+                          <span className="font-bold text-[#1D1D1F]">{rec.repName}</span>
+                        </div>
+                        <span className="text-[10px] text-[#86868B]">
+                          {rec.date} {rec.time} • {rec.itemsCount} بەرهەم
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[#248A3D] tabular-nums">
+                        +{rec.totalWeightKg.toFixed(1)} کگم
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 4: REGISTER REPORT, RECEIPTS & EXPENSES */}
-      {/* ========================================================================= */}
+      {/* ===================================================================== */}
+      {/* TAB 3: SALES, CASH DRAWER, Z-REPORT & EXPENSES */}
+      {/* ===================================================================== */}
       {activeSubTab === 'REGISTER_REPORT' && (
         <div className="space-y-5">
           {/* Z-Report Bar */}
@@ -1187,7 +1283,7 @@ export const POSView: React.FC = () => {
             <div>
               <h3 className="text-sm font-extrabold text-[#1D1D1F] flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#0071E3]" />
-                ڕاپۆرتی سندوقی کاشێر و داخستنی شەفت (Z-Report)
+                ڕاپۆرتی سەندوقی کاشێر و داخستنی شەفت (Z-Report)
               </h3>
               <p className="text-[11px] text-[#86868B] mt-0.5">
                 پوختەی فرۆشتنی نەقد، کارت، قەرز، خەرجی و صافی پارەی ناو قاسە بە 80mm
@@ -1199,14 +1295,14 @@ export const POSView: React.FC = () => {
               className="px-4 py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 shrink-0"
             >
               <Printer className="w-4 h-4" />
-              چاپکردنی Z-Report (داخستنی سندوق)
+              چاپکردنی Z-Report (داخستنی سەندوق)
             </button>
           </div>
 
-          {/* Apple Bento KPI Row */}
+          {/* KPI Bento Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="apple-card p-4">
-              <span className="text-[11px] font-semibold text-[#86868B] block">کۆی فرۆشی پۆس</span>
+              <span className="text-[11px] font-semibold text-[#86868B] block">کۆی فرۆشی شۆرۆم</span>
               <div className="text-2xl font-black text-[#0071E3] tabular-nums mt-1">
                 {totalAllSales.toLocaleString()} <span className="text-xs font-medium text-[#86868B]">د.ع</span>
               </div>
@@ -1227,7 +1323,7 @@ export const POSView: React.FC = () => {
             </div>
 
             <div className="apple-card p-4">
-              <span className="text-[11px] font-semibold text-[#86868B] block">سافی ناو سەندوق</span>
+              <span className="text-[11px] font-semibold text-[#86868B] block">صافی پارەی ناو قاسە</span>
               <div className="text-2xl font-black text-[#1D1D1F] tabular-nums mt-1">
                 {netCashInDrawer.toLocaleString()} <span className="text-xs font-medium text-[#86868B]">د.ع</span>
               </div>
@@ -1235,7 +1331,7 @@ export const POSView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* POS Sales Receipts History */}
+            {/* POS Sales History */}
             <div className="lg:col-span-7 apple-card p-5 space-y-3">
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
                 <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-2">
@@ -1269,11 +1365,12 @@ export const POSView: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <span className="font-extrabold text-sm text-[#1D1D1F] tabular-nums">
                         {sale.total.toLocaleString()} د.ع
                       </span>
                       <button
+                        type="button"
                         onClick={() => setPrintReceipt(sale)}
                         className="px-3 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-semibold text-xs transition-colors flex items-center gap-1"
                       >
@@ -1285,11 +1382,10 @@ export const POSView: React.FC = () => {
                           type="button"
                           onClick={() => {
                             if (window.confirm(`وەسڵی شۆرۆم #${sale.saleNo} بخرێتە سەبەتەی سۆفت دیلیت و کۆگا/قەرز بگەڕێندرێتەوە؟`)) {
-                              softDeleteRecord('POS_SALE', sale.id, 'سڕینەوەی خێرا لە سندوقی شۆرۆم');
+                              softDeleteRecord('POS_SALE', sale.id, 'سڕینەوە لە سەندوقی شۆرۆم');
                             }
                           }}
-                          className="p-1.5 rounded-lg bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-colors"
-                          title="سۆفت دیلیت"
+                          className="p-1.5 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-all"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1300,7 +1396,7 @@ export const POSView: React.FC = () => {
               </div>
             </div>
 
-            {/* Store Expenses */}
+            {/* Showroom Expenses */}
             <div className="lg:col-span-5 apple-card p-5 space-y-3">
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
                 <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-2">
@@ -1308,205 +1404,168 @@ export const POSView: React.FC = () => {
                   خەرجییەکانی شۆرۆم
                 </h4>
                 <button
+                  type="button"
                   onClick={() => setShowAddExpenseModal(true)}
-                  className="px-3 py-1.5 rounded-full bg-[#FF3B30] hover:bg-[#E0352B] text-white font-bold text-xs flex items-center gap-1 transition-all"
+                  className="px-3 py-1 rounded-full bg-[#FF3B30] hover:bg-[#E0352B] text-white font-bold text-xs flex items-center gap-1 transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  خەرجی نوێ
+                  خەرجیی نوێ
                 </button>
               </div>
 
               <div className="divide-y divide-black/[0.05] max-h-[380px] overflow-y-auto">
-                {branchExpenses.map(exp => (
-                  <div key={exp.id} className="py-3 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-bold text-[#1D1D1F]">{exp.title}</div>
-                      <span className="text-[10px] text-[#86868B]">
-                        {exp.date} {exp.time}
+                {branchExpenses.length === 0 ? (
+                  <p className="py-10 text-center text-xs text-[#86868B]">هیچ خەرجییەک نییە</p>
+                ) : (
+                  branchExpenses.map(exp => (
+                    <div key={exp.id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                      <div>
+                        <p className="font-bold text-[#1D1D1F]">{exp.title}</p>
+                        <span className="text-[10px] text-[#86868B]">
+                          {exp.date} {exp.time}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[#FF3B30] tabular-nums">
+                        -{exp.amount.toLocaleString()} د.ع
                       </span>
                     </div>
-                    <span className="font-extrabold text-[#FF3B30] tabular-nums">
-                      -{exp.amount.toLocaleString()} د.ع
-                    </span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL: APPLE NUMERIC SCALE KEYPAD */}
-      {/* ========================================================================= */}
-      {weightModalProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] apple-sheet">
-            {(() => {
-              const branchItem = branchStock.find(b => b.productId === weightModalProduct.id);
-              const availableStock = branchItem ? branchItem.inStockKg : weightModalProduct.inStockKg;
-              const inCartItem = cart.find(i => i.productId === weightModalProduct.id);
-              const inCartWeight = inCartItem ? inCartItem.weightKg : 0;
-              const remainingAllowed = Math.max(0, Number((availableStock - inCartWeight).toFixed(3)));
-              const enteredWeight = parseFloat(weightKeypadValue || '0') || 0;
-              const isExceeded = enteredWeight > remainingAllowed + 0.001;
+      {/* ===================================================================== */}
+      {/* MODALS: WEIGHT KEYPAD, 80MM RECEIPT, Z-REPORT, RECEIVE STOCK, PRICE, EXPENSE */}
+      {/* ===================================================================== */}
 
-              return (
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-                    <div>
-                      <h3 className="font-extrabold text-sm text-[#1D1D1F]">{weightModalProduct.nameKu}</h3>
-                      <span className="text-xs text-[#86868B] tabular-nums">
-                        {(branchItem?.retailPricePerKg || weightModalProduct.pricePerKg).toLocaleString()} د.ع / کگم
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setWeightModalProduct(null)}
-                      className="w-7 h-7 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] flex items-center justify-center"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+      {/* 1. Apple Numeric Weight Keypad Modal */}
+      {weightModalProduct && (() => {
+        const branchItem = branchStock.find(b => b.productId === weightModalProduct.id);
+        const unitPrice = branchItem ? branchItem.retailPricePerKg : weightModalProduct.pricePerKg;
+        const parsedWeight = parseFloat(weightKeypadValue) || 0;
+        const estimatedTotal = roundTo250(parsedWeight * unitPrice);
 
-                  {/* Stock Availability Pill */}
-                  <div className="flex items-center justify-between text-xs px-1">
-                    <span className="text-[#86868B] font-semibold">بەردەست لە کۆگای شۆرۆم:</span>
-                    <span
-                      className={`font-bold tabular-nums px-2.5 py-0.5 rounded-full text-xs ${
-                        availableStock > 0 ? 'bg-[#34C759]/12 text-[#248A3D]' : 'bg-[#FF3B30]/12 text-[#FF3B30]'
-                      }`}
-                    >
-                      {availableStock.toFixed(1)} کگم {inCartWeight > 0 ? `(${inCartWeight.toFixed(1)} لە سەبەتەیە)` : ''}
-                    </span>
-                  </div>
+        const handleKeyPress = (val: string) => {
+          if (val === 'C') {
+            setWeightKeypadValue('');
+          } else if (val === '.') {
+            if (!weightKeypadValue.includes('.')) {
+              setWeightKeypadValue(prev => (prev === '' ? '0.' : prev + '.'));
+            }
+          } else {
+            setWeightKeypadValue(prev => (prev === '0' ? val : prev + val));
+          }
+        };
 
-                  <div className="p-4 rounded-2xl bg-[#F5F5F7] text-center space-y-1">
-                    <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider">کێشی تەرازوو</span>
-                    <div className={`text-4xl font-black tabular-nums ${isExceeded ? 'text-[#FF3B30]' : 'text-[#1D1D1F]'}`}>
-                      {enteredWeight.toFixed(3)}{' '}
-                      <span className="text-sm font-semibold text-[#86868B]">کگم</span>
-                    </div>
-                    <div className="text-xs font-bold text-[#0071E3] tabular-nums">
-                      کۆ: {roundTo250(enteredWeight * (branchItem?.retailPricePerKg || weightModalProduct.pricePerKg)).toLocaleString()} د.ع
-                    </div>
-                  </div>
-
-                  {isExceeded && (
-                    <div className="p-2.5 rounded-xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-[#D70015] text-xs font-bold flex items-center gap-1.5 animate-in fade-in duration-150">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>
-                        ناتوانیت {enteredWeight.toFixed(3)} کگم بفرۆشیت! کۆگای شۆرۆم تەنها {remainingAllowed.toFixed(1)} کگم ماوە.
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {['0.500', '1.000', '1.500', '2.000'].map(val => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setWeightKeypadValue(val)}
-                        className="py-1.5 bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-bold text-xs rounded-full tabular-nums transition-colors"
-                      >
-                        {val}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', '.'].map(char => (
-                      <button
-                        key={char}
-                        type="button"
-                        onClick={() => {
-                          if (char === 'C') {
-                            setWeightKeypadValue('0');
-                          } else if (char === '.') {
-                            if (!weightKeypadValue.includes('.')) setWeightKeypadValue(prev => prev + '.');
-                          } else {
-                            setWeightKeypadValue(prev => (prev === '0' || prev === '1.000' ? char : prev + char));
-                          }
-                        }}
-                        className="py-3 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-lg rounded-2xl tabular-nums transition-colors active:scale-95"
-                      >
-                        {char}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    disabled={isExceeded || enteredWeight <= 0}
-                    onClick={() => {
-                      if (isExceeded) {
-                        playPosBeep('error');
-                        alert(
-                          `ڕێگری لە فرۆشتنی زێدە:\nکۆگای شۆرۆم بۆ ئەم بەرهەمە تەنها ${availableStock.toFixed(1)} کگم هەیە، ناتوانیت ${enteredWeight.toFixed(3)} کگم بفرۆشیت!`
-                        );
-                        return;
-                      }
-                      const price = branchItem ? branchItem.retailPricePerKg : weightModalProduct.pricePerKg;
-                      const added = addItemToCart(weightModalProduct, enteredWeight, price);
-                      if (added) {
-                        playPosBeep('scale');
-                        showToast(`${weightModalProduct.nameKu} (${enteredWeight.toFixed(3)} کگم) زیادکرا`, 'success');
-                        setWeightModalProduct(null);
-                      }
-                    }}
-                    className={`w-full py-3.5 font-bold text-sm rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.985] ${
-                      isExceeded || enteredWeight <= 0
-                        ? 'bg-[#E5E5EA] text-[#8E8E93] cursor-not-allowed'
-                        : 'bg-[#0071E3] hover:bg-[#0077ED] text-white'
-                    }`}
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>{isExceeded ? 'لە بڕی بەردەستی کۆگا زیاترە' : 'خستنە ناو سەبەتە'}</span>
-                  </button>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+            <div className="w-full max-w-xs bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-extrabold text-sm text-[#1D1D1F]">{weightModalProduct.nameKu}</h4>
+                  <span className="text-xs text-[#86868B] font-semibold">
+                    {unitPrice.toLocaleString()} د.ع / کگم
+                  </span>
                 </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+                <button
+                  type="button"
+                  onClick={() => setWeightModalProduct(null)}
+                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center hover:bg-[#E8E8ED]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-      {/* ========================================================================= */}
-      {/* MODAL: 80MM THERMAL RECEIPT SHEET */}
-      {/* ========================================================================= */}
+              <div className="bg-[#F5F5F7] rounded-2xl p-3.5 text-center space-y-1">
+                <span className="text-[10px] font-semibold text-[#86868B]">کێشی تەرازوو</span>
+                <div className="text-3xl font-black text-[#1D1D1F] tabular-nums tracking-tight">
+                  {weightKeypadValue || '0'} <span className="text-sm font-bold text-[#86868B]">کگم</span>
+                </div>
+                <div className="text-xs font-extrabold text-[#0071E3] tabular-nums">
+                  کۆ: {estimatedTotal.toLocaleString()} د.ع
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5">
+                {['0.500', '1.000', '1.500', '2.000'].map(preset => (
+                  <button
+                    type="button"
+                    key={preset}
+                    onClick={() => setWeightKeypadValue(preset)}
+                    className="py-1.5 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-bold text-[11px] tabular-nums transition-colors"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', '.'].map(key => (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => handleKeyPress(key)}
+                    className="py-3 rounded-2xl bg-[#F5F5F7] hover:bg-[#E8E8ED] active:scale-95 text-[#1D1D1F] font-bold text-base transition-all"
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (parsedWeight <= 0) {
+                    playPosBeep('error');
+                    return;
+                  }
+                  const added = addItemToCart(weightModalProduct, parsedWeight, unitPrice);
+                  if (added) {
+                    playPosBeep('success');
+                    setWeightModalProduct(null);
+                  }
+                }}
+                className="w-full py-3 rounded-2xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-sm transition-all active:scale-95"
+              >
+                خستنە ناو سەبەتە
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 2. 80mm Thermal Sale Receipt Modal (Aggregated) */}
       {printReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
           <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
             {(() => {
-              const aggregatedItems = (() => {
-                const map = new Map<string, {
-                  productId: string;
-                  productName: string;
-                  pricePerKg: number;
-                  weightKg: number;
-                  total: number;
-                  count: number;
-                }>();
-
-                (printReceipt.items || []).forEach(item => {
-                  const key = `${item.productId}-${item.pricePerKg}`;
-                  if (!map.has(key)) {
-                    map.set(key, {
-                      productId: item.productId,
-                      productName: item.productName,
-                      pricePerKg: item.pricePerKg,
-                      weightKg: item.weightKg,
-                      total: item.total,
-                      count: 1,
-                    });
-                  } else {
-                    const ex = map.get(key)!;
-                    const combined = Math.round((ex.weightKg + item.weightKg) * 1000) / 1000;
-                    ex.weightKg = combined;
-                    ex.total = roundTo250(combined * ex.pricePerKg);
-                    ex.count += 1;
-                  }
-                });
-
-                return Array.from(map.values());
-              })();
+              const map = new Map<
+                string,
+                { productId: string; productName: string; pricePerKg: number; weightKg: number; total: number; count: number }
+              >();
+              (printReceipt.items || []).forEach(item => {
+                const key = `${item.productId}-${item.pricePerKg}`;
+                if (!map.has(key)) {
+                  map.set(key, {
+                    productId: item.productId,
+                    productName: item.productName,
+                    pricePerKg: item.pricePerKg,
+                    weightKg: item.weightKg,
+                    total: item.total,
+                    count: 1,
+                  });
+                } else {
+                  const ex = map.get(key)!;
+                  const newW = Math.round((ex.weightKg + item.weightKg) * 1000) / 1000;
+                  ex.weightKg = newW;
+                  ex.total = roundTo250(newW * ex.pricePerKg);
+                  ex.count += 1;
+                }
+              });
+              const aggregatedItems = Array.from(map.values());
 
               return (
                 <>
@@ -1514,21 +1573,27 @@ export const POSView: React.FC = () => {
                     <span className="text-xs font-bold text-[#86868B]">وەسڵی گەرمی 80mm</span>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => {
                           const s = printReceipt;
                           const itemsText = aggregatedItems
-                            .map(i => `• ${i.productName} ${i.count > 1 ? `(${i.count} دانە)` : ''}: ${i.weightKg.toFixed(3)} کگم x ${i.pricePerKg.toLocaleString()} = ${i.total.toLocaleString()} د.ع`)
+                            .map(
+                              i =>
+                                `• ${i.productName}${i.count > 1 ? ` (${i.count} دانە)` : ''}: ${i.weightKg.toFixed(3)} کگم x ${i.pricePerKg.toLocaleString()} = ${i.total.toLocaleString()} د.ع`
+                            )
                             .join('\n');
-                          const msg = `وەسڵی فرۆشتنی شۆرۆمی ${factorySettings.factoryName} (${factorySettings.showroomName})\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${s.paymentType === 'CASH' ? 'نەقد' : 'کارت'})\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
+                          const msg = `وەسڵی فرۆشتنی ${factorySettings.showroomName || factorySettings.factoryName}\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${
+                            s.paymentType === 'CASH' ? 'نەقد' : s.paymentType === 'FIB_OR_CARD' ? 'کارت' : 'قەرز'
+                          })\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
                           window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                         }}
                         className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1 transition-all"
-                        title="ناردنی وەسڵ بە واتسئاپ"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         واتسئاپ
                       </button>
                       <button
+                        type="button"
                         onClick={() => window.print()}
                         className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
                       >
@@ -1536,6 +1601,7 @@ export const POSView: React.FC = () => {
                         چاپکردن
                       </button>
                       <button
+                        type="button"
                         onClick={() => setPrintReceipt(null)}
                         className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
                       >
@@ -1544,82 +1610,83 @@ export const POSView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-[#F5F5F7] rounded-2xl text-center space-y-3 font-mono">
-                    <div className="flex flex-col items-center gap-1.5">
-                      <FactoryLogo size="lg" />
-                      <h2 className="font-black text-base text-[#1D1D1F] font-sans">
-                        {factorySettings.factoryName}
-                      </h2>
-                      <p className="text-[11px] font-sans font-bold text-[#0071E3]">
+                  <div className="space-y-3 text-center font-mono text-xs text-[#1D1D1F]">
+                    <div className="space-y-1">
+                      <div className="flex justify-center">
+                        <FactoryLogo size="sm" />
+                      </div>
+                      <h4 className="font-black text-base font-sans">{factorySettings.factoryName}</h4>
+                      <p className="text-[11px] font-bold text-[#0071E3] font-sans">
                         {factorySettings.shortCode} • {factorySettings.showroomName}
                       </p>
-                      <p className="text-[10px] font-sans text-[#515154]">
+                      <p className="text-[10px] text-[#86868B] font-sans">
                         {factorySettings.address} • {factorySettings.phone1}
                       </p>
                     </div>
 
-                    <div className="border-t border-b border-dashed border-black/20 py-2 text-right text-[11px] space-y-0.5">
+                    <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right font-sans">
                       <div className="flex justify-between">
                         <span className="text-[#86868B]">وەسڵ:</span>
-                        <span className="font-bold text-[#1D1D1F]">{printReceipt.saleNo}</span>
+                        <span className="font-bold">{printReceipt.saleNo}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#86868B]">بەروار:</span>
-                        <span>{printReceipt.date} {printReceipt.time}</span>
+                        <span>
+                          {printReceipt.date} {printReceipt.time}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#86868B]">کڕیار:</span>
-                        <span className="font-sans font-bold">{printReceipt.customerName || 'کڕیاری ئاسایی'}</span>
+                        <span>{printReceipt.customerName}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#86868B]">کاشێر:</span>
-                        <span className="font-sans">{printReceipt.cashierName}</span>
+                        <span>{printReceipt.cashierName}</span>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 text-right text-[11px]">
-                      {aggregatedItems.map((item, idx) => (
-                        <div key={idx} className="flex justify-between py-1 border-b border-black/[0.05]">
+                    <div className="space-y-2 text-right font-sans">
+                      {aggregatedItems.map((item, i) => (
+                        <div key={i} className="flex justify-between items-start text-[11px] border-b border-black/[0.04] pb-1.5">
                           <div>
-                            <div className="font-sans font-bold text-[#1D1D1F]">
-                              {item.productName} {item.count > 1 ? `(${item.count} دانە)` : ''}
+                            <div className="font-bold flex items-center gap-1.5">
+                              <span>{item.productName}</span>
+                              {item.count > 1 && (
+                                <span className="text-[9px] bg-[#F5F5F7] text-[#515154] px-1.5 py-0.2 rounded-full font-extrabold">
+                                  ({item.count} دانە)
+                                </span>
+                              )}
                             </div>
-                            <div className="text-[10px] text-[#86868B]">
+                            <div className="text-[10px] text-[#86868B] tabular-nums">
                               {item.weightKg.toFixed(3)} کگم × {item.pricePerKg.toLocaleString()} د.ع
                             </div>
                           </div>
-                          <div className="font-bold text-[#1D1D1F]">{item.total.toLocaleString()} د.ع</div>
+                          <span className="font-bold tabular-nums">{item.total.toLocaleString()} د.ع</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="border-t border-black/20 pt-2 text-right text-xs space-y-1">
-                      <div className="flex justify-between text-[#515154]">
-                        <span>کۆی بڕ:</span>
-                        <span>{printReceipt.subtotal.toLocaleString()} د.ع</span>
-                      </div>
+                    <div className="border-t border-dashed border-black/20 pt-2 space-y-1 text-right font-sans">
                       {printReceipt.discount > 0 && (
-                        <div className="flex justify-between text-[#FF9500] font-bold">
+                        <div className="flex justify-between text-[11px] text-[#FF3B30]">
                           <span>داشکاندن:</span>
                           <span>-{printReceipt.discount.toLocaleString()} د.ع</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-black text-sm text-[#1D1D1F] pt-1">
+                      <div className="flex justify-between text-sm font-black">
                         <span>کۆی گشتی:</span>
-                        <span className="text-[#0071E3]">{printReceipt.total.toLocaleString()} د.ع</span>
+                        <span>{printReceipt.total.toLocaleString()} د.ع</span>
                       </div>
-                      {printReceipt.paymentType === 'CASH' && (
-                        <>
-                          <div className="flex justify-between text-[11px] text-[#86868B]">
-                            <span>پارەی دراو:</span>
-                            <span>{(printReceipt.paidAmount || printReceipt.total).toLocaleString()} د.ع</span>
-                          </div>
-                          <div className="flex justify-between text-[11px] text-[#248A3D] font-bold">
-                            <span>پارەی گەڕاوە:</span>
-                            <span>{(printReceipt.changeAmount || 0).toLocaleString()} د.ع</span>
-                          </div>
-                        </>
-                      )}
+                      <div className="flex justify-between text-[11px] text-[#86868B]">
+                        <span>شێوازی دان:</span>
+                        <span className="font-bold">
+                          {printReceipt.paymentType === 'CASH'
+                            ? 'نەقد (Cash)'
+                            : printReceipt.paymentType === 'FIB_OR_CARD'
+                            ? 'کارت / FIB'
+                            : 'قەرز (Debit)'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="pt-2">
@@ -1637,129 +1704,12 @@ export const POSView: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL: APPLE PRICE EDIT SHEET */}
-      {/* ========================================================================= */}
-      {editingPriceItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-          <form
-            onSubmit={handleSavePriceEdit}
-            className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-              <h3 className="font-extrabold text-sm text-[#1D1D1F]">گۆڕینی نرخی فرۆشتن</h3>
-              <button
-                type="button"
-                onClick={() => setEditingPriceItem(null)}
-                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="text-xs space-y-2">
-              <div className="font-bold text-[#1D1D1F]">{editingPriceItem.productName}</div>
-              <label className="text-[#86868B] block">نرخی نوێ بۆ یەک کیلۆ (د.ع):</label>
-              <input
-                type="number"
-                value={newPriceInput}
-                onChange={e => setNewPriceInput(e.target.value)}
-                className="apple-input w-full px-3.5 py-2.5 font-extrabold text-base text-[#0071E3] tabular-nums"
-                autoFocus
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-2xl transition-all"
-            >
-              پاشەکەوتکردنی نرخ
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: ADD STORE EXPENSE SHEET */}
-      {/* ========================================================================= */}
-      {showAddExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-          <form
-            onSubmit={handleAddExpense}
-            className="w-full max-w-md bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-              <h3 className="font-extrabold text-sm text-[#1D1D1F]">تۆمارکردنی خەرجی شۆرۆم</h3>
-              <button
-                type="button"
-                onClick={() => setShowAddExpenseModal(false)}
-                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="text-xs space-y-3">
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">ناوی خەرجی:</label>
-                <input
-                  type="text"
-                  value={expTitle}
-                  onChange={e => setExpTitle(e.target.value)}
-                  placeholder="نموونە: عەلاگە و پاکەت..."
-                  className="apple-input w-full px-3.5 py-2.5 font-medium"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-[#515154] block mb-1">بڕی پارە (د.ع):</label>
-                  <input
-                    type="number"
-                    value={expAmount}
-                    onChange={e => setExpAmount(e.target.value)}
-                    placeholder="25000"
-                    className="apple-input w-full px-3.5 py-2.5 font-bold text-sm text-[#FF3B30] tabular-nums"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-[#515154] block mb-1">پۆلێن:</label>
-                  <select
-                    value={expCategory}
-                    onChange={e => setExpCategory(e.target.value as 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER')}
-                    className="apple-input w-full px-3 py-2.5 font-bold"
-                  >
-                    <option value="PACKAGING">پاکەت و عەلاگە</option>
-                    <option value="ELECTRICITY">کارەبا و بەفر</option>
-                    <option value="RENT">کرێی شوێن</option>
-                    <option value="SALARIES">مووچە</option>
-                    <option value="CLEANING">خاوێنکردنەوە</option>
-                    <option value="MAINTENANCE">چاککردنەوە</option>
-                    <option value="OTHER">هی تر</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-[#FF3B30] hover:bg-[#E0352B] text-white font-bold text-xs rounded-2xl transition-all"
-            >
-              تۆمارکردنی خەرجی
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* 80mm Z-REPORT (END OF SHIFT CASH DRAWER CLOSING) MODAL */}
+      {/* 3. 80mm Z-Report Modal */}
       {showZReportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
           <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
-              <span className="text-xs font-bold text-[#86868B]">Z-Report (داخستنی سندوق 80mm)</span>
+              <span className="text-xs font-bold text-[#86868B]">Z-Report (داخستنی سەندوق 80mm)</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1780,12 +1730,6 @@ export const POSView: React.FC = () => {
             </div>
 
             {(() => {
-              const cardSalesTotal = posSales
-                .filter(s => s.paymentType === 'FIB_OR_CARD')
-                .reduce((sum, s) => sum + s.total, 0);
-              const debtSalesTotal = posSales
-                .filter(s => s.paymentType === 'DEBT')
-                .reduce((sum, s) => sum + s.total, 0);
               const totalSoldKg = posSales.reduce(
                 (sum, s) => sum + s.items.reduce((is, i) => is + i.weightKg, 0),
                 0
@@ -1802,7 +1746,8 @@ export const POSView: React.FC = () => {
                       {factorySettings.showroomName} • Z-Report
                     </p>
                     <p className="text-[10px] text-[#86868B] font-sans">
-                      بەروار: {new Date().toISOString().split('T')[0]} • {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      بەروار: {new Date().toISOString().split('T')[0]} •{' '}
+                      {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
 
@@ -1828,11 +1773,11 @@ export const POSView: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#86868B]">فرۆشتنی کارت / FIB:</span>
-                      <span className="font-bold text-[#0071E3] tabular-nums">{cardSalesTotal.toLocaleString()} د.ع</span>
+                      <span className="font-bold text-[#0071E3] tabular-nums">{totalCardSales.toLocaleString()} د.ع</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#86868B]">فرۆشتنی قەرز:</span>
-                      <span className="font-bold text-[#D70015] tabular-nums">{debtSalesTotal.toLocaleString()} د.ع</span>
+                      <span className="font-bold text-[#D70015] tabular-nums">{totalDebtSales.toLocaleString()} د.ع</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-black/[0.06]">
                       <span className="font-bold">کۆی گشتی فرۆش:</span>
@@ -1850,14 +1795,226 @@ export const POSView: React.FC = () => {
                       <span className="text-[#0071E3] tabular-nums">{netCashInDrawer.toLocaleString()} د.ع</span>
                     </div>
                   </div>
-
-                  <p className="text-[10px] text-[#86868B] font-sans pt-2">
-                    راپۆرتی فەرمی داخستنی سندوق • FFC-POS
-                  </p>
                 </div>
               );
             })()}
           </div>
+        </div>
+      )}
+
+      {/* 4. Manual Receive Stock Modal */}
+      {showReceiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+          <form
+            onSubmit={handleSubmitReceiveStock}
+            className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">وەرگرتنی باری نوێ بۆ شۆرۆم</h4>
+              <button
+                type="button"
+                onClick={() => setShowReceiveModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">ژمارەی وەسڵ:</label>
+                <input
+                  type="text"
+                  value={receiveReceiptNo}
+                  onChange={e => setReceiveReceiptNo(e.target.value)}
+                  className="apple-input w-full px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">مەندوب / گەیەنەر:</label>
+                <input
+                  type="text"
+                  placeholder="ناوی مەندوب..."
+                  value={receiveRepName}
+                  onChange={e => setReceiveRepName(e.target.value)}
+                  className="apple-input w-full px-3 py-2 font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-2 text-xs">
+              <div className="flex gap-2">
+                <select
+                  value={receiveProdId}
+                  onChange={e => setReceiveProdId(e.target.value)}
+                  className="apple-input bg-white flex-1 px-3 py-2 font-bold"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nameKu}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="کگم"
+                  value={receiveWeight}
+                  onChange={e => setReceiveWeight(e.target.value)}
+                  className="apple-input bg-white w-24 px-3 py-2 font-bold text-center"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddReceiveItem}
+                  className="px-3 py-2 rounded-xl bg-[#0071E3] text-white font-bold"
+                >
+                  +
+                </button>
+              </div>
+
+              {receiveItems.length > 0 && (
+                <div className="divide-y divide-black/[0.06] pt-1">
+                  {receiveItems.map((it, idx) => (
+                    <div key={idx} className="py-1.5 flex items-center justify-between">
+                      <span className="font-bold">{it.productName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-[#248A3D]">{it.weightKg} کگم</span>
+                        <button
+                          type="button"
+                          onClick={() => setReceiveItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-[#FF3B30]"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-[#34C759] hover:bg-[#2FB350] text-white font-bold text-xs rounded-2xl transition-all"
+            >
+              تۆمارکردن و خستنە ناو کۆگای شۆرۆم
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* 5. Price Editor Modal */}
+      {editingPriceItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+          <div className="w-full max-w-xs bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">گۆڕینی نرخی {editingPriceItem.productName}</h4>
+              <button
+                type="button"
+                onClick={() => setEditingPriceItem(null)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="number"
+              value={newPriceInput}
+              onChange={e => setNewPriceInput(e.target.value)}
+              className="apple-input w-full px-3.5 py-2.5 text-base font-extrabold tabular-nums text-center"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const parsed = parseFloat(newPriceInput);
+                if (!isNaN(parsed) && parsed > 0) {
+                  updateBranchStockItem(editingPriceItem.productId, { retailPricePerKg: roundTo250(parsed) });
+                  showToast('نرخ نوێکرایەوە', 'success');
+                }
+                setEditingPriceItem(null);
+              }}
+              className="w-full py-2.5 bg-[#0071E3] text-white font-bold text-xs rounded-2xl transition-all"
+            >
+              پاشەکەوتکردن
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Add Expense Modal */}
+      {showAddExpenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+          <form
+            onSubmit={handleAddExpense}
+            className="w-full max-w-sm bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">تۆمارکردنی خەرجی شۆرۆم</h4>
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">ناونیشانی خەرجی:</label>
+                <input
+                  type="text"
+                  required
+                  value={expTitle}
+                  onChange={e => setExpTitle(e.target.value)}
+                  placeholder="وەک: کڕینی کیس و عەلاگە..."
+                  className="apple-input w-full px-3 py-2.5 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-[#515154] block mb-1">بڕ (د.ع):</label>
+                  <input
+                    type="number"
+                    required
+                    value={expAmount}
+                    onChange={e => setExpAmount(e.target.value)}
+                    placeholder="25000"
+                    className="apple-input w-full px-3 py-2.5 font-bold tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-[#515154] block mb-1">پۆلێن:</label>
+                  <select
+                    value={expCategory}
+                    onChange={e =>
+                      setExpCategory(
+                        e.target.value as 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER'
+                      )
+                    }
+                    className="apple-input w-full px-3 py-2.5 font-bold"
+                  >
+                    <option value="PACKAGING">پاکەت و عەلاگە</option>
+                    <option value="ELECTRICITY">کارەبا و بەفر</option>
+                    <option value="RENT">کرێی شوێن</option>
+                    <option value="SALARIES">مووچە</option>
+                    <option value="CLEANING">خاوێنکردنەوە</option>
+                    <option value="MAINTENANCE">چاککردنەوە</option>
+                    <option value="OTHER">هی تر</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-[#FF3B30] hover:bg-[#E0352B] text-white font-bold text-xs rounded-2xl transition-all"
+            >
+              تۆمارکردنی خەرجی
+            </button>
+          </form>
         </div>
       )}
     </div>
