@@ -2,7 +2,6 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Truck,
-  Factory,
   PackageCheck,
   RotateCcw,
   Users,
@@ -144,59 +143,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               ? 'بەڕێوەبردنی فرۆشی مەندوبان، دیاری و هەدیە، و گەڕاوەی ٣ ڕۆژ.'
               : 'بەڕێوەبردنی تەواوی وەرگرتنی زیندوو، مەندوبان، فرۆشگای POS، گەڕاوەی ٣ ڕۆژ و کەشف حساب.'}
           </p>
-        </div>
-
-        {/* Role-Filtered Action Pills */}
-        <div className="flex flex-wrap items-center gap-2">
-          {hasAccess('intake') && (
-            <button
-              onClick={() => setActiveTab('intake')}
-              className="px-4 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-semibold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
-            >
-              <Truck className="w-3.5 h-3.5" />
-              + باری کێڵگە
-            </button>
-          )}
-
-          {hasAccess('production') && (
-            <button
-              onClick={() => setActiveTab('production')}
-              className="px-4 py-2.5 bg-[#5856D6]/15 hover:bg-[#5856D6]/25 text-[#4947C2] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Factory className="w-3.5 h-3.5 text-[#5856D6]" />
-              سەربڕین و پارچەکردن
-            </button>
-          )}
-
-          {hasAccess('ready-for-sale') && (
-            <button
-              onClick={() => setActiveTab('ready-for-sale')}
-              className="px-4 py-2.5 bg-[#34C759]/15 hover:bg-[#34C759]/25 text-[#1B7A34] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <PackageCheck className="w-3.5 h-3.5 text-[#248A3D]" />
-              ئامادە بۆ فرۆشتن
-            </button>
-          )}
-
-          {hasAccess('rep-sales') && (
-            <button
-              onClick={() => setActiveTab('rep-sales')}
-              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <ArrowUpRight className="w-3.5 h-3.5 text-[#34C759]" />
-              فرۆشتنی مەندوب و گەڕاوە
-            </button>
-          )}
-
-          {hasAccess('pos') && (
-            <button
-              onClick={() => setActiveTab('pos')}
-              className="px-4 py-2.5 bg-[#1D1D1F] hover:bg-[#2C2C2E] text-white font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Store className="w-3.5 h-3.5" />
-              فرۆشگای POS
-            </button>
-          )}
         </div>
       </div>
 
