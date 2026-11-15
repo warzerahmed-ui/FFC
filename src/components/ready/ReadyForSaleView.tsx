@@ -213,7 +213,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
               className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm shadow-[#0071E3]/25 flex items-center gap-1.5 transition-all active:scale-95"
             >
               <ClipboardList className="w-4 h-4" />
-              ناردن بۆ حسابی مەندوب و شۆرۆم (قۆناغی ٤)
+              کۆگای مەندوب (قۆناغی ٤)
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}
@@ -405,7 +405,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                       className="flex-1 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                     >
                       <ClipboardList className="w-3.5 h-3.5" />
-                      ناردن بۆ حسابی مەندوب
+                      ناردن بۆ کۆگای مەندوب
                     </button>
                   )}
 

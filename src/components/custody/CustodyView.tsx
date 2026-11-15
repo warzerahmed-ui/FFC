@@ -318,10 +318,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-              ٤. ناردنە سەر حسابی مەندوب (عەهدەی کاڵا)
+              ٤. کۆگای مەندوب (عەهدەی کاڵا)
             </h2>
             <p className="text-xs text-[#86868B] mt-0.5">
-              ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ سەر حسابی مەندوبەکان، بەدواداچوونی ماوەی نەفرۆشراو، و گەڕاندنەوەی بۆ کۆگای ئامادە
+              بارکردنی گۆشت لە کۆگای ئامادەوە بۆ سەر کۆگای مەندوبەکان، بەدواداچوونی فرۆشراو، و گەڕاندنەوەی نەفرۆشراو
             </p>
           </div>
         </div>
@@ -333,7 +333,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm shadow-[#0071E3]/25 flex items-center gap-1.5 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            ناردنە سەر حسابی مەندوب
+            ناردن بۆ کۆگای مەندوب
           </button>
 
           {onNavigate && (
@@ -681,10 +681,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-[#1D1D1F]">
-                    ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ حسابی مەندوب
+                    ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ کۆگای مەندوب
                   </h3>
                   <p className="text-[11px] text-[#86868B]">
-                    لە کۆگای ئامادە دادەبەزێت و دەچێتە سەر عەهدەی مەندوب هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
+                    لە کۆگای ئامادە دادەبەزێت و دەچێتە ناو کۆگای مەندوب هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
                   </p>
                 </div>
               </div>

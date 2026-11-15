@@ -49,7 +49,7 @@ export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: strin
   { id: 'intake', label: '١. وەرگرتنی مریشک (کێڵگە)', groupLabel: 'کارگە و کۆگا' },
   { id: 'production', label: '٢. سەربڕین و پارچەکردن', groupLabel: 'کارگە و کۆگا' },
   { id: 'ready-for-sale', label: '٣. ئامادە بۆ فرۆشتن', groupLabel: 'کارگە و کۆگا' },
-  { id: 'custody', label: '٤. ناردن بۆ حسابی مەندوب', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'custody', label: '٤. کۆگای مەندوب', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'rep-sales', label: '٥. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'pos', label: '٦. فرۆشگای شۆرۆم (POS)', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'gifts', label: '٧. دیاری و هەدیە', groupLabel: 'ناردن و فرۆشتن' },
