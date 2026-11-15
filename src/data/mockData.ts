@@ -129,68 +129,9 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
   },
 ];
 
-export const INITIAL_INTAKES: LiveIntake[] = [
-  {
-    id: 'int-101',
-    manualReceiptNo: 'M-4891',
-    date: '2026-11-04',
-    farmName: 'کێڵگەی ڕاپەڕین (حاجی کەمال)',
-    driverName: 'ئاسۆ مەحمود - ئۆتۆمبێلی ١٨٢٩ سلێمانی',
-    birdCount: 1650,
-    grossWeightKg: 14200,
-    tareWeightKg: 10450,
-    netWeightKg: 3750,
-    processedLiveWeightKg: 2000,
-    remainingLiveWeightKg: 1750,
-    pricePerKg: 2550,
-    totalAmount: 9562500,
-    paymentStatus: 'DEBT',
-    paidAmount: 2000000,
-    notes: 'وەجبەی بەیانی زوو گەیشت، کوالێتی تەواو بەرز بوو',
-    yieldProcessed: false,
-  },
-  {
-    id: 'int-102',
-    manualReceiptNo: 'M-4892',
-    date: '2026-11-03',
-    farmName: 'کێڵگەی شەمامک (کاک هێمن)',
-    driverName: 'دیاری فەریق - ئۆتۆمبێلی بار',
-    birdCount: 1200,
-    grossWeightKg: 12800,
-    tareWeightKg: 10100,
-    netWeightKg: 2700,
-    processedLiveWeightKg: 2700,
-    remainingLiveWeightKg: 0,
-    pricePerKg: 2500,
-    totalAmount: 6750000,
-    paymentStatus: 'PAID',
-    paidAmount: 6750000,
-    notes: 'پارەکەی بە تەواوی نەقد دراوە',
-    yieldProcessed: true,
-  },
-];
+export const INITIAL_INTAKES: LiveIntake[] = [];
 
-export const INITIAL_YIELDS: YieldRecord[] = [
-  {
-    id: 'yld-1',
-    intakeId: 'int-101',
-    manualReceiptNo: 'M-4891',
-    farmName: 'کێڵگەی ڕاپەڕین (حاجی کەمال)',
-    date: '2026-11-04',
-    batchLiveWeightKg: 2000,
-    dressedWeightKg: 1360,
-    wasteWeightKg: 640,
-    yieldPercentage: 68,
-    wastePercentage: 32,
-    remainingAfterBatchKg: 1750,
-    cuts: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش', weightKg: 800 },
-      { productId: 'prod-2', productName: 'سنگی مریشک', weightKg: 300 },
-      { productId: 'prod-3', productName: 'ڕانی مریشک', weightKg: 260 },
-    ],
-    notes: 'وەجبەی یەکەمی سەربڕینی وەسڵی M-4891',
-  },
-];
+export const INITIAL_YIELDS: YieldRecord[] = [];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   {

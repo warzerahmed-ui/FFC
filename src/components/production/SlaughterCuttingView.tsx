@@ -383,6 +383,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 <th className="p-4">کێڵگە</th>
                 <th className="p-4">کێشی زیندوو</th>
                 <th className="p-4">کۆی پارچەکراو</th>
+                <th className="p-4">پەڕ و فەوتان</th>
                 <th className="p-4">ڕێژەی سافی</th>
                 <th className="p-4">بەرهەمە ئامادەکراوەکان</th>
               </tr>
@@ -390,7 +391,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
               {yields.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-[#86868B]">
+                  <td colSpan={8} className="p-8 text-center text-[#86868B]">
                     هیچ تۆمارێکی سەربڕین نییە
                   </td>
                 </tr>
@@ -409,6 +410,9 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                     </td>
                     <td className="p-4 font-black text-[#248A3D] tabular-nums">
                       {y.dressedWeightKg.toLocaleString()} کگم
+                    </td>
+                    <td className="p-4 font-bold text-[#FF3B30] tabular-nums">
+                      {y.wasteWeightKg.toLocaleString()} کگم
                     </td>
                     <td className="p-4 font-bold text-[#0071E3] tabular-nums">
                       {y.yieldPercentage}%
