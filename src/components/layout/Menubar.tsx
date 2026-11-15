@@ -573,9 +573,9 @@ export const Menubar: React.FC<MenubarProps> = ({
                 const subActive = isItemActive(sub);
                 return (
                   <button
-                    key={sub.id}
+                    key={`${sub.id}-${sub.posSubTab ?? ''}`}
                     type="button"
-                    onClick={() => handleSelectTab(sub.id)}
+                    onClick={() => handleSelectTab(sub.id, sub.posSubTab)}
                     className={`px-2.5 py-0.5 rounded-full text-[11px] transition-all cursor-pointer ${
                       subActive
                         ? 'bg-white text-[#1D1D1F] font-bold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-black/[0.06]'

@@ -11,7 +11,6 @@ import {
   Trash2,
   X,
   ArrowRight,
-  PackageCheck,
   Clock,
 } from 'lucide-react';
 import { TabType } from '../../types';
@@ -356,17 +355,6 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             <Plus className="w-4 h-4" />
             ناردن بۆ کۆگای مەندوب
           </button>
-
-          {onNavigate && (
-            <button
-              type="button"
-              onClick={() => onNavigate('ready-for-sale')}
-              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <PackageCheck className="w-4 h-4 text-[#0071E3]" />
-              کۆگای ئامادە
-            </button>
-          )}
         </div>
       </div>
 

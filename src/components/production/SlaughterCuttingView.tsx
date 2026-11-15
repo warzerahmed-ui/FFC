@@ -216,15 +216,6 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
             <Plus className="w-4 h-4" />
             سەربڕین و پارچەکردنی نوێ
           </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('ready-for-sale')}
-            className="px-4 py-2.5 bg-[#0071E3]/10 hover:bg-[#0071E3]/20 text-[#0071E3] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            چوون بۆ ئامادە بۆ فرۆشتن
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 

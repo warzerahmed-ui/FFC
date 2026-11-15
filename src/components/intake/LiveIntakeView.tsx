@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Truck, Plus, FileText, Search, X, Check, Scissors, ArrowLeft, Trash2 } from 'lucide-react';
+import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2 } from 'lucide-react';
 import { TabType, roundTo250 } from '../../types';
 
 interface LiveIntakeViewProps {
@@ -149,17 +149,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
             <Plus className="w-4 h-4" />
             وەسڵی دەستی نوێ
           </button>
-
-          {onNavigate && (
-            <button
-              type="button"
-              onClick={() => onNavigate('production')}
-              className="px-4 py-2.5 bg-[#5856D6]/10 hover:bg-[#5856D6]/20 text-[#5856D6] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all shrink-0"
-            >
-              قۆناغی ٢: سەربڕین
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 

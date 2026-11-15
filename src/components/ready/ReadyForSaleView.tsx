@@ -9,7 +9,6 @@ import {
   RotateCcw,
   RefreshCw,
   ClipboardList,
-  ArrowUpRight,
   Barcode,
   Printer,
   Plus,
@@ -208,18 +207,6 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {onNavigate && (
-            <button
-              type="button"
-              onClick={() => onNavigate('custody')}
-              className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm shadow-[#0071E3]/25 flex items-center gap-1.5 transition-all active:scale-95"
-            >
-              <ClipboardList className="w-4 h-4" />
-              کۆگای مەندوب (قۆناغی ٤)
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setShowAddProductModal(true)}
