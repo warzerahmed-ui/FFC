@@ -21,6 +21,7 @@ import {
   Check,
   Edit3,
   AlertCircle,
+  MessageCircle,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, ReturnItem, BranchStockItem } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -1514,6 +1515,19 @@ export const POSView: React.FC = () => {
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
               <span className="text-xs font-bold text-[#86868B]">وەسڵی گەرمی 80mm</span>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const s = printReceipt;
+                    const itemsText = (s.items || []).map(i => `• ${i.productName}: ${i.weightKg} کگم x ${i.pricePerKg.toLocaleString()} = ${i.total.toLocaleString()} د.ع`).join('\n');
+                    const msg = `وەسڵی فرۆشتنی شۆرۆمی ${factorySettings.factoryName} (${factorySettings.showroomName})\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${s.paymentType === 'CASH' ? 'نەقد' : 'کارت'})\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1 transition-all"
+                  title="ناردنی وەسڵ بە واتسئاپ"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  واتسئاپ
+                </button>
                 <button
                   onClick={() => window.print()}
                   className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"

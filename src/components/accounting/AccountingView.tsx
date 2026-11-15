@@ -15,6 +15,7 @@ import {
   Filter,
   Download,
   Trash2,
+  MessageCircle,
 } from 'lucide-react';
 import { Customer, Supplier } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -65,6 +66,8 @@ export const AccountingView: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newInitialDebt] = useState<number | ''>(0);
+  const [newPriceTier, setNewPriceTier] = useState<'STANDARD' | 'WHOLESALE' | 'SPECIAL'>('STANDARD');
+  const [newCustomDiscount, setNewCustomDiscount] = useState<number | ''>('');
 
   const handleVoucherSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,11 +110,15 @@ export const AccountingView: React.FC = () => {
       address: newAddress,
       currentDebt: Number(newInitialDebt) || 0,
       creditLimit: 5000000,
+      priceTier: newPriceTier,
+      customDiscountPerKg: Number(newCustomDiscount) || 0,
     });
     setShowAddCustomerModal(false);
     setNewName('');
     setNewPhone('');
     setNewAddress('');
+    setNewPriceTier('STANDARD');
+    setNewCustomDiscount('');
   };
 
   const handleAddSupplierSubmit = (e: React.FormEvent) => {
@@ -508,7 +515,12 @@ export const AccountingView: React.FC = () => {
                   <tr key={c.id} className="hover:bg-[#FBFBFD]">
                     <td className="p-4 font-bold text-[#1D1D1F]">{c.name}</td>
                     <td className="p-4 text-[#86868B]">
-                      {c.type === 'SUPERMARKET' ? 'مارکێت' : c.type === 'RESTAURANT' ? 'چێشتخانە' : 'کۆ'}
+                      <div>{c.type === 'SUPERMARKET' ? 'مارکێت' : c.type === 'RESTAURANT' ? 'چێشتخانە' : 'کۆ'}</div>
+                      {c.priceTier && c.priceTier !== 'STANDARD' && (
+                        <span className="inline-block text-[10px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-1.5 py-0.5 rounded-md mt-0.5">
+                          {c.priceTier === 'WHOLESALE' ? 'جملە' : 'تایبەت'} {c.customDiscountPerKg ? `(-${c.customDiscountPerKg})` : ''}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-[#86868B]">{c.phone} - {c.address}</td>
                     <td className="p-4">{c.creditLimit.toLocaleString()} د.ع</td>
@@ -790,6 +802,18 @@ export const AccountingView: React.FC = () => {
                   >
                     <Download className="w-4 h-4" />
                     Excel / CSV
+                  </button>
+                  <button
+                    onClick={() => {
+                      const cleanPhone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '');
+                      const intlPhone = cleanPhone.startsWith('0') ? '964' + cleanPhone.slice(1) : cleanPhone;
+                      const msg = `سڵاو و ڕێز بەڕێز ${selectedCustomer.name}\n\nکەشفی حسابی کارگەی ${factorySettings.factoryName} (${factorySettings.shortCode}):\nکۆی ماوەی قەرز تا بەرواری ${endDate}: ${selectedCustomer.currentDebt.toLocaleString()} د.ع\n\nناونیشانی کارگە: ${factorySettings.address}\nتەلەفۆن: ${factorySettings.phone1} | ${factorySettings.phone2}\nسوپاس بۆ متمانەتان 🍗`;
+                      window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                    }}
+                    className="px-5 py-2.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full font-bold flex items-center gap-2 shadow-sm transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    ناردن بە واتسئاپ (WhatsApp)
                   </button>
                   <button
                     onClick={() => window.print()}
@@ -1080,6 +1104,30 @@ export const AccountingView: React.FC = () => {
                   onChange={(e) => setNewAddress(e.target.value)}
                   className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F]"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#515154] mb-1">پۆلی نرخ</label>
+                  <select
+                    value={newPriceTier}
+                    onChange={e => setNewPriceTier(e.target.value as 'STANDARD' | 'WHOLESALE' | 'SPECIAL')}
+                    className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3 py-2 text-[#1D1D1F] font-semibold"
+                  >
+                    <option value="STANDARD">ستاندارد (ئاسایی)</option>
+                    <option value="WHOLESALE">جملە (مارکێتی گەورە)</option>
+                    <option value="SPECIAL">تایبەت (چێشتخانە/هۆڵ)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[#515154] mb-1">داشکاندن (د.ع/کگم)</label>
+                  <input
+                    type="number"
+                    placeholder="نموونە: 150"
+                    value={newCustomDiscount}
+                    onChange={e => setNewCustomDiscount(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F] tabular-nums"
+                  />
+                </div>
               </div>
               <div className="flex gap-2.5 pt-2">
                 <button type="button" onClick={() => setShowAddCustomerModal(false)} className="w-1/2 py-2.5 bg-[#F5F5F7] text-[#515154] rounded-full font-semibold">پاشگەزبوونەوە</button>

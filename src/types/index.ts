@@ -143,6 +143,9 @@ export interface LiveIntake {
   totalAmount: number;       // کۆی پارە
   paymentStatus: 'PAID' | 'DEBT' | 'PARTIAL';
   paidAmount: number;
+  deadBirdCount?: number;    // ژمارەی مریشکی مرداربوو لە ڕێگادا / قەفەز
+  deadWeightKg?: number;     // کێشی مریشکی مرداربوو (کگم)
+  mortalityRate?: number;    // ڕێژەی مرداربوون %
   notes?: string;
   yieldProcessed?: boolean;
 }
@@ -248,6 +251,8 @@ export interface Customer {
   address: string;
   currentDebt: number;          // بڕی قەرز
   creditLimit: number;          // سنووری قەرز
+  priceTier?: 'STANDARD' | 'WHOLESALE' | 'SPECIAL'; // پۆلی نرخ
+  customDiscountPerKg?: number; // داشکاندنی تایبەت بۆ هەر کیلۆیەک (د.ع)
   createdAt: string;
 }
 
@@ -394,6 +399,8 @@ export interface DailySettlement {
   cardSalesAmount: number;     // فرۆشتنی کارت / FIB (بۆ شۆرۆم)
   returnsAmount: number;       // بڕی گەڕاوەی ٣ ڕۆژ
   expensesAmount: number;      // خەرجیی ڕۆژانە (بۆ شۆرۆم)
+  repExpensesAmount?: number;  // خەرجی سەر ڕێگای مەندوب (بەنزین، چاککردنەوە، کرێ)
+  repExpensesNotes?: string;   // تێبینی خەرجی مەندوب
   collectedDebtAmount: number; // قەرزی کۆن وەرگیراو لە بازاڕ (ئەگەر هەبێت)
   expectedCashAmount: number;  // پارەی کاشی داواکراو
   returnedCashAmount: number;  // پارەی کاشی گەڕاوە / تەسلیمکراو

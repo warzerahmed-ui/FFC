@@ -1,0 +1,19 @@
+{
+  "short_name": "FFC-POS",
+  "name": "کارگەی مریشکی فرێش | FFC-POS",
+  "description": "سیستەمی بەڕێوەبردنی کارگە، سەربڕین، کۆگا، مەندوب و شۆرۆمی فرۆشتن",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍗</text></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#F4F7FA",
+  "theme_color": "#0071E3",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ckb"
+}

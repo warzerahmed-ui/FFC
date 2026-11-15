@@ -17,6 +17,8 @@ import {
   ArrowLeftRight,
   Clock,
   Download,
+  MessageCircle,
+  Truck,
 } from 'lucide-react';
 import { DailySettlement } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -68,6 +70,7 @@ export const DailySettlementView: React.FC = () => {
     settlements,
     currentUser,
     addDailySettlement,
+    addExpense,
     factorySettings,
     repNames,
   } = useApp();
@@ -87,6 +90,8 @@ export const DailySettlementView: React.FC = () => {
   const [returnedCashInput, setReturnedCashInput] = useState<number | ''>('');
   const [returnedCardInput, setReturnedCardInput] = useState<number | ''>(0);
   const [settlementNotes, setSettlementNotes] = useState('');
+  const [repExpenseInput, setRepExpenseInput] = useState<number | ''>('');
+  const [repExpenseNotes, setRepExpenseNotes] = useState('بەنزین و خەرجی سەیارەی مەندوب');
 
   // Collect all active dates for quick jumping
   const activeDates = useMemo(() => {
@@ -358,6 +363,8 @@ export const DailySettlementView: React.FC = () => {
     setCollectedDebtInput(0);
     setReturnedCashInput(remainingCash);
     setReturnedCardInput(remainingCard);
+    setRepExpenseInput('');
+    setRepExpenseNotes('بەنزین و خەرجی سەیارەی مەندوب');
     setSettlementNotes(
       `تەسفییەی حسابی ڕۆژانە بۆ بەرواری ${selectedDate}`
     );
@@ -371,6 +378,7 @@ export const DailySettlementView: React.FC = () => {
     }
 
     const newDebtCollected = Math.max(0, Number(collectedDebtInput) || 0);
+    const repExp = settlingAccount.accountType === 'REP' ? Math.max(0, Number(repExpenseInput) || 0) : 0;
     const newReturnedCash = Math.max(0, Number(returnedCashInput) || 0);
     const tracksCard =
       settlingAccount.accountType === 'BRANCH' || settlingAccount.cardSalesAmount > 0;
@@ -378,9 +386,21 @@ export const DailySettlementView: React.FC = () => {
       ? Math.max(0, Number(returnedCardInput) || 0)
       : 0;
 
+    if (repExp > 0) {
+      addExpense({
+        date: selectedDate,
+        category: 'FUEL',
+        title: `خەرجی سەر ڕێگای ${settlingAccount.accountName}`,
+        amount: repExp,
+        recipient: settlingAccount.accountName,
+        receiptNo: settlementNo.trim(),
+        notes: `${repExpenseNotes} (لێدەرکراو لە وەسڵی تەسفییە ${settlementNo.trim()})`,
+      });
+    }
+
     // Expected from this settlement step (or remaining day balance including newly entered debt collection)
     const remainingExpectedCashAfterNewDebt =
-      Math.max(0, settlingAccount.expectedCashToday - settlingAccount.returnedCashToday) +
+      Math.max(0, settlingAccount.expectedCashToday - settlingAccount.returnedCashToday - repExp) +
       newDebtCollected;
     const remainingExpectedCard = tracksCard
       ? Math.max(0, settlingAccount.cardSalesAmount - settlingAccount.returnedCardToday)
@@ -415,7 +435,9 @@ export const DailySettlementView: React.FC = () => {
       creditSalesAmount: settlingAccount.creditSalesAmount,
       cardSalesAmount: settlingAccount.cardSalesAmount,
       returnsAmount: settlingAccount.returnsAmount,
-      expensesAmount: settlingAccount.expensesAmount,
+      expensesAmount: settlingAccount.expensesAmount + repExp,
+      repExpensesAmount: repExp > 0 ? repExp : undefined,
+      repExpensesNotes: repExp > 0 ? repExpenseNotes : undefined,
       collectedDebtAmount: newDebtCollected,
       expectedCashAmount: remainingExpectedCashAfterNewDebt + remainingExpectedCard,
       returnedCashAmount: newReturnedCash,
@@ -1009,6 +1031,44 @@ export const DailySettlementView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Rep Route / Vehicle Expenses (Gas, Maintenance, Toll) */}
+              {settlingAccount.accountType === 'REP' && (
+                <div className="p-3.5 rounded-2xl bg-[#FF9500]/10 border border-[#FF9500]/25 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#1D1D1F] text-[11px] flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-[#B25000]" />
+                      خەرجی سەر ڕێگای مەندوب (بەنزین، ڕۆن، چاککردنەوە، کرێ)
+                    </span>
+                    <span className="text-[10px] text-[#B25000] font-semibold">
+                      لە پارەی کاش لێدەردەکرێت
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="بڕی خەرجی (د.ع) — نموونە: 25000"
+                        value={repExpenseInput}
+                        onChange={e =>
+                          setRepExpenseInput(e.target.value ? Number(e.target.value) : '')
+                        }
+                        className="apple-input w-full px-3 py-2 font-bold bg-white"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="تێبینی (نموونە: بەنزینی سەیارەی هێڵ)"
+                        value={repExpenseNotes}
+                        onChange={e => setRepExpenseNotes(e.target.value)}
+                        className="apple-input w-full px-3 py-2 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div
                 className={`grid grid-cols-1 ${
                   settlingAccount.accountType === 'BRANCH' ? 'sm:grid-cols-2' : ''
@@ -1169,6 +1229,18 @@ export const DailySettlementView: React.FC = () => {
                 >
                   <Download className="w-3.5 h-3.5" />
                   Excel / CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!statementAccount) return;
+                    const msg = `ڕاپۆرتی تەسفییەی حسابی ڕۆژانە\nکارگەی ${factorySettings.factoryName} (${factorySettings.shortCode})\n\nحساب: ${statementAccount.accountName}\nبەروار: ${selectedDate}\n\nکۆی فرۆشتن: ${statementAccount.totalSalesAmount.toLocaleString()} د.ع (${statementAccount.totalWeightKg} کگم)\nفرۆشی کاش: ${statementAccount.cashSalesAmount.toLocaleString()} د.ع\nفرۆشی قەرز: ${statementAccount.creditSalesAmount.toLocaleString()} د.ع\nگەڕاوەی ٣ ڕۆژ: ${statementAccount.returnsAmount.toLocaleString()} د.ع\nخەرجی لێدەرکراو: ${statementAccount.expensesAmount.toLocaleString()} د.ع\nقەرزی وەرگیراو: ${statementAccount.collectedDebtToday.toLocaleString()} د.ع\n\nکاشی گەڕاوە بۆ کارگە: ${statementAccount.returnedCashToday.toLocaleString()} د.ع\nجیاوازی سندووق: ${statementAccount.varianceToday.toLocaleString()} د.ع (${statementAccount.varianceToday === 0 ? 'تەواو و بەرابەر' : statementAccount.varianceToday < 0 ? 'کورتھێنان' : 'زیادە'})\n\nتەلەفۆن: ${factorySettings.phone1}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="px-3.5 py-2 rounded-full bg-[#25D366] hover:bg-[#20BD5A] text-white font-bold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  واتسئاپ
                 </button>
                 <button
                   type="button"

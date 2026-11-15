@@ -17,6 +17,8 @@ import {
   Scale,
   FileText,
   ClipboardList,
+  MessageCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -51,6 +53,7 @@ export const RepSalesView: React.FC = () => {
   const [phone] = useState('0770 234 5678');
   const [paymentType, setPaymentType] = useState<'CREDIT' | 'CASH' | 'ELECTRONIC'>('CREDIT');
   const [notes, setNotes] = useState('فرۆشی مەندوب بە وەسڵی دەستی');
+  const [overrideCreditLimit, setOverrideCreditLimit] = useState(false);
 
   // Sale Line Items
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '');
@@ -323,6 +326,18 @@ export const RepSalesView: React.FC = () => {
     }
 
     const finalCustomer = customCustomer.trim() || customerName;
+
+    // Credit limit enforcement
+    const targetCust = customers.find(c => c.name === finalCustomer);
+    if (paymentType === 'CREDIT' && targetCust) {
+      const projected = targetCust.currentDebt + saleTotalAmount;
+      if (projected > targetCust.creditLimit && !overrideCreditLimit) {
+        alert(
+          `ئاگاداری سنووری قەرز:\nقەرزی ئەم مارکێتە دەبێتە ${projected.toLocaleString()} د.ع کە لە سنووری ڕێپێدراو (${targetCust.creditLimit.toLocaleString()} د.ع) زیاترە!\n\nتکایە خانەی 'ڕەزامەندی دراوە بۆ تێپەڕاندنی سنووری قەرز' چالاک بکە بۆ تۆمارکردن.`
+        );
+        return;
+      }
+    }
 
     addDispatch({
       manualReceiptNo: cleanReceipt,
@@ -1134,6 +1149,35 @@ export const RepSalesView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Credit Limit Alert Banner */}
+              {(() => {
+                const targetCust = customers.find(c => c.name === (customCustomer.trim() || customerName));
+                if (!targetCust || paymentType !== 'CREDIT') return null;
+                const projected = targetCust.currentDebt + saleTotalAmount;
+                const exceeded = projected > targetCust.creditLimit;
+                if (!exceeded) return null;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/25 text-xs text-[#D70015] space-y-2">
+                    <div className="flex items-center gap-2 font-bold">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>ئاگاداری: قەرزی ئەم مارکێتە لە سنووری ڕێپێدراو ({targetCust.creditLimit.toLocaleString()} د.ع) تێدەپەڕێت!</span>
+                    </div>
+                    <p className="text-[11px] text-[#515154]">
+                      قەرزی ئێستا: {targetCust.currentDebt.toLocaleString()} د.ع + فرۆشی نوێ: {saleTotalAmount.toLocaleString()} د.ع = {projected.toLocaleString()} د.ع (زیادە: {(projected - targetCust.creditLimit).toLocaleString()} د.ع)
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-[#1D1D1F]">
+                      <input
+                        type="checkbox"
+                        checked={overrideCreditLimit}
+                        onChange={e => setOverrideCreditLimit(e.target.checked)}
+                        className="w-4 h-4 accent-[#D70015]"
+                      />
+                      <span>ڕەزامەندی دراوە بۆ تێپەڕاندنی سنووری قەرز بۆ ئەم وەسڵە</span>
+                    </label>
+                  </div>
+                );
+              })()}
+
               {/* Sale Items */}
               <div className="border border-black/[0.06] rounded-2xl p-4 bg-[#FBFBFD] space-y-3">
                 <div className="font-bold text-[#1D1D1F] flex items-center justify-between">
@@ -1150,7 +1194,11 @@ export const RepSalesView: React.FC = () => {
                       onChange={e => {
                         setSelectedProductId(e.target.value);
                         const prod = products.find(p => p.id === e.target.value);
-                        if (prod) setItemPrice(prod.pricePerKg);
+                        if (prod) {
+                          const activeCust = customers.find(c => c.name === (customCustomer.trim() || customerName));
+                          const disc = activeCust?.customDiscountPerKg || (activeCust?.priceTier === 'WHOLESALE' ? 250 : activeCust?.priceTier === 'SPECIAL' ? 150 : 0);
+                          setItemPrice(Math.max(0, prod.pricePerKg - disc));
+                        }
                       }}
                       className="w-full bg-white border border-black/[0.06] rounded-xl px-3 py-2 text-[#1D1D1F] outline-none font-semibold"
                     >
@@ -1853,14 +1901,31 @@ export const RepSalesView: React.FC = () => {
 
             <div className="flex items-center justify-between gap-3 pt-2">
               <span className="text-[10px] text-[#86868B]">{factorySettings.receiptFooter}</span>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm shrink-0 no-print"
-              >
-                <Printer className="w-4 h-4" />
-                پرینتکردنی وەسڵ
-              </button>
+              <div className="flex items-center gap-2 shrink-0 no-print">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = selectedSaleForPrint;
+                    const cleanPhone = (d.driverOrRepPhone || '').replace(/[^0-9]/g, '');
+                    const intlPhone = cleanPhone.startsWith('0') ? '964' + cleanPhone.slice(1) : cleanPhone;
+                    const itemsText = (d.items || []).map((i: DispatchItem) => `• ${i.productName}: ${i.weightKg} کگم x ${i.pricePerKg.toLocaleString()} = ${i.totalAmount.toLocaleString()} د.ع`).join('\n');
+                    const msg = `وەسڵی فرۆشتنی کارگەی ${factorySettings.factoryName} (${factorySettings.shortCode})\n\nژمارەی وەسڵ: ${d.manualReceiptNo}\nکڕیار: ${d.customerName || d.destinationName}\nمەندوب: ${d.repName || '---'}\nبەروار: ${d.date} ${d.time || ''}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${d.totalAmount.toLocaleString()} د.ع (${d.paymentType === 'CASH' ? 'نەقد' : 'قەرز'})\n\nتەلەفۆنی کارگە: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ مامەڵەتان 🍗'}`;
+                    window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="px-4 py-2 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  واتسئاپ (WhatsApp)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <Printer className="w-4 h-4" />
+                  پرینتکردنی وەسڵ
+                </button>
+              </div>
             </div>
           </div>
         </div>

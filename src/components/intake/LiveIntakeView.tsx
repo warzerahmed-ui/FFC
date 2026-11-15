@@ -26,6 +26,8 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   const [newFarmPhone, setNewFarmPhone] = useState('');
   const [driverName, setDriverName] = useState('');
   const [birdCount, setBirdCount] = useState<number | ''>('');
+  const [deadBirdCount, setDeadBirdCount] = useState<number | ''>('');
+  const [deadWeightKg, setDeadWeightKg] = useState<number | ''>('');
   const [grossWeightKg, setGrossWeightKg] = useState<number | ''>('');
   const [tareWeightKg, setTareWeightKg] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
@@ -75,6 +77,9 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
 
   const netWeight = (Number(grossWeightKg) || 0) - (Number(tareWeightKg) || 0);
   const totalAmount = netWeight > 0 ? netWeight * (Number(pricePerKg) || 0) : 0;
+  const mortalityPercent = (Number(birdCount) || 0) > 0 && (Number(deadBirdCount) || 0) > 0
+    ? Number((((Number(deadBirdCount) || 0) / (Number(birdCount) || 1)) * 100).toFixed(2))
+    : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +93,9 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
       farmName,
       driverName,
       birdCount: Number(birdCount) || 0,
+      deadBirdCount: Number(deadBirdCount) || 0,
+      deadWeightKg: Number(deadWeightKg) || 0,
+      mortalityRate: mortalityPercent,
       grossWeightKg: Number(grossWeightKg) || 0,
       tareWeightKg: Number(tareWeightKg) || 0,
       netWeightKg: netWeight,
@@ -105,6 +113,8 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
     setFarmName('');
     setDriverName('');
     setBirdCount('');
+    setDeadBirdCount('');
+    setDeadWeightKg('');
     setGrossWeightKg('');
     setTareWeightKg('');
     setPaidAmount(0);
@@ -226,7 +236,12 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                   <td className="p-4 font-bold text-[#1D1D1F]">{intake.farmName}</td>
                   <td className="p-4 text-[#515154]">{intake.driverName || '---'}</td>
                   <td className="p-4 text-center tabular-nums font-semibold">
-                    {intake.birdCount > 0 ? intake.birdCount.toLocaleString() : '---'}
+                    <div>{intake.birdCount > 0 ? intake.birdCount.toLocaleString() : '---'}</div>
+                    {Boolean(intake.deadBirdCount && intake.deadBirdCount > 0) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#D70015] bg-[#FF3B30]/10 px-1.5 py-0.5 rounded-md mt-0.5" title={`مرداربوو: ${intake.deadBirdCount} سەر (${intake.mortalityRate || 0}%)`}>
+                        {intake.deadBirdCount} تەلەف ({intake.mortalityRate || 0}%)
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-center font-black text-[#1D1D1F] tabular-nums">
                     {intake.netWeightKg.toLocaleString()} کگم
@@ -438,6 +453,28 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                     placeholder="1500"
                     value={birdCount}
                     onChange={e => setBirdCount(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 tabular-nums"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">مرداربووی قەفەز (سەر)</label>
+                  <input
+                    type="number"
+                    placeholder="12"
+                    value={deadBirdCount}
+                    onChange={e => setDeadBirdCount(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 tabular-nums border-[#FF3B30]/30 focus:border-[#FF3B30]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">کێشی مرداربوو (کگم)</label>
+                  <input
+                    type="number"
+                    placeholder="25"
+                    value={deadWeightKg}
+                    onChange={e => setDeadWeightKg(e.target.value ? Number(e.target.value) : '')}
                     className="apple-input w-full px-3.5 py-2 tabular-nums"
                   />
                 </div>
