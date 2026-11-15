@@ -19,6 +19,7 @@ import {
 } from '../data/mockData';
 import {
   ProductItem,
+  ProductCategory,
   LiveIntake,
   YieldRecord,
   Customer,
@@ -119,6 +120,16 @@ interface AppContextType {
   addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
   addVoucher: (voucher: Omit<PaymentVoucher, 'id' | 'previousDebt' | 'remainingDebt'>) => void;
   addPOSSale: (sale: Omit<POSSale, 'id' | 'saleNo'>) => POSSale;
+  addProduct: (product: {
+    nameKu: string;
+    pricePerKg: number;
+    costPerKg?: number;
+    category?: ProductCategory;
+    unit?: 'KG' | 'PIECE';
+    initialStockKg?: number;
+  }) => ProductItem;
+  updateProduct: (product: ProductItem) => void;
+  deleteProduct: (id: string) => void;
   updateProductPrice: (id: string, newPrice: number, newCost: number) => void;
   
   // Dedicated Store Actions
@@ -1234,11 +1245,100 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProductPrice = (id: string, newPrice: number, newCost: number) => {
     const prod = products.find(p => p.id === id);
     setProducts(prev => prev.map(p => p.id === id ? { ...p, pricePerKg: newPrice, costPerKg: newCost } : p));
+    setBranchStock(prev => prev.map(b => b.productId === id ? { ...b, retailPricePerKg: newPrice, factoryCostPerKg: newCost } : b));
     recordActivity(
       'PRODUCTION',
       'UPDATE',
       'گۆڕینی نرخی بەرهەم',
       `${prod?.nameKu || id}: فرۆشتن ${newPrice.toLocaleString()} د.ع • تێچوو ${newCost.toLocaleString()} د.ع`
+    );
+  };
+
+  const addProduct = (newProd: {
+    nameKu: string;
+    pricePerKg: number;
+    costPerKg?: number;
+    category?: ProductCategory;
+    unit?: 'KG' | 'PIECE';
+    initialStockKg?: number;
+  }): ProductItem => {
+    const numericCodes = products
+      .map(p => parseInt(p.code, 10))
+      .filter(n => !isNaN(n));
+    const nextCodeNum = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 107;
+    const code = String(nextCodeNum);
+    const barcodePrefix = `2100${code}`;
+    const id = `prod-${Date.now()}`;
+
+    const created: ProductItem = {
+      id,
+      code,
+      barcodePrefix,
+      nameKu: newProd.nameKu.trim(),
+      category: newProd.category || 'OTHER',
+      pricePerKg: Number(newProd.pricePerKg) || 0,
+      costPerKg: Number(newProd.costPerKg) || Math.round((Number(newProd.pricePerKg) || 0) * 0.75),
+      unit: newProd.unit || 'KG',
+      inStockKg: Number(newProd.initialStockKg) || 0,
+    };
+
+    setProducts(prev => [...prev, created]);
+
+    const branchItem: BranchStockItem = {
+      productId: created.id,
+      productName: created.nameKu,
+      code: created.code,
+      barcode: created.barcodePrefix,
+      inStockKg: 0,
+      minAlertKg: 10,
+      retailPricePerKg: created.pricePerKg,
+      factoryCostPerKg: created.costPerKg,
+      category: created.category,
+      unit: created.unit,
+    };
+    setBranchStock(prev => [...prev, branchItem]);
+
+    recordActivity(
+      'PRODUCTION',
+      'CREATE',
+      'زیادکردنی پارچەی نوێ',
+      `${created.nameKu} • نرخی فرۆشتن: ${created.pricePerKg.toLocaleString()} د.ع • کۆد: ${created.code}`,
+      created.code
+    );
+
+    return created;
+  };
+
+  const updateProduct = (updated: ProductItem) => {
+    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setBranchStock(prev => prev.map(b => b.productId === updated.id ? {
+      ...b,
+      productName: updated.nameKu,
+      retailPricePerKg: updated.pricePerKg,
+      factoryCostPerKg: updated.costPerKg,
+      category: updated.category,
+      unit: updated.unit,
+    } : b));
+    recordActivity(
+      'PRODUCTION',
+      'UPDATE',
+      'دەستکاریکردنی پارچەی بەرهەم',
+      `${updated.nameKu} • نرخ: ${updated.pricePerKg.toLocaleString()} د.ع`,
+      updated.code
+    );
+  };
+
+  const deleteProduct = (id: string) => {
+    const target = products.find(p => p.id === id);
+    if (!target) return;
+    setProducts(prev => prev.filter(p => p.id !== id));
+    setBranchStock(prev => prev.filter(b => b.productId !== id));
+    recordActivity(
+      'PRODUCTION',
+      'DELETE',
+      'سڕینەوەی پارچەی بەرهەم',
+      `${target.nameKu} (${target.code})`,
+      target.code
     );
   };
 
@@ -2011,6 +2111,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSupplier,
         addVoucher,
         addPOSSale,
+        addProduct,
+        updateProduct,
+        deleteProduct,
         addBranchDelivery,
         addBranchExpense,
         updateBranchStockItem,

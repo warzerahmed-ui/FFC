@@ -12,8 +12,10 @@ import {
   ArrowUpRight,
   Barcode,
   Printer,
+  Plus,
+  Trash2,
 } from 'lucide-react';
-import { ProductItem, ReturnOrder, TabType } from '../../types';
+import { ProductItem, ReturnOrder, TabType, ProductCategory } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 type SubTabType = 'inventory' | 'returns-conversion';
@@ -30,10 +32,20 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     returns,
     convertReturnOrder,
     updateProductPrice,
+    addProduct,
+    deleteProduct,
     factorySettings,
   } = useApp();
 
   const [subTab, setSubTab] = useState<SubTabType>('inventory');
+
+  // New Product Modal States
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState<number | ''>(4000);
+  const [newProdCost, setNewProdCost] = useState<number | ''>(3000);
+  const [newProdCategory, setNewProdCategory] = useState<ProductCategory>('OTHER');
+  const [newProdStock, setNewProdStock] = useState<number | ''>('');
 
   // 3-Day Return Conversion Modal States
   const [convertingReturn, setConvertingReturn] = useState<ReturnOrder | null>(null);
@@ -144,6 +156,40 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     setEditingProduct(null);
   };
 
+  const handleCreateProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) {
+      alert('تکایە ناوی پارچە بنووسە');
+      return;
+    }
+    if (!newProdPrice || Number(newProdPrice) <= 0) {
+      alert('تکایە نرخی فرۆشتنی کیلۆ بنووسە');
+      return;
+    }
+
+    addProduct({
+      nameKu: newProdName.trim(),
+      pricePerKg: Number(newProdPrice),
+      costPerKg: newProdCost ? Number(newProdCost) : Math.round(Number(newProdPrice) * 0.75),
+      category: newProdCategory,
+      unit: 'KG',
+      initialStockKg: Number(newProdStock) || 0,
+    });
+
+    setNewProdName('');
+    setNewProdPrice(4000);
+    setNewProdCost(3000);
+    setNewProdCategory('OTHER');
+    setNewProdStock('');
+    setShowAddProductModal(false);
+  };
+
+  const handleDeleteProduct = (prod: ProductItem) => {
+    if (confirm(`ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${prod.nameKu}"؟ ئەم بەشە لە تەواوی سیستمدا دەسڕدرێتەوە.`)) {
+      deleteProduct(prod.id);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -174,6 +220,15 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setShowAddProductModal(true)}
+            className="px-4 py-2.5 bg-[#34C759] hover:bg-[#2FB350] text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            زیادکردنی پارچەی نوێ
+          </button>
 
           <button
             type="button"
@@ -365,6 +420,15 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     نرخ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProduct(prod)}
+                    className="p-2 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 text-[#FF3B30] text-xs font-semibold flex items-center justify-center transition-all"
+                    title="سڕینەوەی پارچە"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -803,6 +867,172 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
           </div>
         );
       })()}
+
+      {/* Add New Product Modal */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl border border-black/[0.08] p-5 space-y-4 apple-sheet">
+            <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#34C759]/10 text-[#34C759] flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#1D1D1F]">زیادکردنی پارچەی نوێ بۆ کارگە و فرۆشتن</h4>
+                  <p className="text-[11px] text-[#86868B]">بە هەمان ناو و کۆد لە تەواوی سیستمدا (کۆگا، فرۆشتن، کاشێر و مەندوبەکان) جێگیر دەبێت</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddProductModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick preset suggestions */}
+            <div>
+              <span className="text-[11px] text-[#86868B] font-semibold block mb-1.5">
+                پارچە باوەکانی مریشک (کرتە بکە بۆ هەڵبژاردنی خێرا):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: 'فیلێی سنگی مریشک', price: 7000, cost: 5500, category: 'BREAST' as ProductCategory },
+                  { name: 'دەسکە ڕان (چەقەڵی ڕان)', price: 4500, cost: 3500, category: 'THIGH' as ProductCategory },
+                  { name: 'پانکەی ڕان (ڕانی بێ دەسک)', price: 4200, cost: 3300, category: 'THIGH' as ProductCategory },
+                  { name: 'باڵۆکەی باڵ (نیوەباڵ)', price: 4500, cost: 3400, category: 'WINGS' as ProductCategory },
+                  { name: 'ملی مریشک و گەردەن', price: 1500, cost: 1000, category: 'BONES_SCRAP' as ProductCategory },
+                  { name: 'سنگ بە ئێسکەوە', price: 5500, cost: 4200, category: 'BREAST' as ProductCategory },
+                  { name: 'چەوری و پێست', price: 800, cost: 400, category: 'BONES_SCRAP' as ProductCategory },
+                  { name: 'قاچ و پەلی مریشک', price: 1000, cost: 500, category: 'BONES_SCRAP' as ProductCategory },
+                  { name: 'مریشکی چوار پارچە (تێکەڵ)', price: 3800, cost: 3000, category: 'WHOLE_CHICKEN' as ProductCategory },
+                ].map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setNewProdName(p.name);
+                      setNewProdPrice(p.price);
+                      setNewProdCost(p.cost);
+                      setNewProdCategory(p.category);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      newProdName === p.name
+                        ? 'bg-[#34C759] text-white border-[#34C759]'
+                        : 'bg-[#F5F5F7] text-[#1D1D1F] border-transparent hover:border-[#34C759]/30'
+                    }`}
+                  >
+                    + {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateProduct} className="space-y-3 pt-2 text-xs">
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">
+                  ناوی پارچە / بەرهەم *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="بۆ نموونە: فیلێی سنگی مریشک، دەسکە ڕان..."
+                  value={newProdName}
+                  onChange={e => setNewProdName(e.target.value)}
+                  className="apple-input w-full px-3.5 py-2 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    نرخی فرۆشتنی کیلۆ (دینار) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="100"
+                    step="50"
+                    placeholder="4000"
+                    value={newProdPrice}
+                    onChange={e => setNewProdPrice(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-black text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    تێچووی کیلۆ (دینار)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="3000"
+                    value={newProdCost}
+                    onChange={e => setNewProdCost(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-black text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    بەش / پۆلێن
+                  </label>
+                  <select
+                    value={newProdCategory}
+                    onChange={e => setNewProdCategory(e.target.value as ProductCategory)}
+                    className="apple-input w-full px-3.5 py-2 font-semibold"
+                  >
+                    <option value="BREAST">سنگی مریشک (Breast)</option>
+                    <option value="THIGH">ڕانی مریشک (Thigh / Leg)</option>
+                    <option value="WINGS">باڵ و گەردەن (Wings)</option>
+                    <option value="WHOLE_CHICKEN">مریشکی تەواو (Whole)</option>
+                    <option value="GIBLET">جگەر و قەسەیل (Giblet)</option>
+                    <option value="BONES_SCRAP">ئێسک، شلمک و پەل (Bones / Scrap)</option>
+                    <option value="OTHER">بەش و پارچەی تر (Other)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    بڕی سەرەتایی لە کۆگا (کگم)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="0"
+                    value={newProdStock}
+                    onChange={e => setNewProdStock(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-black/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddProductModal(false)}
+                  className="px-4 py-2 rounded-full bg-[#F5F5F7] text-[#515154] text-xs font-bold hover:bg-[#E8E8ED]"
+                >
+                  پاشگەزبوونەوە
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#34C759] hover:bg-[#2FB350] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  تۆمارکردن و زیادکردن بۆ کۆگا
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

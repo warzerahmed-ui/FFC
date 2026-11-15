@@ -113,7 +113,8 @@ export type ProductCategory =
   | 'THIGH'             // ڕان
   | 'WINGS'             // باڵ و مل
   | 'GIBLET'            // جگەر و دڵ و قەسیل
-  | 'BONES_SCRAP';      // ئێسک و شلمک
+  | 'BONES_SCRAP'       // ئێسک و شلمک
+  | 'OTHER';            // بەش و پارچەی تر
 
 export interface ProductItem {
   id: string;

@@ -12,7 +12,7 @@ import {
   X,
   Truck,
 } from 'lucide-react';
-import { LiveIntake, TabType } from '../../types';
+import { LiveIntake, TabType, ProductCategory } from '../../types';
 
 interface SlaughterCuttingViewProps {
   onNavigate: (tab: TabType) => void;
@@ -20,12 +20,24 @@ interface SlaughterCuttingViewProps {
   onClearPreselect?: () => void;
 }
 
+const COMMON_PARTS_PRESETS: { name: string; price: number; cost: number; category: ProductCategory }[] = [
+  { name: 'فیلێی سنگی مریشک', price: 7000, cost: 5500, category: 'BREAST' },
+  { name: 'دەسکە ڕان (چەقەڵی ڕان)', price: 4500, cost: 3500, category: 'THIGH' },
+  { name: 'پانکەی ڕان (ڕانی بێ دەسک)', price: 4200, cost: 3300, category: 'THIGH' },
+  { name: 'باڵۆکەی باڵ (نیوەباڵ)', price: 4500, cost: 3400, category: 'WINGS' },
+  { name: 'ملی مریشک و گەردەن', price: 1500, cost: 1000, category: 'BONES_SCRAP' },
+  { name: 'سنگ بە ئێسکەوە', price: 5500, cost: 4200, category: 'BREAST' },
+  { name: 'چەوری و پێست', price: 800, cost: 400, category: 'BONES_SCRAP' },
+  { name: 'قاچ و پەلی مریشک', price: 1000, cost: 500, category: 'BONES_SCRAP' },
+  { name: 'مریشکی چوار پارچە (تێکەڵ)', price: 3800, cost: 3000, category: 'WHOLE_CHICKEN' },
+];
+
 export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   onNavigate,
   preselectedIntakeId,
   onClearPreselect,
 }) => {
-  const { intakes, yields, products, addYieldRecord } = useApp();
+  const { intakes, yields, products, addYieldRecord, addProduct } = useApp();
 
   const [showModal, setShowModal] = useState(false);
   const [selectedIntakeId, setSelectedIntakeId] = useState('');
@@ -34,6 +46,13 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   const [cutWeights, setCutWeights] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
   const [justCompletedReceipt, setJustCompletedReceipt] = useState<string | null>(null);
+
+  // New part creation modal state
+  const [showAddPartModal, setShowAddPartModal] = useState(false);
+  const [newPartName, setNewPartName] = useState('');
+  const [newPartPrice, setNewPartPrice] = useState<number | ''>(4000);
+  const [newPartCost, setNewPartCost] = useState<number | ''>(3000);
+  const [newPartCategory, setNewPartCategory] = useState<ProductCategory>('OTHER');
 
   const pendingIntakes = useMemo(
     () => intakes.filter(i => i.remainingLiveWeightKg > 0),
@@ -123,6 +142,39 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
 
     setJustCompletedReceipt(selectedIntake.manualReceiptNo);
     setShowModal(false);
+  };
+
+  const handleCreatePart = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPartName.trim()) {
+      alert('تکایە ناوی پارچەکە بنووسە');
+      return;
+    }
+    if (!newPartPrice || Number(newPartPrice) <= 0) {
+      alert('تکایە نرخی فرۆشتنی کیلۆ بە دروستی بنووسە');
+      return;
+    }
+
+    const created = addProduct({
+      nameKu: newPartName.trim(),
+      pricePerKg: Number(newPartPrice),
+      costPerKg: newPartCost ? Number(newPartCost) : Math.round(Number(newPartPrice) * 0.75),
+      category: newPartCategory,
+      unit: 'KG',
+    });
+
+    // Initialize weight in current cutWeights state so user can immediately type into it
+    setCutWeights(prev => ({
+      ...prev,
+      [created.id]: 0,
+    }));
+
+    // Reset fields & close add part modal
+    setNewPartName('');
+    setNewPartPrice(4000);
+    setNewPartCost(3000);
+    setNewPartCategory('OTHER');
+    setShowAddPartModal(false);
   };
 
   return (
@@ -442,8 +494,23 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
               </div>
 
               <div className="p-4 rounded-2xl bg-[#FBFBFD] border border-black/[0.06] space-y-3">
-                <div className="font-bold text-[#1D1D1F]">
-                  پارچەکردن و بەرهەمە ئامادەبووەکان (کگم):
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-[#1D1D1F]">
+                      پارچەکردن و بەرهەمە ئامادەبووەکان (کگم):
+                    </div>
+                    <div className="text-[11px] text-[#86868B]">
+                      هەموو پارچەکان لە تەواوی سیستم بە هەمان ناو و کۆد تۆمارن
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPartModal(true)}
+                    className="px-3 py-1.5 bg-[#5856D6] hover:bg-[#4947C2] text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    زیادکردنی پارچەی تر
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {products.map(p => (
@@ -512,6 +579,145 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 >
                   <CheckCircle className="w-4 h-4" />
                   تۆمارکردن و ناردن بۆ ئامادە بۆ فرۆشتن
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Custom Part Modal */}
+      {showAddPartModal && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl border border-black/[0.08] p-5 space-y-4 apple-sheet animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#5856D6]/10 text-[#5856D6] flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#1D1D1F]">زیادکردنی پارچەی نوێ بۆ مریشک</h4>
+                  <p className="text-[11px] text-[#86868B]">ئەم پارچەیە بە هەمان ناو و کۆد لە تەواوی سیستمدا جێگیر دەبێت</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddPartModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick preset suggestions */}
+            <div>
+              <span className="text-[11px] text-[#86868B] font-semibold block mb-1.5">
+                پارچە باوەکانی تری کارگە (کرتە بکە بۆ پڕکردنەوەی خێرا):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {COMMON_PARTS_PRESETS.map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setNewPartName(preset.name);
+                      setNewPartPrice(preset.price);
+                      setNewPartCost(preset.cost);
+                      setNewPartCategory(preset.category);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      newPartName === preset.name
+                        ? 'bg-[#5856D6] text-white border-[#5856D6]'
+                        : 'bg-[#F5F5F7] text-[#1D1D1F] border-transparent hover:border-[#5856D6]/30'
+                    }`}
+                  >
+                    + {preset.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleCreatePart} className="space-y-3 pt-2 text-xs">
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">
+                  ناوی پارچە / بەرهەم *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="بۆ نموونە: فیلێی سنگی مریشک، دەسکە ڕان، ملی مریشک..."
+                  value={newPartName}
+                  onChange={e => setNewPartName(e.target.value)}
+                  className="apple-input w-full px-3.5 py-2 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    نرخی فرۆشتنی کیلۆ (دینار) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="100"
+                    step="50"
+                    placeholder="4000"
+                    value={newPartPrice}
+                    onChange={e => setNewPartPrice(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-black text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    تێچووی کیلۆ (دینار)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="3000"
+                    value={newPartCost}
+                    onChange={e => setNewPartCost(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-black text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">
+                  جۆری پۆلێن / بەش
+                </label>
+                <select
+                  value={newPartCategory}
+                  onChange={e => setNewPartCategory(e.target.value as ProductCategory)}
+                  className="apple-input w-full px-3.5 py-2 font-semibold"
+                >
+                  <option value="BREAST">سنگی مریشک (Breast)</option>
+                  <option value="THIGH">ڕانی مریشک (Thigh / Leg)</option>
+                  <option value="WINGS">باڵ و گەردەن (Wings)</option>
+                  <option value="WHOLE_CHICKEN">مریشکی تەواو (Whole)</option>
+                  <option value="GIBLET">جگەر و قەسەیل (Giblet)</option>
+                  <option value="BONES_SCRAP">ئێسک، شلمک و پەل (Bones / Scrap)</option>
+                  <option value="OTHER">بەش و پارچەی تر (Other)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-black/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddPartModal(false)}
+                  className="px-4 py-2 rounded-full bg-[#F5F5F7] text-[#515154] text-xs font-bold hover:bg-[#E8E8ED]"
+                >
+                  پاشگەزبوونەوە
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#5856D6] hover:bg-[#4947C2] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  تۆمارکردن و زیادکردن بۆ لیستی پارچەکان
                 </button>
               </div>
             </form>
