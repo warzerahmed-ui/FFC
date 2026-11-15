@@ -1565,6 +1565,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (entityType === 'INTAKE') {
       const target = intakes.find(i => i.id === entityId);
       if (!target) return false;
+      const isWorkedOn =
+        target.processedLiveWeightKg > 0 ||
+        target.remainingLiveWeightKg < target.netWeightKg ||
+        Boolean(target.yieldProcessed) ||
+        yields.some(y => y.intakeId === target.id);
+      if (isWorkedOn) {
+        return false;
+      }
       setIntakes(prev => prev.filter(i => i.id !== entityId));
       if (target.paymentStatus === 'DEBT' || target.paymentStatus === 'PARTIAL') {
         const unpaid = Math.max(0, target.totalAmount - (target.paidAmount || 0));

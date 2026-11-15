@@ -350,6 +350,10 @@ export const SettingsView: React.FC = () => {
         id: i.id,
         title: `#${i.manualReceiptNo} • ${i.farmName}`,
         subtitle: `${i.date} • ${i.netWeightKg} کگم • ${i.totalAmount.toLocaleString()} د.ع`,
+        blocked:
+          i.processedLiveWeightKg > 0 ||
+          i.remainingLiveWeightKg < i.netWeightKg ||
+          Boolean(i.yieldProcessed),
       }));
     } else if (sourceEntityType === 'DISPATCH') {
       list = dispatches.map(d => ({

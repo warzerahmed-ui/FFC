@@ -282,20 +282,23 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                           تەواو سەربڕاوە
                         </span>
                       )}
-                      {hasAccess('settings') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`وەسڵی وەرگرتنی #${intake.manualReceiptNo} بخرێتە سەبەتەی سۆفت دیلیت؟`)) {
-                              softDeleteRecord('INTAKE', intake.id, 'سڕینەوەی خێرا لە وەرگرتنی کێڵگە');
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-colors"
-                          title="سۆفت دیلیت"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      {hasAccess('settings') &&
+                        intake.processedLiveWeightKg <= 0 &&
+                        intake.remainingLiveWeightKg >= intake.netWeightKg &&
+                        !intake.yieldProcessed && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`وەسڵی وەرگرتنی #${intake.manualReceiptNo} بخرێتە سەبەتەی سۆفت دیلیت؟`)) {
+                                softDeleteRecord('INTAKE', intake.id, 'سڕینەوەی خێرا لە وەرگرتنی کێڵگە');
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-colors"
+                            title="سۆفت دیلیت"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                     </div>
                   </td>
                 </tr>
