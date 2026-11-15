@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { TabType } from '../../types';
 import { FactoryLogo } from './FactoryLogo';
@@ -17,7 +17,6 @@ import {
   Receipt,
   Calculator,
   FileSpreadsheet,
-  ChevronDown,
   LogOut,
   Clock,
   Menu,
@@ -197,7 +196,6 @@ export const Menubar: React.FC<MenubarProps> = ({
     lastSyncedAt,
     syncNow,
   } = useApp();
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [showPwdModal, setShowPwdModal] = useState(false);
@@ -207,7 +205,6 @@ export const Menubar: React.FC<MenubarProps> = ({
   const [showCurrPwd, setShowCurrPwd] = useState(false);
   const [pwdStatus, setPwdStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [pwdSaving, setPwdSaving] = useState(false);
-  const menuContainerRef = useRef<HTMLDivElement>(null);
 
   // Live clock tick
   useEffect(() => {
@@ -215,23 +212,15 @@ export const Menubar: React.FC<MenubarProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Close dropdown on outside click or Escape
+  // Close mobile drawer on Escape
   useEffect(() => {
-    const handlePointerDown = (e: MouseEvent) => {
-      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
-        setOpenGroup(null);
-      }
-    };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setOpenGroup(null);
         setMobileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
@@ -266,7 +255,6 @@ export const Menubar: React.FC<MenubarProps> = ({
     if (posSubTab && setPosSubTab) {
       setPosSubTab(posSubTab);
     }
-    setOpenGroup(null);
     setMobileOpen(false);
   };
 
@@ -303,7 +291,7 @@ export const Menubar: React.FC<MenubarProps> = ({
   const ActiveBreadIcon = activeItemObj?.icon || LayoutDashboard;
 
   return (
-    <div ref={menuContainerRef} className="sticky top-0 z-40 no-print">
+    <div className="sticky top-0 z-40 no-print">
       {/* Main Apple Frosted Glass Menubar */}
       <header className="h-16 apple-glass border-b border-black/[0.06] px-4 lg:px-7 flex items-center justify-between gap-3">
         {/* Right Side (RTL Start): Brand + Grouped Horizontal Menubar */}
@@ -350,100 +338,28 @@ export const Menubar: React.FC<MenubarProps> = ({
             {accessibleGroups
               .filter(group => group.key !== 'dashboard')
               .map(group => {
-              const active = isGroupActive(group);
-              const isOpen = openGroup === group.key;
-              const isSingleDirect = group.directTab && group.items.length === 1;
-
-              return (
-                <div key={group.key} className="relative">
+                const active = isGroupActive(group);
+                const firstItem = group.items[0];
+                return (
                   <button
+                    key={group.key}
                     type="button"
                     onClick={() => {
-                      if (isSingleDirect && group.directTab) {
-                        handleSelectTab(group.directTab);
-                      } else if (group.items.length === 1) {
-                        handleSelectTab(group.items[0].id);
-                      } else {
-                        setOpenGroup(prev => (prev === group.key ? null : group.key));
+                      if (!active && firstItem) {
+                        handleSelectTab(firstItem.id, firstItem.posSubTab);
                       }
                     }}
                     className={`px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       active
                         ? 'bg-[#0071E3]/10 border border-[#0071E3]/25 text-[#0071E3] font-bold shadow-[0_1px_3px_rgba(0,113,227,0.08)]'
-                        : isOpen
-                        ? 'bg-black/[0.06] border border-black/[0.08] text-[#1D1D1F] font-semibold'
                         : 'border border-transparent text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-semibold'
                     }`}
                   >
                     {active && <span className="w-1.5 h-1.5 rounded-full bg-[#0071E3] shrink-0" />}
                     <span>{group.label}</span>
-                    {!isSingleDirect && group.items.length > 1 && (
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                          isOpen ? 'rotate-180 text-[#0071E3]' : 'opacity-60'
-                        }`}
-                      />
-                    )}
                   </button>
-
-                  {/* Apple Floating Frosted Dropdown Panel */}
-                  {isOpen && group.items.length > 1 && (
-                    <div className="absolute right-0 top-[calc(100%+8px)] w-80 apple-glass rounded-[22px] border border-black/[0.08] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.18)] p-2 z-50 apple-sheet">
-                      <div className="px-2.5 py-1.5 mb-1 flex items-center justify-between text-[10px] font-bold text-[#86868B] border-b border-black/[0.05]">
-                        <span>{group.label}</span>
-                        <span>{group.items.length} بەش</span>
-                      </div>
-                      <div className="space-y-1">
-                        {group.items.map(item => {
-                          const Icon = item.icon;
-                          const itemActive = isItemActive(item);
-                          return (
-                            <button
-                              key={`${item.id}-${item.posSubTab ?? ''}`}
-                              type="button"
-                              onClick={() => handleSelectTab(item.id, item.posSubTab)}
-                              className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-2xl text-right transition-all cursor-pointer ${
-                                itemActive
-                                  ? 'bg-[#0071E3]/10 text-[#0071E3]'
-                                  : 'hover:bg-black/[0.04] text-[#1D1D1F]'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div
-                                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                                    itemActive
-                                      ? 'bg-[#0071E3] text-white shadow-xs'
-                                      : 'bg-[#F5F5F7] text-[#515154]'
-                                  }`}
-                                >
-                                  <Icon className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-xs font-bold truncate">{item.label}</div>
-                                  <div className="text-[10px] text-[#86868B] truncate mt-0.5">
-                                    {item.description}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
-                                  itemActive
-                                    ? 'bg-[#0071E3]/15 text-[#0071E3]'
-                                    : 'bg-[#F5F5F7] text-[#86868B]'
-                                }`}
-                              >
-                                {item.badge}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
           </nav>
         </div>
 
@@ -554,45 +470,45 @@ export const Menubar: React.FC<MenubarProps> = ({
         </div>
       </header>
 
-      {/* Secondary Apple Breadcrumb & Status Strip */}
-      <div className="bg-[#F5F5F7]/85 backdrop-blur-md border-b border-black/[0.06] px-4 lg:px-7 py-2 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
-          <ActiveBreadIcon className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
-          <span className="text-[#86868B] font-medium truncate">
-            {isSettingsTab ? 'بەڕێوەبردن' : activeGroupObj?.label}
-          </span>
-          <span className="text-black/20">/</span>
-          <span className="font-extrabold text-[#1D1D1F] truncate">{activeItemObj?.label}</span>
-        </div>
+      {/* Secondary Top Sub-Navigation Bar */}
+      <div className="bg-[#F5F5F7]/90 backdrop-blur-md border-b border-black/[0.06] px-4 lg:px-7 py-2 flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0 text-[#86868B] font-semibold pl-1">
+            <ActiveBreadIcon className="w-3.5 h-3.5 text-[#0071E3]" />
+            <span>{isSettingsTab ? 'بەڕێوەبردن' : activeGroupObj?.label}</span>
+            <span className="text-black/20">/</span>
+          </div>
 
-        {/* Quick Sub-item Switch Pills inside same group on desktop OR Live status */}
-        <div className="flex items-center gap-3 shrink-0">
-          {!isSettingsTab && activeGroupObj && activeGroupObj.items.length > 1 && (
-            <div className="hidden xl:flex items-center gap-1">
+          {!isSettingsTab && activeGroupObj && activeGroupObj.items.length > 1 ? (
+            <div className="flex items-center gap-1.5">
               {activeGroupObj.items.map(sub => {
+                const SubIcon = sub.icon;
                 const subActive = isItemActive(sub);
                 return (
                   <button
                     key={`${sub.id}-${sub.posSubTab ?? ''}`}
                     type="button"
                     onClick={() => handleSelectTab(sub.id, sub.posSubTab)}
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       subActive
-                        ? 'bg-white text-[#1D1D1F] font-bold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-black/[0.06]'
-                        : 'text-[#86868B] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-medium'
+                        ? 'bg-white text-[#0071E3] font-extrabold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-[#0071E3]/25'
+                        : 'text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.05] font-semibold'
                     }`}
                   >
-                    {sub.label}
+                    <SubIcon className={`w-3.5 h-3.5 ${subActive ? 'text-[#0071E3]' : 'text-[#86868B]'}`} />
+                    <span>{sub.label}</span>
                   </button>
                 );
               })}
             </div>
+          ) : (
+            <span className="font-extrabold text-[#1D1D1F] truncate">{activeItemObj?.label}</span>
           )}
+        </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-extrabold text-[#248A3D] tracking-wide">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-            <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
-          </div>
+        <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-extrabold text-[#248A3D] tracking-wide shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
+          <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
         </div>
       </div>
 
