@@ -82,10 +82,10 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
   const totalStockKg = products.reduce((sum, p) => sum + p.inStockKg, 0);
   const totalStockValue = products.reduce((sum, p) => sum + p.inStockKg * p.pricePerKg, 0);
   const totalLoadedOutKg = custodyTransfers
-    .filter(t => t.direction === 'LOAD')
+    .filter(t => t.direction === 'LOAD' && (!t.status || t.status === 'ACCEPTED'))
     .reduce((s, t) => s + t.totalWeightKg, 0);
   const totalReturnedUnsoldKg = custodyTransfers
-    .filter(t => t.direction === 'RETURN_TO_READY')
+    .filter(t => t.direction === 'RETURN_TO_READY' && (!t.status || t.status === 'ACCEPTED'))
     .reduce((s, t) => s + t.totalWeightKg, 0);
   const pendingReturnsKg = pendingReturns.reduce((s, r) => s + r.totalWeightKg, 0);
   const convertedOutputKg = convertedReturns.reduce(

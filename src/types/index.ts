@@ -376,6 +376,10 @@ export interface CustodyTransfer {
   holderType: 'REP' | 'BRANCH';
   holderName: string;
   direction: 'LOAD' | 'RETURN_TO_READY';
+  status?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  requestedBy?: string;
+  respondedBy?: string;
+  respondedAt?: string;
   items: {
     productId: string;
     productName: string;

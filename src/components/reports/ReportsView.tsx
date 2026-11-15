@@ -156,7 +156,9 @@ export const ReportsView: React.FC = () => {
     );
     const repCustodyValue = products.reduce((s, p) => {
       const loaded = custodyTransfers
-        .filter(t => t.holderType === 'REP' && t.direction === 'LOAD')
+        .filter(
+          t => t.holderType === 'REP' && t.direction === 'LOAD' && (!t.status || t.status === 'ACCEPTED')
+        )
         .reduce(
           (ls, t) => ls + t.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
           0
@@ -168,7 +170,12 @@ export const ReportsView: React.FC = () => {
           0
         );
       const ret = custodyTransfers
-        .filter(t => t.holderType === 'REP' && t.direction === 'RETURN_TO_READY')
+        .filter(
+          t =>
+            t.holderType === 'REP' &&
+            t.direction === 'RETURN_TO_READY' &&
+            (!t.status || t.status === 'ACCEPTED')
+        )
         .reduce(
           (rs, t) => rs + t.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
           0

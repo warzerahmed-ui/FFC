@@ -98,7 +98,13 @@ export const RepSalesView: React.FC = () => {
     const items = products
       .map(p => {
         const loadedKg = custodyTransfers
-          .filter(t => t.holderType === 'REP' && t.holderName === repName && t.direction === 'LOAD')
+          .filter(
+            t =>
+              t.holderType === 'REP' &&
+              t.holderName === repName &&
+              t.direction === 'LOAD' &&
+              (!t.status || t.status === 'ACCEPTED')
+          )
           .reduce(
             (s, t) => s + t.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
             0
@@ -119,7 +125,8 @@ export const RepSalesView: React.FC = () => {
             t =>
               t.holderType === 'REP' &&
               t.holderName === repName &&
-              t.direction === 'RETURN_TO_READY'
+              t.direction === 'RETURN_TO_READY' &&
+              (!t.status || t.status === 'ACCEPTED')
           )
           .reduce(
             (s, t) => s + t.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),

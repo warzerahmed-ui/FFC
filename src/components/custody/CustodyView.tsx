@@ -12,6 +12,7 @@ import {
   X,
   ArrowRight,
   PackageCheck,
+  Clock,
 } from 'lucide-react';
 import { TabType } from '../../types';
 
@@ -45,8 +46,14 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     custodyTransfers,
     loadToRepCustody,
     returnUnsoldToReadyStock,
+    acceptCustodyTransfer,
+    rejectCustodyTransfer,
+    currentUser,
     repNames,
   } = useApp();
+
+  const isWarehouseAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN';
+  const isRepUser = currentUser.role === 'REP';
 
   const [selectedFilterHolder, setSelectedFilterHolder] = useState<string>('ALL');
 
@@ -85,7 +92,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       const breakdown: ProductBreakdown[] = products
         .map(p => {
           const loadedKg = custodyTransfers
-            .filter(t => t.holderType === 'REP' && t.holderName === repName && t.direction === 'LOAD')
+            .filter(
+              t =>
+                t.holderType === 'REP' &&
+                t.holderName === repName &&
+                t.direction === 'LOAD' &&
+                (!t.status || t.status === 'ACCEPTED')
+            )
             .reduce(
               (s, t) =>
                 s +
@@ -116,7 +129,8 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               t =>
                 t.holderType === 'REP' &&
                 t.holderName === repName &&
-                t.direction === 'RETURN_TO_READY'
+                t.direction === 'RETURN_TO_READY' &&
+                (!t.status || t.status === 'ACCEPTED')
             )
             .reduce(
               (s, t) =>
@@ -197,9 +211,17 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     const alreadyQueued = loadItems
       .filter(i => i.productId === prod.id)
       .reduce((s, i) => s + i.weightKg, 0);
-    if (alreadyQueued + weight > prod.inStockKg) {
+    const pendingLoadKg = custodyTransfers
+      .filter(t => t.direction === 'LOAD' && t.status === 'PENDING')
+      .reduce(
+        (s, t) =>
+          s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
+        0
+      );
+    const availableStock = Math.max(0, prod.inStockKg - pendingLoadKg);
+    if (alreadyQueued + weight > availableStock) {
       alert(
-        `بڕی پێویست لە کۆگای ئامادەدا نییە! تەنها ${(prod.inStockKg - alreadyQueued).toFixed(
+        `بڕی پێویست لە کۆگای ئامادەدا نییە! تەنها ${(availableStock - alreadyQueued).toFixed(
           1
         )} کگم ماوە`
       );
@@ -227,7 +249,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       holderName: loadHolderKey,
       items: loadItems,
       totalWeightKg: totalKg,
-      notes: loadNotes.trim() || `ناردنی ڕۆژانە بۆ عەهدەی ${loadHolderKey}`,
+      notes: loadNotes.trim() || `ناردنی ڕۆژانە بۆ کۆگای ${loadHolderKey}`,
     });
 
     setShowLoadModal(false);
@@ -396,6 +418,112 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
+
+      {/* Pending Acceptance Panel (Two-Way Approval: Rep accepts LOAD, Warehouse Admin accepts RETURN) */}
+      {(() => {
+        const pendingList = custodyTransfers.filter(t => t.status === 'PENDING');
+        if (pendingList.length === 0) return null;
+        return (
+          <div className="apple-card p-5 border-[#FF9500]/35 bg-[#FF9500]/[0.04] space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#FF9500] text-white flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-extrabold text-[#9A3412]">
+                    داواکارییە چاوەڕوانەکانی ئەکسیپت ({pendingList.length})
+                  </h3>
+                  <p className="text-[11px] text-[#7C2D12]">
+                    هیچ بارێک ناچێتە سەر حساب تا لایەنی وەرگر لە ئەکاونتی خۆیەوە ئەکسیپتی نەکات
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {pendingList.map(t => {
+                const canAcceptLoad = t.direction === 'LOAD' && isRepUser;
+                const canAcceptReturn = t.direction === 'RETURN_TO_READY' && isWarehouseAdmin;
+                const canRespond = canAcceptLoad || canAcceptReturn;
+                return (
+                  <div
+                    key={t.id}
+                    className="bg-white rounded-2xl p-4 border border-black/[0.06] flex flex-col justify-between gap-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-[#0071E3]/10 text-[#0071E3] px-2 py-0.5 rounded-full text-[10px] font-mono font-bold">
+                            {t.receiptNo}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              t.direction === 'LOAD'
+                                ? 'bg-[#0071E3]/10 text-[#0071E3]'
+                                : 'bg-[#5856D6]/12 text-[#5856D6]'
+                            }`}
+                          >
+                            {t.direction === 'LOAD'
+                              ? 'ناردن بۆ کۆگای مەندوب'
+                              : 'گەڕانەوە بۆ کۆگای ئامادە'}
+                          </span>
+                        </div>
+                        <div className="text-xs font-extrabold text-[#1D1D1F] mt-1.5">
+                          {t.holderName}
+                        </div>
+                        <div className="text-[11px] text-[#86868B] mt-0.5">
+                          داواکار: {t.requestedBy || '---'} • {t.date} • {t.time}
+                        </div>
+                      </div>
+                      <div className="text-left">
+                        <span className="text-sm font-black text-[#FF9500] tabular-nums">
+                          {t.totalWeightKg} کگم
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-[#515154] bg-[#F5F5F7] rounded-xl px-3 py-2">
+                      {t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، ')}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      {canRespond ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => acceptCustodyTransfer(t.id)}
+                            className="flex-1 py-2 rounded-full bg-[#34C759] hover:bg-[#248A3D] text-white text-xs font-bold flex items-center justify-center gap-1 transition-all"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {t.direction === 'LOAD' ? 'ئەکسیپت و وەرگرتن' : 'ئەکسیپتی گەڕانەوە'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const r = window.prompt('هۆکاری ڕەتکردنەوە (ئارەزوومەندانە):') || undefined;
+                              rejectCustodyTransfer(t.id, r);
+                            }}
+                            className="px-4 py-2 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white text-xs font-bold transition-all"
+                          >
+                            ڕەتکردنەوە
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[11px] font-bold text-[#B25000] bg-[#FF9500]/10 px-3 py-1.5 rounded-full">
+                          {t.direction === 'LOAD'
+                            ? 'چاوەڕوانی ئەکسیپتی مەندوبە لە ئەکاونتی خۆیەوە'
+                            : 'چاوەڕوانی ئەکسیپتی بەڕێوەبەری کۆگایە'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filter Pills by Account */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -587,7 +715,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       <div className="apple-card overflow-hidden">
         <div className="p-4 border-b border-black/[0.05] flex items-center justify-between">
           <span className="font-bold text-xs text-[#1D1D1F]">
-            تۆماری جوڵەی ناردن و گەڕانەوە لە نێوان کۆگای ئامادە و عەهدەکان ({filteredTransfers.length})
+            تۆماری جوڵەی ناردن و گەڕانەوە لە نێوان کۆگای ئامادە و مەندوبەکان ({filteredTransfers.length})
           </span>
         </div>
 
@@ -598,49 +726,68 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 <th className="p-4">ژ. وەسڵ</th>
                 <th className="p-4">بەروار و کات</th>
                 <th className="p-4">جۆری جوڵە</th>
-                <th className="p-4">حسابی مەندوب / فرۆشگا</th>
+                <th className="p-4">مەندوب</th>
                 <th className="p-4">بەرهەمەکان</th>
                 <th className="p-4">کۆی کێش</th>
+                <th className="p-4 text-center">دۆخی ئەکسیپت</th>
                 <th className="p-4">تێبینی</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
               {filteredTransfers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-[#86868B]">
-                    هیچ جوڵەیەکی عەهدە تۆمار نەکراوە
+                  <td colSpan={8} className="p-6 text-center text-[#86868B]">
+                    هیچ جوڵەیەکی کۆگای مەندوب تۆمار نەکراوە
                   </td>
                 </tr>
               ) : (
-                filteredTransfers.map(t => (
-                  <tr key={t.id} className="hover:bg-[#FBFBFD] transition-colors">
-                    <td className="p-4">
-                      <span className="bg-[#0071E3]/10 text-[#0071E3] px-2.5 py-1 rounded-full text-[11px] font-mono font-bold">
-                        {t.receiptNo}
-                      </span>
-                    </td>
-                    <td className="p-4 tabular-nums text-[11px]">
-                      {t.date} • {t.time}
-                    </td>
-                    <td className="p-4">
-                      {t.direction === 'LOAD' ? (
-                        <span className="bg-[#0071E3]/10 text-[#0071E3] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                          نێردرا بۆ عەهدە
+                filteredTransfers.map(t => {
+                  const status = t.status || 'ACCEPTED';
+                  return (
+                    <tr key={t.id} className="hover:bg-[#FBFBFD] transition-colors">
+                      <td className="p-4">
+                        <span className="bg-[#0071E3]/10 text-[#0071E3] px-2.5 py-1 rounded-full text-[11px] font-mono font-bold">
+                          {t.receiptNo}
                         </span>
-                      ) : (
-                        <span className="bg-[#5856D6]/12 text-[#5856D6] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                          گەڕایەوە کۆگای ئامادە
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 font-bold">{t.holderName}</td>
-                    <td className="p-4 text-[11px] text-[#515154]">
-                      {t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، ')}
-                    </td>
-                    <td className="p-4 font-black tabular-nums">{t.totalWeightKg} کگم</td>
-                    <td className="p-4 text-[11px] text-[#86868B]">{t.notes}</td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="p-4 tabular-nums text-[11px]">
+                        {t.date} • {t.time}
+                      </td>
+                      <td className="p-4">
+                        {t.direction === 'LOAD' ? (
+                          <span className="bg-[#0071E3]/10 text-[#0071E3] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            نێردرا بۆ کۆگای مەندوب
+                          </span>
+                        ) : (
+                          <span className="bg-[#5856D6]/12 text-[#5856D6] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            گەڕایەوە کۆگای ئامادە
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 font-bold">{t.holderName}</td>
+                      <td className="p-4 text-[11px] text-[#515154]">
+                        {t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، ')}
+                      </td>
+                      <td className="p-4 font-black tabular-nums">{t.totalWeightKg} کگم</td>
+                      <td className="p-4 text-center">
+                        {status === 'PENDING' ? (
+                          <span className="bg-[#FF9500]/12 text-[#B25000] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            چاوەڕوانی ئەکسیپت
+                          </span>
+                        ) : status === 'REJECTED' ? (
+                          <span className="bg-[#FF3B30]/12 text-[#D70015] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            ڕەتکراوەتەوە {t.respondedBy ? `(${t.respondedBy})` : ''}
+                          </span>
+                        ) : (
+                          <span className="bg-[#34C759]/12 text-[#248A3D] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                            ئەکسیپت کراوە {t.respondedBy ? `(${t.respondedBy})` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-[11px] text-[#86868B]">{t.notes}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

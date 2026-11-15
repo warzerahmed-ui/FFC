@@ -68,7 +68,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
   // Check actual remaining custody weight per rep before issuing 3-day freshness warnings
   const repRemainingMap = new Map<string, number>();
   custodyTransfers.forEach(t => {
-    if (t.holderType !== 'REP') return;
+    if (t.holderType !== 'REP' || (t.status && t.status !== 'ACCEPTED')) return;
     const prev = repRemainingMap.get(t.holderName) || 0;
     repRemainingMap.set(
       t.holderName,
@@ -86,7 +86,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
   const todayMs = new Date().setHours(0, 0, 0, 0);
   const expiryWarnings = [
     ...custodyTransfers
-      .filter(t => t.direction === 'LOAD' && (repRemainingMap.get(t.holderName) || 0) > 0.1)
+      .filter(
+        t =>
+          t.direction === 'LOAD' &&
+          (!t.status || t.status === 'ACCEPTED') &&
+          (repRemainingMap.get(t.holderName) || 0) > 0.1
+      )
       .map(t => {
         const dMs = new Date(t.date.slice(0, 10)).getTime();
         const ageDays = Number.isFinite(dMs) ? Math.floor((todayMs - dMs) / 86400000) : 0;

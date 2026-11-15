@@ -140,6 +140,8 @@ interface AppContextType {
   // Custody Actions (Rep & Branch Stock Reconciliation)
   loadToRepCustody: (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => void;
   returnUnsoldToReadyStock: (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => void;
+  acceptCustodyTransfer: (transferId: string) => void;
+  rejectCustodyTransfer: (transferId: string, reason?: string) => void;
 
   // Daily Settlement Action
   addDailySettlement: (settlement: Omit<DailySettlement, 'id'>) => DailySettlement;
@@ -1357,59 +1359,133 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loadToRepCustody = (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => {
     const id = `cust-ld-${Date.now()}`;
-    const record: CustodyTransfer = { ...transfer, id, direction: 'LOAD' };
+    const record: CustodyTransfer = {
+      ...transfer,
+      id,
+      direction: 'LOAD',
+      status: 'PENDING',
+      requestedBy: currentUser.name,
+    };
     setCustodyTransfers(prev => [record, ...prev]);
     recordActivity(
       'CUSTODY',
       'CREATE',
-      'ناردنی بار بۆ عەهدە',
+      'ناردنی بار بۆ مەندوب (چاوەڕوانی ئەکسیپت)',
       `${transfer.holderName} • ${transfer.totalWeightKg} کگم`,
       transfer.receiptNo
-    );
-
-    setProducts(prev =>
-      prev.map(p => {
-        const sent = transfer.items
-          .filter(i => i.productId === p.id)
-          .reduce((s, i) => s + i.weightKg, 0);
-        return sent > 0 ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - sent).toFixed(2))) } : p;
-      })
     );
   };
 
   const returnUnsoldToReadyStock = (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => {
     const id = `cust-ret-${Date.now()}`;
-    const record: CustodyTransfer = { ...transfer, id, direction: 'RETURN_TO_READY' };
+    const record: CustodyTransfer = {
+      ...transfer,
+      id,
+      direction: 'RETURN_TO_READY',
+      status: 'PENDING',
+      requestedBy: currentUser.name,
+    };
     setCustodyTransfers(prev => [record, ...prev]);
     recordActivity(
       'CUSTODY',
       'UPDATE',
-      'گەڕاندنەوەی نەفرۆشراو بۆ ئامادە',
+      'داواکاری گەڕاندنەوەی نەفرۆشراو (چاوەڕوانی ئەکسیپت)',
       `${transfer.holderName} • ${transfer.totalWeightKg} کگم`,
       transfer.receiptNo
     );
+  };
 
-    // Add unsold weights back into Ready Stock (کۆگای ئامادە)
-    setProducts(prev =>
-      prev.map(p => {
-        const retKg = transfer.items
-          .filter(i => i.productId === p.id)
-          .reduce((s, i) => s + i.weightKg, 0);
-        return retKg > 0 ? { ...p, inStockKg: Number((p.inStockKg + retKg).toFixed(2)) } : p;
-      })
+  const acceptCustodyTransfer = (transferId: string) => {
+    const target = custodyTransfers.find(t => t.id === transferId);
+    if (!target || target.status !== 'PENDING') return;
+
+    if (target.direction === 'LOAD' && currentUser.role !== 'REP') return;
+    if (
+      target.direction === 'RETURN_TO_READY' &&
+      currentUser.role !== 'SUPER_ADMIN' &&
+      currentUser.role !== 'ADMIN'
+    ) {
+      return;
+    }
+
+    const respondedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setCustodyTransfers(prev =>
+      prev.map(t =>
+        t.id === transferId
+          ? { ...t, status: 'ACCEPTED', respondedBy: currentUser.name, respondedAt }
+          : t
+      )
     );
 
-    // If returned from Dedicated Store POS (Branch), deduct from branchStock
-    if (transfer.holderType === 'BRANCH') {
-      setBranchStock(prev =>
-        prev.map(bs => {
-          const retKg = transfer.items
-            .filter(i => i.productId === bs.productId)
+    if (target.direction === 'LOAD') {
+      setProducts(prev =>
+        prev.map(p => {
+          const sent = target.items
+            .filter(i => i.productId === p.id)
             .reduce((s, i) => s + i.weightKg, 0);
-          return retKg > 0 ? { ...bs, inStockKg: Math.max(0, Number((bs.inStockKg - retKg).toFixed(2))) } : bs;
+          return sent > 0 ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - sent).toFixed(2))) } : p;
         })
       );
+      recordActivity(
+        'CUSTODY',
+        'UPDATE',
+        'ئەکسیپتی وەرگرتنی بار لەلایەن مەندوب',
+        `${target.holderName} • ${target.totalWeightKg} کگم`,
+        target.receiptNo
+      );
+    } else {
+      setProducts(prev =>
+        prev.map(p => {
+          const retKg = target.items
+            .filter(i => i.productId === p.id)
+            .reduce((s, i) => s + i.weightKg, 0);
+          return retKg > 0 ? { ...p, inStockKg: Number((p.inStockKg + retKg).toFixed(2)) } : p;
+        })
+      );
+      recordActivity(
+        'CUSTODY',
+        'UPDATE',
+        'ئەکسیپتی گەڕانەوەی بار لەلایەن بەڕێوەبەری کۆگا',
+        `${target.holderName} • ${target.totalWeightKg} کگم`,
+        target.receiptNo
+      );
     }
+  };
+
+  const rejectCustodyTransfer = (transferId: string, reason?: string) => {
+    const target = custodyTransfers.find(t => t.id === transferId);
+    if (!target || target.status !== 'PENDING') return;
+
+    if (target.direction === 'LOAD' && currentUser.role !== 'REP') return;
+    if (
+      target.direction === 'RETURN_TO_READY' &&
+      currentUser.role !== 'SUPER_ADMIN' &&
+      currentUser.role !== 'ADMIN'
+    ) {
+      return;
+    }
+
+    const respondedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setCustodyTransfers(prev =>
+      prev.map(t =>
+        t.id === transferId
+          ? {
+              ...t,
+              status: 'REJECTED',
+              respondedBy: currentUser.name,
+              respondedAt,
+              notes: reason ? `${t.notes ? t.notes + ' • ' : ''}ڕەتکراوە: ${reason}` : t.notes,
+            }
+          : t
+      )
+    );
+    recordActivity(
+      'CUSTODY',
+      'UPDATE',
+      'ڕەتکردنەوەی گواستنەوەی کۆگای مەندوب',
+      `${target.holderName} • ${target.totalWeightKg} کگم`,
+      target.receiptNo
+    );
   };
 
   const addDailySettlement = (data: Omit<DailySettlement, 'id'>): DailySettlement => {
@@ -2141,6 +2217,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProductPrice,
         loadToRepCustody,
         returnUnsoldToReadyStock,
+        acceptCustodyTransfer,
+        rejectCustodyTransfer,
         addDailySettlement,
         factorySettings,
         updateFactorySettings,
