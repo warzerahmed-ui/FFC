@@ -250,17 +250,30 @@ export const RepSalesView: React.FC = () => {
       return;
     }
 
-    setItemsList(prev => [
-      ...prev,
-      {
-        productId: prod.id,
-        productName: prod.nameKu,
-        barcode: `${prod.barcodePrefix}${String(Math.round(weight * 1000)).padStart(5, '0')}`,
-        weightKg: weight,
-        pricePerKg: price,
-        totalAmount: roundTo250(weight * price),
-      },
-    ]);
+    setItemsList(prev => {
+      const existing = prev.findIndex(item => item.productId === prod.id && item.pricePerKg === price);
+      if (existing > -1) {
+        const updated = [...prev];
+        const newWeight = Math.round((updated[existing].weightKg + weight) * 1000) / 1000;
+        updated[existing] = {
+          ...updated[existing],
+          weightKg: newWeight,
+          totalAmount: roundTo250(newWeight * price),
+        };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          productId: prod.id,
+          productName: prod.nameKu,
+          barcode: `${prod.barcodePrefix}${String(Math.round(weight * 1000)).padStart(5, '0')}`,
+          weightKg: weight,
+          pricePerKg: price,
+          totalAmount: roundTo250(weight * price),
+        },
+      ];
+    });
     setItemWeight('');
     setItemPrice('');
   };
@@ -1860,15 +1873,32 @@ export const RepSalesView: React.FC = () => {
                       <span>بەرهەمی فرۆشراو</span>
                       <span>کێش / نرخ / کۆ</span>
                     </div>
-                    {selectedSaleForPrint.items.map((item, i) => (
-                      <div key={i} className="flex justify-between text-[11px]">
-                        <span>{item.productName}</span>
-                        <span>
-                          {item.weightKg} کگم × {item.pricePerKg.toLocaleString()} ={' '}
-                          {item.totalAmount.toLocaleString()} د.ع
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      const map = new Map<string, { name: string; weight: number; price: number; total: number; count: number }>();
+                      (selectedSaleForPrint.items || []).forEach(item => {
+                        const key = `${item.productId}-${item.pricePerKg}`;
+                        if (!map.has(key)) {
+                          map.set(key, { name: item.productName, weight: item.weightKg, price: item.pricePerKg, total: item.totalAmount, count: 1 });
+                        } else {
+                          const ex = map.get(key)!;
+                          const w = Math.round((ex.weight + item.weightKg) * 1000) / 1000;
+                          ex.weight = w;
+                          ex.total = roundTo250(w * ex.price);
+                          ex.count += 1;
+                        }
+                      });
+                      return Array.from(map.values()).map((item, i) => (
+                        <div key={i} className="flex justify-between text-[11px]">
+                          <span>
+                            {item.name} {item.count > 1 ? `(${item.count} دانە)` : ''}
+                          </span>
+                          <span>
+                            {item.weight} کگم × {item.price.toLocaleString()} ={' '}
+                            {item.total.toLocaleString()} د.ع
+                          </span>
+                        </div>
+                      ));
+                    })()}
                   </div>
 
                   {linked.length > 0 && (
@@ -1919,7 +1949,20 @@ export const RepSalesView: React.FC = () => {
                     const d = selectedSaleForPrint;
                     const cleanPhone = (d.driverOrRepPhone || '').replace(/[^0-9]/g, '');
                     const intlPhone = cleanPhone.startsWith('0') ? '964' + cleanPhone.slice(1) : cleanPhone;
-                    const itemsText = (d.items || []).map((i: DispatchItem) => `• ${i.productName}: ${i.weightKg} کگم x ${i.pricePerKg.toLocaleString()} = ${i.totalAmount.toLocaleString()} د.ع`).join('\n');
+                    const map = new Map<string, { name: string; weight: number; price: number; total: number; count: number }>();
+                    (d.items || []).forEach(item => {
+                      const key = `${item.productId}-${item.pricePerKg}`;
+                      if (!map.has(key)) {
+                        map.set(key, { name: item.productName, weight: item.weightKg, price: item.pricePerKg, total: item.totalAmount, count: 1 });
+                      } else {
+                        const ex = map.get(key)!;
+                        const w = Math.round((ex.weight + item.weightKg) * 1000) / 1000;
+                        ex.weight = w;
+                        ex.total = roundTo250(w * ex.price);
+                        ex.count += 1;
+                      }
+                    });
+                    const itemsText = Array.from(map.values()).map(i => `• ${i.name}${i.count > 1 ? ` (${i.count} دانە)` : ''}: ${i.weight} کگم x ${i.price.toLocaleString()} = ${i.total.toLocaleString()} د.ع`).join('\n');
                     const msg = `وەسڵی فرۆشتنی کارگەی ${factorySettings.factoryName} (${factorySettings.shortCode})\n\nژمارەی وەسڵ: ${d.manualReceiptNo}\nکڕیار: ${d.customerName || d.destinationName}\nمەندوب: ${d.repName || '---'}\nبەروار: ${d.date} ${d.time || ''}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${d.totalAmount.toLocaleString()} د.ع (${d.paymentType === 'CASH' ? 'نەقد' : 'قەرز'})\n\nتەلەفۆنی کارگە: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ مامەڵەتان 🍗'}`;
                     window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
                   }}

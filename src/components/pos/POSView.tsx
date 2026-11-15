@@ -226,8 +226,8 @@ export const POSView: React.FC = () => {
   const addItemToCart = (product: ProductItem, weightKg: number, pricePerKg: number, barcodeStr?: string): boolean => {
     const branchItem = branchStock.find(b => b.productId === product.id);
     const availableStock = branchItem ? branchItem.inStockKg : product.inStockKg;
-    const existingIndex = cart.findIndex(item => item.productId === product.id);
-    const existingWeight = existingIndex > -1 && (!barcodeStr || barcodeStr.length < 13) ? cart[existingIndex].weightKg : 0;
+    const existingIndex = cart.findIndex(item => item.productId === product.id && item.pricePerKg === pricePerKg);
+    const existingWeight = existingIndex > -1 ? cart[existingIndex].weightKg : 0;
     const newTotalWeight = Math.round((existingWeight + weightKg) * 1000) / 1000;
 
     if (newTotalWeight > availableStock + 0.001) {
@@ -240,8 +240,8 @@ export const POSView: React.FC = () => {
 
     const total = roundTo250(weightKg * pricePerKg);
     setCart(prev => {
-      const existing = prev.findIndex(item => item.productId === product.id);
-      if (existing > -1 && (!barcodeStr || barcodeStr.length < 13)) {
+      const existing = prev.findIndex(item => item.productId === product.id && item.pricePerKg === pricePerKg);
+      if (existing > -1) {
         const updated = [...prev];
         const newWeight = Math.round((updated[existing].weightKg + weightKg) * 1000) / 1000;
         updated[existing] = {
@@ -1616,122 +1616,165 @@ export const POSView: React.FC = () => {
       {printReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
           <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
-            <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
-              <span className="text-xs font-bold text-[#86868B]">وەسڵی گەرمی 80mm</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const s = printReceipt;
-                    const itemsText = (s.items || []).map(i => `• ${i.productName}: ${i.weightKg} کگم x ${i.pricePerKg.toLocaleString()} = ${i.total.toLocaleString()} د.ع`).join('\n');
-                    const msg = `وەسڵی فرۆشتنی شۆرۆمی ${factorySettings.factoryName} (${factorySettings.showroomName})\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${s.paymentType === 'CASH' ? 'نەقد' : 'کارت'})\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
-                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-                  }}
-                  className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1 transition-all"
-                  title="ناردنی وەسڵ بە واتسئاپ"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  واتسئاپ
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  چاپکردن
-                </button>
-                <button
-                  onClick={() => setPrintReceipt(null)}
-                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const aggregatedItems = (() => {
+                const map = new Map<string, {
+                  productId: string;
+                  productName: string;
+                  pricePerKg: number;
+                  weightKg: number;
+                  total: number;
+                  count: number;
+                }>();
 
-            <div className="p-4 bg-[#F5F5F7] rounded-2xl text-center space-y-3 font-mono">
-              <div className="flex flex-col items-center gap-1.5">
-                <FactoryLogo size="lg" />
-                <h2 className="font-black text-base text-[#1D1D1F] font-sans">
-                  {factorySettings.factoryName}
-                </h2>
-                <p className="text-[11px] font-sans font-bold text-[#0071E3]">
-                  {factorySettings.shortCode} • {factorySettings.showroomName}
-                </p>
-                <p className="text-[10px] font-sans text-[#515154]">
-                  {factorySettings.address} • {factorySettings.phone1}
-                </p>
-              </div>
+                (printReceipt.items || []).forEach(item => {
+                  const key = `${item.productId}-${item.pricePerKg}`;
+                  if (!map.has(key)) {
+                    map.set(key, {
+                      productId: item.productId,
+                      productName: item.productName,
+                      pricePerKg: item.pricePerKg,
+                      weightKg: item.weightKg,
+                      total: item.total,
+                      count: 1,
+                    });
+                  } else {
+                    const ex = map.get(key)!;
+                    const combined = Math.round((ex.weightKg + item.weightKg) * 1000) / 1000;
+                    ex.weightKg = combined;
+                    ex.total = roundTo250(combined * ex.pricePerKg);
+                    ex.count += 1;
+                  }
+                });
 
-              <div className="border-t border-b border-dashed border-black/20 py-2 text-right text-[11px] space-y-0.5">
-                <div className="flex justify-between">
-                  <span className="text-[#86868B]">وەسڵ:</span>
-                  <span className="font-bold text-[#1D1D1F]">{printReceipt.saleNo}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#86868B]">بەروار:</span>
-                  <span>{printReceipt.date} {printReceipt.time}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#86868B]">کڕیار:</span>
-                  <span className="font-sans font-bold">{printReceipt.customerName || 'کڕیاری ئاسایی'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#86868B]">کاشێر:</span>
-                  <span className="font-sans">{printReceipt.cashierName}</span>
-                </div>
-              </div>
+                return Array.from(map.values());
+              })();
 
-              <div className="space-y-1.5 text-right text-[11px]">
-                {printReceipt.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between py-1 border-b border-black/[0.05]">
-                    <div>
-                      <div className="font-sans font-bold text-[#1D1D1F]">{item.productName}</div>
-                      <div className="text-[10px] text-[#86868B]">
-                        {item.weightKg.toFixed(3)} کگم × {item.pricePerKg.toLocaleString()} د.ع
+              return (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
+                    <span className="text-xs font-bold text-[#86868B]">وەسڵی گەرمی 80mm</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const s = printReceipt;
+                          const itemsText = aggregatedItems
+                            .map(i => `• ${i.productName} ${i.count > 1 ? `(${i.count} دانە)` : ''}: ${i.weightKg.toFixed(3)} کگم x ${i.pricePerKg.toLocaleString()} = ${i.total.toLocaleString()} د.ع`)
+                            .join('\n');
+                          const msg = `وەسڵی فرۆشتنی شۆرۆمی ${factorySettings.factoryName} (${factorySettings.showroomName})\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${s.paymentType === 'CASH' ? 'نەقد' : 'کارت'})\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
+                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                        }}
+                        className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1 transition-all"
+                        title="ناردنی وەسڵ بە واتسئاپ"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        واتسئاپ
+                      </button>
+                      <button
+                        onClick={() => window.print()}
+                        className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        چاپکردن
+                      </button>
+                      <button
+                        onClick={() => setPrintReceipt(null)}
+                        className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-[#F5F5F7] rounded-2xl text-center space-y-3 font-mono">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <FactoryLogo size="lg" />
+                      <h2 className="font-black text-base text-[#1D1D1F] font-sans">
+                        {factorySettings.factoryName}
+                      </h2>
+                      <p className="text-[11px] font-sans font-bold text-[#0071E3]">
+                        {factorySettings.shortCode} • {factorySettings.showroomName}
+                      </p>
+                      <p className="text-[10px] font-sans text-[#515154]">
+                        {factorySettings.address} • {factorySettings.phone1}
+                      </p>
+                    </div>
+
+                    <div className="border-t border-b border-dashed border-black/20 py-2 text-right text-[11px] space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-[#86868B]">وەسڵ:</span>
+                        <span className="font-bold text-[#1D1D1F]">{printReceipt.saleNo}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#86868B]">بەروار:</span>
+                        <span>{printReceipt.date} {printReceipt.time}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#86868B]">کڕیار:</span>
+                        <span className="font-sans font-bold">{printReceipt.customerName || 'کڕیاری ئاسایی'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#86868B]">کاشێر:</span>
+                        <span className="font-sans">{printReceipt.cashierName}</span>
                       </div>
                     </div>
-                    <div className="font-bold text-[#1D1D1F]">{item.total.toLocaleString()} د.ع</div>
-                  </div>
-                ))}
-              </div>
 
-              <div className="border-t border-black/20 pt-2 text-right text-xs space-y-1">
-                <div className="flex justify-between text-[#515154]">
-                  <span>کۆی بڕ:</span>
-                  <span>{printReceipt.subtotal.toLocaleString()} د.ع</span>
-                </div>
-                {printReceipt.discount > 0 && (
-                  <div className="flex justify-between text-[#FF9500] font-bold">
-                    <span>داشکاندن:</span>
-                    <span>-{printReceipt.discount.toLocaleString()} د.ع</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-black text-sm text-[#1D1D1F] pt-1">
-                  <span>کۆی گشتی:</span>
-                  <span className="text-[#0071E3]">{printReceipt.total.toLocaleString()} د.ع</span>
-                </div>
-                {printReceipt.paymentType === 'CASH' && (
-                  <>
-                    <div className="flex justify-between text-[11px] text-[#86868B]">
-                      <span>پارەی دراو:</span>
-                      <span>{(printReceipt.paidAmount || printReceipt.total).toLocaleString()} د.ع</span>
+                    <div className="space-y-1.5 text-right text-[11px]">
+                      {aggregatedItems.map((item, idx) => (
+                        <div key={idx} className="flex justify-between py-1 border-b border-black/[0.05]">
+                          <div>
+                            <div className="font-sans font-bold text-[#1D1D1F]">
+                              {item.productName} {item.count > 1 ? `(${item.count} دانە)` : ''}
+                            </div>
+                            <div className="text-[10px] text-[#86868B]">
+                              {item.weightKg.toFixed(3)} کگم × {item.pricePerKg.toLocaleString()} د.ع
+                            </div>
+                          </div>
+                          <div className="font-bold text-[#1D1D1F]">{item.total.toLocaleString()} د.ع</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex justify-between text-[11px] text-[#248A3D] font-bold">
-                      <span>پارەی گەڕاوە:</span>
-                      <span>{(printReceipt.changeAmount || 0).toLocaleString()} د.ع</span>
+
+                    <div className="border-t border-black/20 pt-2 text-right text-xs space-y-1">
+                      <div className="flex justify-between text-[#515154]">
+                        <span>کۆی بڕ:</span>
+                        <span>{printReceipt.subtotal.toLocaleString()} د.ع</span>
+                      </div>
+                      {printReceipt.discount > 0 && (
+                        <div className="flex justify-between text-[#FF9500] font-bold">
+                          <span>داشکاندن:</span>
+                          <span>-{printReceipt.discount.toLocaleString()} د.ع</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-black text-sm text-[#1D1D1F] pt-1">
+                        <span>کۆی گشتی:</span>
+                        <span className="text-[#0071E3]">{printReceipt.total.toLocaleString()} د.ع</span>
+                      </div>
+                      {printReceipt.paymentType === 'CASH' && (
+                        <>
+                          <div className="flex justify-between text-[11px] text-[#86868B]">
+                            <span>پارەی دراو:</span>
+                            <span>{(printReceipt.paidAmount || printReceipt.total).toLocaleString()} د.ع</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] text-[#248A3D] font-bold">
+                            <span>پارەی گەڕاوە:</span>
+                            <span>{(printReceipt.changeAmount || 0).toLocaleString()} د.ع</span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </>
-                )}
-              </div>
 
-              <div className="pt-2">
-                <BarcodeSVG code={printReceipt.saleNo.replace(/[^0-9]/g, '') || '1001001'} width={220} height={40} />
-              </div>
+                    <div className="pt-2">
+                      <BarcodeSVG code={printReceipt.saleNo.replace(/[^0-9]/g, '') || '1001001'} width={220} height={40} />
+                    </div>
 
-              <p className="text-[10px] text-[#86868B] font-sans">
-                {factorySettings.receiptFooter || 'سوپاس بۆ سەردانەکەتان'}
-              </p>
-            </div>
+                    <p className="text-[10px] text-[#86868B] font-sans">
+                      {factorySettings.receiptFooter || 'سوپاس بۆ سەردانەکەتان'}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
