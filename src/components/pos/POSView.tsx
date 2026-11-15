@@ -8,11 +8,9 @@ import {
   CreditCard,
   Banknote,
   Boxes,
-  RotateCcw,
   Users,
   Plus,
   Search,
-  CheckCircle2,
   TrendingUp,
   X,
   Scale,
@@ -27,7 +25,7 @@ import {
   Clock,
   FileText,
 } from 'lucide-react';
-import { POSSaleItem, POSSale, ProductItem, ReturnItem, BranchStockItem, roundTo250 } from '../../types';
+import { POSSaleItem, POSSale, ProductItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 
 // ==========================================
@@ -124,13 +122,11 @@ export const POSView: React.FC = () => {
     products,
     posSales,
     branchStock,
-    returns,
     customers,
     branchExpenses,
     currentUser,
     factorySettings,
     addPOSSale,
-    addReturn,
     addBranchExpense,
     updateBranchStockItem,
     parseWeightBarcode,
@@ -139,7 +135,7 @@ export const POSView: React.FC = () => {
   } = useApp();
 
   // Apple Segmented Tabs
-  const [activeSubTab, setActiveSubTab] = useState<'REGISTER' | 'BRANCH_RETURNS' | 'INVENTORY' | 'REGISTER_REPORT'>('REGISTER');
+  const [activeSubTab, setActiveSubTab] = useState<'REGISTER' | 'INVENTORY' | 'REGISTER_REPORT'>('REGISTER');
 
   // ==========================================
   // POS REGISTER STATE
@@ -461,94 +457,6 @@ export const POSView: React.FC = () => {
   };
 
   // ==========================================
-  // SHOWROOM 3-DAY UNSOLD RETURNS TO READY STOCK
-  // ==========================================
-  const [returnReceiptNo, setReturnReceiptNo] = useState(`SH-RET-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
-  const [returnReason, setReturnReason] = useState<'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED'>('EXPIRED_3_DAYS');
-  const [returnNotes, setReturnNotes] = useState('گەڕاوەی ٣ ڕۆژی فرۆشگای شۆرۆم بۆ گۆڕینی شێواز لە کۆگای ئامادە');
-  const [returnSelectedProdId, setReturnSelectedProdId] = useState<string>(branchStock[0]?.productId || products[0]?.id || '');
-  const [returnWeightInput, setReturnWeightInput] = useState<string>('');
-  const [returnStagingList, setReturnStagingList] = useState<ReturnItem[]>([]);
-
-  const showroomReturns = returns.filter(r => r.sourceType === 'BRANCH');
-
-  const addStagedReturnItem = () => {
-    const stockItem = branchStock.find(s => s.productId === returnSelectedProdId);
-    const prod = products.find(p => p.id === returnSelectedProdId);
-    const productName = stockItem?.productName || prod?.nameKu || '';
-    const productBarcode = stockItem?.barcode || prod?.barcodePrefix || '';
-    const unitCost = stockItem?.factoryCostPerKg || prod?.costPerKg || 2800;
-
-    if (!returnSelectedProdId || !productName) {
-      showToast('تکایە بەرهەمێک لە کۆگای شۆرۆم هەڵبژێرە', 'warn');
-      return;
-    }
-
-    const weight = parseFloat(returnWeightInput);
-    if (isNaN(weight) || weight <= 0) {
-      showToast('تکایە کێشێکی دروست بە کیلۆگرام بنووسە', 'warn');
-      return;
-    }
-
-    if (stockItem && weight > stockItem.inStockKg) {
-      showToast(`ئەم کێشە لە کۆگای شۆرۆم بەردەست نییە! بەردەست: ${stockItem.inStockKg.toFixed(1)} کگم`, 'warn');
-      return;
-    }
-
-    setReturnStagingList(prev => [
-      ...prev,
-      {
-        productId: returnSelectedProdId,
-        productName,
-        barcode: productBarcode,
-        weightKg: weight,
-        unitCost,
-        totalLoss: roundTo250(weight * unitCost),
-        reason: returnReason,
-      },
-    ]);
-
-    playPosBeep('success');
-    showToast(`زیادکرا بۆ لیستی گەڕاوە: ${productName} (${weight} کگم)`, 'success');
-    setReturnWeightInput('');
-  };
-
-  const removeStagedReturnItem = (index: number) => {
-    setReturnStagingList(prev => prev.filter((_, i) => i !== index));
-    playPosBeep('scale');
-  };
-
-  const commitShowroomReturn = () => {
-    if (returnStagingList.length === 0) {
-      showToast('لیستی گەڕاوە بەتاڵە! لانیکەم بەرهەمێک زیاد بکە', 'warn');
-      return;
-    }
-
-    const totalWeightKg = returnStagingList.reduce((sum, item) => sum + item.weightKg, 0);
-    const totalLossAmount = returnStagingList.reduce((sum, item) => sum + item.totalLoss, 0);
-
-    addReturn({
-      manualReceiptNo: returnReceiptNo.trim() || `SH-RET-${Date.now().toString().slice(-4)}`,
-      date: returnDate,
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      sourceType: 'BRANCH',
-      sourceName: 'فرۆشگای تایبەت (شۆرۆم POS)',
-      items: [...returnStagingList],
-      totalWeightKg,
-      totalLossAmount,
-      totalCustomerDeduction: 0,
-      disposalMethod: 'DESTROYED',
-      notes: returnNotes,
-    });
-
-    playPosBeep('success');
-    showToast(`گەڕاوەی شۆرۆم (${totalWeightKg.toFixed(1)} کگم) تۆمارکرا و نێردرا بۆ ئامادە بۆ گۆڕین`, 'success');
-    setReturnStagingList([]);
-    setReturnReceiptNo(`SH-RET-${Math.floor(1000 + Math.random() * 9000)}`);
-  };
-
-  // ==========================================
   // EXPENSES STATE
   // ==========================================
   const [expTitle, setExpTitle] = useState('');
@@ -662,16 +570,6 @@ export const POSView: React.FC = () => {
           >
             <Barcode className="w-3.5 h-3.5 text-[#0071E3]" />
             <span>کاشێر و فرۆشتن</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('BRANCH_RETURNS')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'BRANCH_RETURNS' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-[#FF3B30]" />
-            <span>گەڕاوەی ٣ ڕۆژی شۆرۆم</span>
           </button>
 
           <button
@@ -1189,241 +1087,6 @@ export const POSView: React.FC = () => {
                   <span>تەواوکردن و چاپکردنی وەسڵ (80mm)</span>
                   <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded-md">F4</span>
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: WAREHOUSE INBOUND BY BARCODE (داخلکردنی کۆگا بە سکانەری بارکۆد) */}
-      {/* ========================================================================= */}
-      {/* TAB 2: SHOWROOM 3-DAY UNSOLD RETURNS (گەڕاوەی ٣ ڕۆژی شۆرۆم بۆ ئامادە) */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'BRANCH_RETURNS' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Return Registration Form Card */}
-          <div className="lg:col-span-5 apple-card p-5 space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-black/[0.06]">
-              <div className="w-10 h-10 rounded-2xl bg-[#FF3B30]/12 text-[#FF3B30] flex items-center justify-center">
-                <RotateCcw className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-[#1D1D1F]">تۆمارکردنی گەڕاوەی ٣ ڕۆژی ناو شۆرۆم</h3>
-                <p className="text-[11px] text-[#86868B]">ئەو بەرهەمانەی لە ماوەی ٣ ڕۆژدا لە شۆرۆم نەفرۆشراون و دەگەڕێنرێنەوە بۆ کۆگای ئامادە بۆ گۆڕینی شێواز</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">ژمارەی وەسڵی گەڕاوە:</label>
-                <input
-                  type="text"
-                  value={returnReceiptNo}
-                  onChange={e => setReturnReceiptNo(e.target.value)}
-                  className="apple-input w-full px-3 py-2 font-mono font-bold text-xs"
-                />
-              </div>
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">بەروار:</label>
-                <input
-                  type="date"
-                  value={returnDate}
-                  onChange={e => setReturnDate(e.target.value)}
-                  className="apple-input w-full px-3 py-2 font-medium text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="text-xs">
-              <label className="font-semibold text-[#515154] block mb-1">هۆکاری گەڕاندنەوە:</label>
-              <select
-                value={returnReason}
-                onChange={e => setReturnReason(e.target.value as 'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED')}
-                className="apple-input w-full px-3 py-2 font-bold text-xs"
-              >
-                <option value="EXPIRED_3_DAYS">ماوەی ٣ ڕۆژی فرۆشتنی تێپەڕیوە (گەڕاوەی فرێش)</option>
-                <option value="DAMAGED">تێکچوونی کیسە یان بار</option>
-                <option value="SPOILED">تێکچوون</option>
-              </select>
-            </div>
-
-            {/* Item Selection from Showroom Stock */}
-            <div className="p-3.5 rounded-2xl bg-[#F5F5F7] border border-black/[0.05] space-y-3 text-xs">
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">بەرهەم لە کۆگای شۆرۆم:</label>
-                <select
-                  value={returnSelectedProdId}
-                  onChange={e => setReturnSelectedProdId(e.target.value)}
-                  className="apple-input bg-white w-full px-3 py-2 font-bold text-xs"
-                >
-                  {branchStock.map(s => (
-                    <option key={s.productId} value={s.productId}>
-                      {s.productName} (بەردەست لە شۆرۆم: {s.inStockKg.toFixed(1)} کگم)
-                    </option>
-                  ))}
-                  {branchStock.length === 0 &&
-                    products.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.nameKu} (#{p.code})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">کێشی گەڕاوە (کگم):</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="نموونە: 12.5"
-                  value={returnWeightInput}
-                  onChange={e => setReturnWeightInput(e.target.value)}
-                  className="apple-input bg-white w-full px-3 py-2 font-extrabold text-sm text-[#FF3B30] tabular-nums"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-[#515154] block mb-1">تێبینی:</label>
-                <input
-                  type="text"
-                  value={returnNotes}
-                  onChange={e => setReturnNotes(e.target.value)}
-                  className="apple-input bg-white w-full px-3 py-2 text-xs"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={addStagedReturnItem}
-                className="w-full py-2.5 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.985]"
-              >
-                <Plus className="w-4 h-4" />
-                زیادکردن بۆ لیستی گەڕاوە
-              </button>
-            </div>
-          </div>
-
-          {/* Staging List & History */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="apple-card p-5 flex flex-col justify-between min-h-[340px]">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-[#FF3B30]/12 text-[#FF3B30] font-bold flex items-center justify-center text-xs tabular-nums">
-                      {returnStagingList.length}
-                    </span>
-                    <h4 className="font-extrabold text-sm text-[#1D1D1F]">لیستی کاڵای گەڕاوەی شۆرۆم</h4>
-                  </div>
-                  <span className="text-xs font-mono text-[#86868B]">وەسڵ: {returnReceiptNo}</span>
-                </div>
-
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-right text-xs">
-                    <thead>
-                      <tr className="border-b border-black/[0.06] text-[#86868B] font-semibold">
-                        <th className="py-2">بەرهەم</th>
-                        <th className="py-2 text-center">کێش (کگم)</th>
-                        <th className="py-2 text-center">بەهای تێچوو</th>
-                        <th className="py-2 text-left">هۆکار</th>
-                        <th className="py-2 text-center">لابردن</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/[0.04]">
-                      {returnStagingList.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="py-12 text-center text-[#86868B]">
-                            هێشتا هیچ کاڵایەکی گەڕاوە زیاد نەکراوە.
-                          </td>
-                        </tr>
-                      ) : (
-                        returnStagingList.map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="py-2.5 font-bold text-[#1D1D1F]">{item.productName}</td>
-                            <td className="py-2.5 text-center font-bold text-[#FF3B30] tabular-nums">
-                              {item.weightKg.toFixed(2)} کگم
-                            </td>
-                            <td className="py-2.5 text-center tabular-nums text-[#515154]">
-                              {item.totalLoss.toLocaleString()} د.ع
-                            </td>
-                            <td className="py-2.5 text-left text-[11px] font-semibold text-[#515154]">
-                              {item.reason === 'EXPIRED_3_DAYS' ? 'تێپەڕینی ٣ ڕۆژ' : item.reason === 'DAMAGED' ? 'تێکچوونی کیسە' : 'تێکچوو'}
-                            </td>
-                            <td className="py-2.5 text-center">
-                              <button
-                                onClick={() => removeStagedReturnItem(idx)}
-                                className="text-[#86868B] hover:text-[#FF3B30] p-1"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {returnStagingList.length > 0 && (
-                <div className="pt-4 border-t border-black/[0.06] space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-[#F5F5F7] text-xs font-bold">
-                    <span className="text-[#515154]">کۆی کێشی گەڕاوە:</span>
-                    <span className="text-sm font-extrabold text-[#FF3B30] tabular-nums">
-                      {returnStagingList.reduce((sum, item) => sum + item.weightKg, 0).toFixed(2)} کگم
-                    </span>
-                    <span className="text-[#515154]">بەهای تێچوو:</span>
-                    <span className="text-sm font-extrabold text-[#1D1D1F] tabular-nums">
-                      {returnStagingList.reduce((sum, item) => sum + item.totalLoss, 0).toLocaleString()} د.ع
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={commitShowroomReturn}
-                    className="w-full py-3.5 rounded-2xl bg-[#FF3B30] hover:bg-[#E0352B] text-white font-bold text-sm shadow-sm active:scale-[0.985] transition-all flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>تۆمارکردن و ناردنەوە بۆ ئامادە بۆ گۆڕینی شێواز</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Showroom Return History */}
-            <div className="apple-card p-5 space-y-3">
-              <h4 className="font-extrabold text-xs text-[#1D1D1F] flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-[#FF3B30]" />
-                مێژووی گەڕاوەی ٣ ڕۆژی شۆرۆم ({showroomReturns.length})
-              </h4>
-              <div className="divide-y divide-black/[0.05] max-h-56 overflow-y-auto">
-                {showroomReturns.length === 0 ? (
-                  <p className="text-xs text-[#86868B] py-4 text-center">هیچ گەڕاوەیەکی شۆرۆم تۆمار نەکراوە</p>
-                ) : (
-                  showroomReturns.map(ret => (
-                    <div key={ret.id} className="py-2.5 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-bold text-[#1D1D1F] flex items-center gap-2">
-                          <span className="font-mono text-[#FF3B30]">#{ret.manualReceiptNo}</span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ret.conversionStatus === 'CONVERTED'
-                                ? 'bg-[#34C759]/12 text-[#248A3D]'
-                                : 'bg-[#FF9500]/12 text-[#C93400]'
-                            }`}
-                          >
-                            {ret.conversionStatus === 'CONVERTED' ? 'گۆڕدراوە بۆ شێوازی نوێ' : 'چاوەڕێی گۆڕین لە ئامادە'}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-[#86868B]">
-                          {ret.date} {ret.time} • {ret.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، ')}
-                        </span>
-                      </div>
-                      <span className="font-extrabold text-[#FF3B30] tabular-nums">
-                        {ret.totalWeightKg.toFixed(1)} کگم
-                      </span>
-                    </div>
-                  ))
-                )}
               </div>
             </div>
           </div>
