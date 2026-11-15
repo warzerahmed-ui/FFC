@@ -166,7 +166,7 @@ interface AppContextType {
   repNames: string[];
 
   // Barcode decoding utility
-  parseWeightBarcode: (barcodeStr: string) => { product?: ProductItem; branchItem?: BranchStockItem; weightKg: number; valid: boolean };
+  parseWeightBarcode: (barcodeStr: string) => { product?: ProductItem; branchItem?: BranchStockItem; weightKg: number; embeddedPrice?: number; valid: boolean };
 
   // Full System Backup & Restore & Clean Start
   exportSystemBackup: () => string;
@@ -814,7 +814,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const parseWeightBarcode = (barcodeStr: string) => {
     const clean = barcodeStr.trim();
-    if (!clean) return { product: undefined, branchItem: undefined, weightKg: 0, valid: false };
+    if (!clean) return { product: undefined, branchItem: undefined, weightKg: 0, embeddedPrice: undefined, valid: false };
+
+    // Extended scale barcode with BOTH weight and embedded price (17-22 digits, starts with 20, 21, 22, 23, 24, 28)
+    // Format: PP(2) + CCCCC(5) + WWWWW(5 grams) + PRICE(5-9 IQD) + CHECK(1)
+    if (clean.length >= 17 && clean.length <= 22 && /^(20|21|22|23|24|28)/.test(clean)) {
+      const prodCode = clean.substring(2, 7);
+      const weightGrams = parseInt(clean.substring(7, 12), 10);
+      const priceDigits = clean.substring(12, clean.length - 1);
+      const parsedPrice = parseInt(priceDigits, 10);
+
+      const product = products.find(p =>
+        clean.startsWith(p.barcodePrefix) ||
+        p.code === prodCode ||
+        prodCode.endsWith(p.code)
+      );
+      const branchItem = product ? branchStock.find(b => b.productId === product.id) : undefined;
+      const weightKg = isNaN(weightGrams) || weightGrams <= 0 ? 1 : Math.round((weightGrams / 1000) * 1000) / 1000;
+      const embeddedPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : undefined;
+      return { product, branchItem, weightKg, embeddedPrice, valid: !!(product || branchItem) };
+    }
 
     // Standard 13-digit scale barcode (starts with 20, 21, 22, 23, 24, 28)
     if (clean.length === 13 && /^(20|21|22|23|24|28)/.test(clean)) {
@@ -828,7 +847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       const branchItem = product ? branchStock.find(b => b.productId === product.id) : undefined;
       const weightKg = isNaN(weightGrams) ? 1 : Math.round((weightGrams / 1000) * 1000) / 1000;
-      return { product, branchItem, weightKg, valid: !!(product || branchItem) };
+      return { product, branchItem, weightKg, embeddedPrice: undefined, valid: !!(product || branchItem) };
     }
 
     // Direct barcode or code match
@@ -845,10 +864,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resolvedProduct = product || (branchItem ? products.find(p => p.id === branchItem.productId) : undefined);
 
     if (resolvedProduct || branchItem) {
-      return { product: resolvedProduct, branchItem, weightKg: 1, valid: true };
+      return { product: resolvedProduct, branchItem, weightKg: 1, embeddedPrice: undefined, valid: true };
     }
 
-    return { product: undefined, branchItem: undefined, weightKg: 0, valid: false };
+    return { product: undefined, branchItem: undefined, weightKg: 0, embeddedPrice: undefined, valid: false };
   };
 
   const addIntake = (newIntake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => {

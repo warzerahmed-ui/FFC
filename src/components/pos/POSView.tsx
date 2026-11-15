@@ -205,15 +205,26 @@ export const POSView: React.FC<POSViewProps> = ({
   const [editingPriceItem, setEditingPriceItem] = useState<BranchStockItem | null>(null);
   const [newPriceInput, setNewPriceInput] = useState<string>('');
 
-  // Inbound Stock Receipt Modal (Manual Receive at Showroom)
+  // Inbound Stock Receipt Modal (Manual & Barcode Receive at Showroom)
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [receiveReceiptNo, setReceiveReceiptNo] = useState('');
   const [receiveRepName, setReceiveRepName] = useState('');
   const [receiveProdId, setReceiveProdId] = useState(products[0]?.id || '');
   const [receiveWeight, setReceiveWeight] = useState('');
+  const [receiveScannerInput, setReceiveScannerInput] = useState('');
+  const [receiveScanFeedback, setReceiveScanFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const [receiveItems, setReceiveItems] = useState<
-    { productId: string; productName: string; weightKg: number; factoryPricePerKg: number; totalCost: number }[]
+    { productId: string; productName: string; weightKg: number; trayCount?: number; factoryPricePerKg: number; totalCost: number }[]
   >([]);
+  const receiveScannerRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showReceiveModal) {
+      setReceiveScanFeedback(null);
+      setReceiveScannerInput('');
+      setTimeout(() => receiveScannerRef.current?.focus(), 60);
+    }
+  }, [showReceiveModal]);
 
   // Expenses Modal
   const [expTitle, setExpTitle] = useState('');
@@ -328,13 +339,20 @@ export const POSView: React.FC<POSViewProps> = ({
       }
 
       const branchItem = branchStock.find(b => b.productId === prod.id);
-      const retailPrice = branchItem ? branchItem.retailPricePerKg : prod.pricePerKg;
+      const baseRetailPrice = branchItem ? branchItem.retailPricePerKg : prod.pricePerKg;
       const weight = result.weightKg > 0 ? result.weightKg : 1.0;
+      const effectivePrice =
+        result.embeddedPrice && result.embeddedPrice > 0
+          ? Math.round(result.embeddedPrice / weight)
+          : baseRetailPrice;
 
-      const added = addItemToCart(prod, weight, retailPrice, rawBarcode);
+      const added = addItemToCart(prod, weight, effectivePrice, rawBarcode);
       if (added) {
-        playPosBeep(rawBarcode.length === 13 ? 'scale' : 'success');
-        showToast(`سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم)`, 'success');
+        playPosBeep(rawBarcode.length >= 13 ? 'scale' : 'success');
+        showToast(
+          `سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم • ${roundTo250(weight * effectivePrice).toLocaleString()} د.ع)`,
+          'success'
+        );
       }
       setScannerInput('');
     } else {
@@ -525,20 +543,20 @@ export const POSView: React.FC<POSViewProps> = ({
     return [...repDeliveries, ...manualDeliveries].sort((a, b) => b.date.localeCompare(a.date));
   }, [dispatches, branchDeliveries, factorySettings.showroomName]);
 
-  const handleAddReceiveItem = () => {
-    const prod = products.find(p => p.id === receiveProdId);
-    const w = parseFloat(receiveWeight);
-    if (!prod || isNaN(w) || w <= 0) {
-      showToast('تکایە بەرهەم و کێشێکی دروست بنووسە', 'warn');
-      return;
-    }
+  const appendReceiveProduct = (prod: ProductItem, weightKg: number, isTrayScan = false) => {
     const cost = prod.costPerKg || 3000;
     setReceiveItems(prev => {
       const idx = prev.findIndex(i => i.productId === prod.id);
       if (idx > -1) {
         const updated = [...prev];
-        const newW = Math.round((updated[idx].weightKg + w) * 1000) / 1000;
-        updated[idx] = { ...updated[idx], weightKg: newW, totalCost: roundTo250(newW * cost) };
+        const newW = Math.round((updated[idx].weightKg + weightKg) * 1000) / 1000;
+        const newTrays = (updated[idx].trayCount || 0) + (isTrayScan ? 1 : 0);
+        updated[idx] = {
+          ...updated[idx],
+          weightKg: newW,
+          trayCount: newTrays > 0 ? newTrays : undefined,
+          totalCost: roundTo250(newW * cost),
+        };
         return updated;
       }
       return [
@@ -546,38 +564,89 @@ export const POSView: React.FC<POSViewProps> = ({
         {
           productId: prod.id,
           productName: prod.nameKu,
-          weightKg: w,
+          weightKg,
+          trayCount: isTrayScan ? 1 : undefined,
           factoryPricePerKg: cost,
-          totalCost: roundTo250(w * cost),
+          totalCost: roundTo250(weightKg * cost),
         },
       ];
     });
+  };
+
+  const handleReceiveBarcodeScan = () => {
+    const raw = receiveScannerInput.trim();
+    if (!raw) return;
+
+    const result = parseWeightBarcode(raw);
+    if (result.valid && (result.product || result.branchItem)) {
+      const prod = result.product || products.find(p => p.id === result.branchItem?.productId);
+      if (!prod) {
+        playPosBeep('error');
+        setReceiveScanFeedback({ text: 'بەرهەم نەدۆزرایەوە!', ok: false });
+        setReceiveScannerInput('');
+        return;
+      }
+      const w = result.weightKg > 0 ? result.weightKg : 1.0;
+      appendReceiveProduct(prod, w, true);
+      playPosBeep(raw.length >= 13 ? 'scale' : 'success');
+      setReceiveScanFeedback({
+        text: `سکان کرا: ${prod.nameKu} (+١ قاپ • ${w.toFixed(3)} کگم)`,
+        ok: true,
+      });
+    } else {
+      playPosBeep('error');
+      setReceiveScanFeedback({ text: `بارکۆد نەناسراوە: ${raw}`, ok: false });
+    }
+    setReceiveScannerInput('');
+    setTimeout(() => receiveScannerRef.current?.focus(), 20);
+  };
+
+  const handleAddReceiveItem = () => {
+    const prod = products.find(p => p.id === receiveProdId);
+    const w = parseFloat(receiveWeight);
+    if (!prod || isNaN(w) || w <= 0) {
+      showToast('تکایە بەرهەم و کێشێکی دروست بنووسە', 'warn');
+      return;
+    }
+    appendReceiveProduct(prod, w, false);
     setReceiveWeight('');
   };
 
   const handleSubmitReceiveStock = (e: React.FormEvent) => {
     e.preventDefault();
     if (receiveItems.length === 0) {
-      showToast('تکایە لانیکەم یەک بەرهەم زیاد بکە', 'warn');
+      showToast('تکایە لانیکەم یەک بەرهەم سکان بکە یان زیاد بکە', 'warn');
       return;
     }
-    const totalKg = receiveItems.reduce((s, i) => s + i.weightKg, 0);
+    const totalKg = Math.round(receiveItems.reduce((s, i) => s + i.weightKg, 0) * 1000) / 1000;
+    const totalTrays = receiveItems.reduce((s, i) => s + (i.trayCount || 0), 0);
     const totalCost = receiveItems.reduce((s, i) => s + i.totalCost, 0);
+    const cleanItems = receiveItems.map(({ trayCount: _tc, ...rest }) => rest);
     addBranchDelivery({
       manualReceiptNo: receiveReceiptNo.trim() || `SH-IN-${Date.now().toString().slice(-4)}`,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       repName: receiveRepName.trim() || 'مەندوب / گەیاندنی ناوخۆ',
-      items: receiveItems,
+      items: cleanItems,
       totalWeightKg: totalKg,
       totalCost,
-      notes: 'وەرگرتنی باری ڕاستەوخۆ لە شۆرۆم',
+      notes:
+        totalTrays > 0
+          ? `وەرگرتنی باری قاپ بە بارکۆد ریدەر لە شۆرۆم (${totalTrays} قاپ)`
+          : 'وەرگرتنی باری ڕاستەوخۆ لە شۆرۆم',
     });
     playPosBeep('success');
-    showToast(`${totalKg.toFixed(1)} کگم خرایە سەر کۆگای شۆرۆم`, 'success');
+    showToast(
+      totalTrays > 0
+        ? `${totalTrays} قاپ (${totalKg.toFixed(2)} کگم) خرایە سەر کۆگای شۆرۆم`
+        : `${totalKg.toFixed(1)} کگم خرایە سەر کۆگای شۆرۆم`,
+      'success'
+    );
     setReceiveItems([]);
     setReceiveReceiptNo('');
     setReceiveRepName('');
+    setReceiveScannerInput('');
+    setReceiveScanFeedback(null);
     setShowReceiveModal(false);
   };
 
@@ -1839,7 +1908,60 @@ export const POSView: React.FC<POSViewProps> = ({
               </div>
             </div>
 
+            <div className="p-3.5 rounded-2xl bg-[#0071E3]/6 border border-[#0071E3]/20 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-[#0071E3] flex items-center gap-1.5">
+                  <Barcode className="w-4 h-4" />
+                  سکانکردنی قاپە هاتووەکان (بارکۆد ریدەر)
+                </span>
+                {receiveItems.length > 0 && (
+                  <span className="text-[11px] font-bold text-[#1D1D1F]">
+                    {receiveItems.reduce((s, i) => s + (i.trayCount || 0), 0)} قاپ •{' '}
+                    {receiveItems.reduce((s, i) => s + i.weightKg, 0).toFixed(3)} کگم
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  ref={receiveScannerRef}
+                  type="text"
+                  value={receiveScannerInput}
+                  onChange={e => setReceiveScannerInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleReceiveBarcodeScan();
+                    }
+                  }}
+                  placeholder="بارکۆدی قاپەکە سکان بکە یان لێرە بنووسە و Enter دابگرە..."
+                  className="apple-input bg-white flex-1 px-3 py-2 font-mono font-bold text-xs"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={handleReceiveBarcodeScan}
+                  className="px-3.5 py-2 rounded-xl bg-[#0071E3] text-white font-bold shrink-0"
+                >
+                  سکان
+                </button>
+              </div>
+
+              {receiveScanFeedback && (
+                <div
+                  className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl ${
+                    receiveScanFeedback.ok
+                      ? 'bg-[#34C759]/15 text-[#1B7A34]'
+                      : 'bg-[#FF3B30]/15 text-[#D70015]'
+                  }`}
+                >
+                  {receiveScanFeedback.text}
+                </div>
+              )}
+            </div>
+
             <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-2 text-xs">
+              <div className="text-[11px] font-bold text-[#86868B]">یان زیادکردنی دەستی (بێ بارکۆد):</div>
               <div className="flex gap-2">
                 <select
                   value={receiveProdId}
@@ -1863,19 +1985,28 @@ export const POSView: React.FC<POSViewProps> = ({
                 <button
                   type="button"
                   onClick={handleAddReceiveItem}
-                  className="px-3 py-2 rounded-xl bg-[#0071E3] text-white font-bold"
+                  className="px-3 py-2 rounded-xl bg-[#1D1D1F] text-white font-bold"
                 >
                   +
                 </button>
               </div>
 
               {receiveItems.length > 0 && (
-                <div className="divide-y divide-black/[0.06] pt-1">
+                <div className="divide-y divide-black/[0.06] pt-1 max-h-44 overflow-y-auto">
                   {receiveItems.map((it, idx) => (
-                    <div key={idx} className="py-1.5 flex items-center justify-between">
-                      <span className="font-bold">{it.productName}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-[#248A3D]">{it.weightKg} کگم</span>
+                    <div key={idx} className="py-1.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-bold">{it.productName}</span>
+                        {it.trayCount && it.trayCount > 0 && (
+                          <span className="mr-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#0071E3]/10 text-[#0071E3]">
+                            {it.trayCount} قاپ
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-black text-[#248A3D] tabular-nums">
+                          {it.weightKg.toFixed(3)} کگم
+                        </span>
                         <button
                           type="button"
                           onClick={() => setReceiveItems(prev => prev.filter((_, i) => i !== idx))}
