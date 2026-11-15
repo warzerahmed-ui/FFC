@@ -743,7 +743,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               {/* Modal Footer */}
               <div className="flex flex-col sm:flex-row items-center justify-between pt-3 text-xs border-t border-black/[0.08] gap-4">
                 <span className="text-[#86868B]">
-                  واژۆ و مۆری فەرمی ژمێریاری کارگە: __________________________
+                  واژۆ و مۆری فەرمی ژمێریاری کارگە: __________________________ •{' '}
+                  <span dir="ltr" className="font-bold text-[#0071E3]">RAND SUITE</span>
                 </span>
                 
                 <div className="flex items-center gap-2.5 no-print">
@@ -836,7 +837,10 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             </div>
 
             <div className="flex justify-between items-center pt-3 text-xs border-t border-black/[0.06]">
-              <span className="text-[#86868B]">مۆری فەرمی کارگە: ______________</span>
+              <span className="text-[#86868B]">
+                مۆری فەرمی کارگە: ______________ •{' '}
+                <span dir="ltr" className="font-bold text-[#0071E3]">RAND SUITE</span>
+              </span>
               <div className="flex gap-2 no-print">
                 <button
                   type="button"

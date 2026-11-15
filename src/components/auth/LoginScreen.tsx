@@ -106,7 +106,7 @@ export const LoginScreen: React.FC = () => {
                 <FactoryLogo size="lg" className="shadow-2xl ring-4 ring-white/15" />
                 <div>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-white/15 text-sky-100 border border-white/20">
-                    ENTERPRISE ERP
+                    RAND SUITE • ENTERPRISE ERP
                   </span>
                   <h2 className="mt-1 text-xl font-black tracking-tight text-white">
                     {factorySettings.shortCode}
@@ -161,13 +161,16 @@ export const LoginScreen: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative z-10 mt-6 lg:mt-0 pt-4 border-t border-white/15 flex items-center justify-between text-[11px] text-sky-100/85">
+          <div className="relative z-10 mt-6 lg:mt-0 pt-4 border-t border-white/15 flex items-center justify-between gap-2 text-[11px] text-sky-100/85">
             <span className="inline-flex items-center gap-2 font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
               </span>
               پەیوەندیی پارێزراو • Cloudflare Edge SSL
+            </span>
+            <span dir="ltr" className="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-black tracking-widest text-white shrink-0">
+              RAND SUITE
             </span>
           </div>
         </div>
@@ -301,10 +304,16 @@ export const LoginScreen: React.FC = () => {
               </button>
             </form>
 
-            <div className="mt-7 pt-5 border-t border-slate-100 text-center">
+            <div className="mt-7 pt-5 border-t border-slate-100 text-center space-y-2.5">
               <p className="text-[11px] text-slate-400 font-medium">
                 دەسەڵاتەکان و بەشە کراوەکان بەپێی ڕۆڵی ئەکاونتەکەت خۆکارانە دیاری دەکرێن
               </p>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500 font-semibold">
+                <span>دروستکراوە لەلایەن</span>
+                <span dir="ltr" className="font-black tracking-wider text-[#0071E3]">
+                  RAND SUITE
+                </span>
+              </div>
             </div>
           </div>
         </div>

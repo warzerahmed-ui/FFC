@@ -1777,6 +1777,9 @@ export const POSView: React.FC<POSViewProps> = ({
                     <p className="text-[10px] text-[#86868B] font-sans">
                       {factorySettings.receiptFooter || 'سوپاس بۆ سەردانەکەتان'}
                     </p>
+                    <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
+                      Powered by RAND SUITE
+                    </p>
                   </div>
                 </>
               );
@@ -1876,6 +1879,9 @@ export const POSView: React.FC<POSViewProps> = ({
                       <span className="text-[#0071E3] tabular-nums">{netCashInDrawer.toLocaleString()} د.ع</span>
                     </div>
                   </div>
+                  <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
+                    Powered by RAND SUITE
+                  </p>
                 </div>
               );
             })()}

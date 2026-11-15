@@ -1949,7 +1949,12 @@ export const RepSalesView: React.FC = () => {
             })()}
 
             <div className="flex items-center justify-between gap-3 pt-2">
-              <span className="text-[10px] text-[#86868B]">{factorySettings.receiptFooter}</span>
+              <div className="space-y-0.5">
+                <div className="text-[10px] text-[#86868B]">{factorySettings.receiptFooter}</div>
+                <div dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-wider uppercase text-right">
+                  Powered by RAND SUITE
+                </div>
+              </div>
               <div className="flex items-center gap-2 shrink-0 no-print">
                 <button
                   type="button"
@@ -2072,7 +2077,10 @@ export const RepSalesView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <span dir="ltr" className="text-[10px] font-bold text-[#86868B] tracking-wider">
+                Powered by RAND SUITE
+              </span>
               <button
                 type="button"
                 onClick={() => window.print()}

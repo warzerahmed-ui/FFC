@@ -828,8 +828,11 @@ export const SettingsView: React.FC = () => {
                   <div>ماوەی گەڕاوەی فرێش: {factoryForm.returnWindowDays} ڕۆژ</div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-white border border-dashed border-slate-300 text-center text-[11px] font-semibold text-[#515154]">
-                  {factoryForm.receiptFooter}
+                <div className="p-2.5 rounded-xl bg-white border border-dashed border-slate-300 text-center text-[11px] font-semibold text-[#515154] space-y-1">
+                  <div>{factoryForm.receiptFooter}</div>
+                  <div dir="ltr" className="text-[9px] font-black tracking-widest text-[#0071E3] uppercase">
+                    Powered by RAND SUITE
+                  </div>
                 </div>
               </div>
             </div>
@@ -883,6 +886,25 @@ export const SettingsView: React.FC = () => {
                   سفرکردنەوەی داتای تێست (دەستپێکی پاک)
                 </button>
               </div>
+            </div>
+
+            {/* Creator Brand Card */}
+            <div className="apple-card p-5 space-y-2.5 bg-gradient-to-br from-[#F8FAFC] to-[#EFF6FF]/60">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-[#1D1D1F] flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-[#0071E3]" />
+                  براندی دروستکەری سیستەم
+                </span>
+                <span
+                  dir="ltr"
+                  className="px-2.5 py-0.5 rounded-full bg-[#0071E3] text-white text-[10px] font-black tracking-widest"
+                >
+                  RAND SUITE
+                </span>
+              </div>
+              <p className="text-[11px] text-[#515154] leading-relaxed">
+                ئەم سیستەمە لەلایەن <strong className="font-black text-[#0071E3]">RAND SUITE</strong> دیزاین و گەشەپێدراوە بۆ بەڕێوەبردنی پیشەگەرانەی کارگە، کۆگا، فرۆشتن و ژمێریاری لەسەر ژێرخانی Cloudflare D1.
+              </p>
             </div>
           </div>
         </div>

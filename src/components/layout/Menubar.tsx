@@ -570,9 +570,18 @@ export const Menubar: React.FC<MenubarProps> = ({
           )}
         </div>
 
-        <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-extrabold text-[#248A3D] tracking-wide shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-          <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
+        <div className="hidden xl:flex items-center gap-2 text-[10px] font-extrabold tracking-wide shrink-0">
+          <span className="inline-flex items-center gap-1.5 text-[#248A3D]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
+            <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
+          </span>
+          <span className="text-black/15">|</span>
+          <span
+            dir="ltr"
+            className="px-2 py-0.5 rounded-full bg-[#0071E3]/10 text-[#0071E3] font-black tracking-wider"
+          >
+            RAND SUITE
+          </span>
         </div>
       </div>
 
@@ -644,6 +653,12 @@ export const Menubar: React.FC<MenubarProps> = ({
               <span>گۆڕینی وشەی نهێنیی خۆم</span>
             </button>
           )}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-2 text-[10px] text-slate-400 font-semibold">
+            <span>دروستکراوە لەلایەن</span>
+            <span dir="ltr" className="font-black tracking-wider text-[#0071E3]">
+              RAND SUITE
+            </span>
+          </div>
         </div>
       )}
 

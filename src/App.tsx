@@ -47,7 +47,7 @@ function AppContent() {
   const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
   const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
-  const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud } = useApp();
+  const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud, factorySettings } = useApp();
 
   const handleSendToSlaughter = (intakeId: string) => {
     setSelectedIntakeForProductionId(intakeId);
@@ -91,6 +91,9 @@ function AppContent() {
           </div>
           <div className="text-[11px] text-[#86868B]">
             تکایە چاوەڕێ بە تا سێرڤەر دەسەڵاتەکان پشتڕاست دەکاتەوە
+          </div>
+          <div dir="ltr" className="pt-2 text-[10px] font-black tracking-widest text-[#0071E3]">
+            POWERED BY RAND SUITE
           </div>
         </div>
       </div>
@@ -154,6 +157,23 @@ function AppContent() {
           {activeTab === 'settings' && hasAccess('settings') && <SettingsView />}
         </Suspense>
       </main>
+
+      <footer className="no-print border-t border-black/[0.06] bg-white/75 backdrop-blur-md px-4 lg:px-7 py-3 mt-auto">
+        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#86868B]">
+          <div className="font-semibold text-[#515154]">
+            {factorySettings.factoryName} ({factorySettings.shortCode}) • سیستەمی بەڕێوەبردنی کارگە و فرۆشگا
+          </div>
+          <div className="inline-flex items-center gap-2 font-semibold">
+            <span>دروستکراوە لەلایەن</span>
+            <span
+              dir="ltr"
+              className="px-2.5 py-0.5 rounded-full bg-[#0071E3]/10 border border-[#0071E3]/20 text-[#0071E3] font-black tracking-wider text-[10px]"
+            >
+              RAND SUITE
+            </span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
