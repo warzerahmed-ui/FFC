@@ -26,10 +26,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   const [newFarmPhone, setNewFarmPhone] = useState('');
   const [driverName, setDriverName] = useState('');
   const [birdCount, setBirdCount] = useState<number | ''>('');
-  const [deadBirdCount, setDeadBirdCount] = useState<number | ''>('');
-  const [deadWeightKg, setDeadWeightKg] = useState<number | ''>('');
-  const [grossWeightKg, setGrossWeightKg] = useState<number | ''>('');
-  const [tareWeightKg, setTareWeightKg] = useState<number | ''>('');
+  const [netWeightInput, setNetWeightInput] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
   const [paymentStatus, setPaymentStatus] = useState<'DEBT' | 'PAID' | 'PARTIAL'>('DEBT');
   const [paidAmount, setPaidAmount] = useState<number | ''>(0);
@@ -75,11 +72,8 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
     setShowAddFarmBox(false);
   };
 
-  const netWeight = (Number(grossWeightKg) || 0) - (Number(tareWeightKg) || 0);
+  const netWeight = Number(netWeightInput) || 0;
   const totalAmount = netWeight > 0 ? roundTo250(netWeight * (Number(pricePerKg) || 0)) : 0;
-  const mortalityPercent = (Number(birdCount) || 0) > 0 && (Number(deadBirdCount) || 0) > 0
-    ? Number((((Number(deadBirdCount) || 0) / (Number(birdCount) || 1)) * 100).toFixed(2))
-    : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,11 +87,11 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
       farmName,
       driverName,
       birdCount: Number(birdCount) || 0,
-      deadBirdCount: Number(deadBirdCount) || 0,
-      deadWeightKg: Number(deadWeightKg) || 0,
-      mortalityRate: mortalityPercent,
-      grossWeightKg: Number(grossWeightKg) || 0,
-      tareWeightKg: Number(tareWeightKg) || 0,
+      deadBirdCount: 0,
+      deadWeightKg: 0,
+      mortalityRate: 0,
+      grossWeightKg: netWeight,
+      tareWeightKg: 0,
       netWeightKg: netWeight,
       pricePerKg: Number(pricePerKg) || 0,
       totalAmount,
@@ -113,10 +107,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
     setFarmName('');
     setDriverName('');
     setBirdCount('');
-    setDeadBirdCount('');
-    setDeadWeightKg('');
-    setGrossWeightKg('');
-    setTareWeightKg('');
+    setNetWeightInput('');
     setPaidAmount(0);
     setNotes('');
   };
@@ -215,8 +206,8 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                 <th className="p-4">ژ. وەسڵی دەستی</th>
                 <th className="p-4">بەروار</th>
                 <th className="p-4">ناوی کێڵگە</th>
-                <th className="p-4">شۆفێر / ئۆتۆمبێل</th>
-                <th className="p-4 text-center">ژمارە (سەر)</th>
+                <th className="p-4">شۆفێر</th>
+                <th className="p-4 text-center">ژمارەی مریشک</th>
                 <th className="p-4 text-center">کێشی خاوێن</th>
                 <th className="p-4 text-center">نرخی کیلۆ</th>
                 <th className="p-4 text-left">کۆی تێچوو</th>
@@ -436,7 +427,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[#515154] font-semibold mb-1">شۆفێر / تابلۆی ئۆتۆمبێل</label>
+                  <label className="block text-[#515154] font-semibold mb-1">ناوی شۆفێر</label>
                   <input
                     type="text"
                     placeholder="ناوی شۆفێر..."
@@ -447,7 +438,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[#515154] font-semibold mb-1">ژمارەی مریشک (سەر)</label>
+                  <label className="block text-[#515154] font-semibold mb-1">ژمارەی مریشک</label>
                   <input
                     type="number"
                     placeholder="1500"
@@ -458,24 +449,15 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[#515154] font-semibold mb-1">مرداربووی قەفەز (سەر)</label>
+                  <label className="block text-[#515154] font-semibold mb-1">کێشی خاوێنی زیندوو (کگم) *</label>
                   <input
                     type="number"
-                    placeholder="12"
-                    value={deadBirdCount}
-                    onChange={e => setDeadBirdCount(e.target.value ? Number(e.target.value) : '')}
-                    className="apple-input w-full px-3.5 py-2 tabular-nums border-[#FF3B30]/30 focus:border-[#FF3B30]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[#515154] font-semibold mb-1">کێشی مرداربوو (کگم)</label>
-                  <input
-                    type="number"
-                    placeholder="25"
-                    value={deadWeightKg}
-                    onChange={e => setDeadWeightKg(e.target.value ? Number(e.target.value) : '')}
-                    className="apple-input w-full px-3.5 py-2 tabular-nums"
+                    step="0.01"
+                    required
+                    placeholder="4000"
+                    value={netWeightInput}
+                    onChange={e => setNetWeightInput(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 font-bold tabular-nums"
                   />
                 </div>
 
@@ -487,30 +469,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                     value={pricePerKg}
                     onChange={e => setPricePerKg(e.target.value ? Number(e.target.value) : '')}
                     className="apple-input w-full px-3.5 py-2 font-bold tabular-nums"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[#515154] font-semibold mb-1">کێشی گشتی بە سەیارە (قەپان) کگم *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="14000"
-                    value={grossWeightKg}
-                    onChange={e => setGrossWeightKg(e.target.value ? Number(e.target.value) : '')}
-                    className="apple-input w-full px-3.5 py-2 tabular-nums"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[#515154] font-semibold mb-1">کێشی بەتاڵ (تەفریق) کگم *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="10000"
-                    value={tareWeightKg}
-                    onChange={e => setTareWeightKg(e.target.value ? Number(e.target.value) : '')}
-                    className="apple-input w-full px-3.5 py-2 tabular-nums"
                   />
                 </div>
               </div>
