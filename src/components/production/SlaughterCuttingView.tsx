@@ -85,7 +85,12 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
 
   const selectedIntake = intakes.find(i => i.id === selectedIntakeId);
   const liveKgNum = Number(batchLiveWeightKg) || 0;
-  const dressedWeightKg = Object.values(cutWeights).reduce((s, w) => s + (w || 0), 0);
+  const dressedWeightKg = Number(
+    Object.values(cutWeights)
+      .reduce((s, w) => s + (w || 0), 0)
+      .toFixed(2)
+  );
+  const isOverLiveWeight = liveKgNum > 0 && dressedWeightKg > liveKgNum + 0.001;
   const wasteWeightKg = Math.max(0, Number((liveKgNum - dressedWeightKg).toFixed(2)));
   const yieldPercentage =
     liveKgNum > 0 ? Number(((dressedWeightKg / liveKgNum) * 100).toFixed(1)) : 0;
@@ -115,6 +120,12 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
     }
     if (dressedWeightKg <= 0) {
       alert('تکایە کێشی بەرهەمە پارچەکراوەکان بنووسە');
+      return;
+    }
+    if (isOverLiveWeight) {
+      alert(
+        `ڕێگری لە تۆمارکردن:\nنابێت کۆی گۆشتی پارچەکراو (${dressedWeightKg.toLocaleString()} کگم) لە کێشی زیندوو (${liveKgNum.toLocaleString()} کگم) زیاتر بێت!`
+      );
       return;
     }
 
@@ -538,10 +549,20 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#5856D6]/8 border border-[#5856D6]/20 grid grid-cols-3 gap-3 text-center">
+              <div
+                className={`p-4 rounded-2xl border grid grid-cols-3 gap-3 text-center transition-colors ${
+                  isOverLiveWeight
+                    ? 'bg-[#FF3B30]/10 border-[#FF3B30]/35'
+                    : 'bg-[#5856D6]/8 border-[#5856D6]/20'
+                }`}
+              >
                 <div>
                   <span className="text-[10px] text-[#86868B] block">گۆشتی پارچەکراو</span>
-                  <span className="text-base font-black text-[#248A3D]">
+                  <span
+                    className={`text-base font-black ${
+                      isOverLiveWeight ? 'text-[#D70015]' : 'text-[#248A3D]'
+                    }`}
+                  >
                     {dressedWeightKg.toLocaleString()} کگم
                   </span>
                 </div>
@@ -553,9 +574,24 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 </div>
                 <div>
                   <span className="text-[10px] text-[#86868B] block">ڕێژەی سافی</span>
-                  <span className="text-base font-black text-[#5856D6]">{yieldPercentage}%</span>
+                  <span
+                    className={`text-base font-black ${
+                      isOverLiveWeight ? 'text-[#D70015]' : 'text-[#5856D6]'
+                    }`}
+                  >
+                    {yieldPercentage}%
+                  </span>
                 </div>
               </div>
+
+              {isOverLiveWeight && (
+                <div className="p-3 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/30 text-[#D70015] text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    نابێت کۆی کێشی پارچەکراو ({dressedWeightKg.toLocaleString()} کگم) لە کێشی زیندوو ({liveKgNum.toLocaleString()} کگم) زیاتر بێت!
+                  </span>
+                </div>
+              )}
 
               <input
                 type="text"
@@ -575,7 +611,8 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full text-xs font-bold text-white bg-[#5856D6] hover:bg-[#4947C2] shadow-md flex items-center gap-1.5"
+                  disabled={isOverLiveWeight || dressedWeightKg <= 0 || liveKgNum <= 0}
+                  className="px-6 py-2.5 rounded-full text-xs font-bold text-white bg-[#5856D6] hover:bg-[#4947C2] disabled:opacity-40 disabled:cursor-not-allowed shadow-md flex items-center gap-1.5"
                 >
                   <CheckCircle className="w-4 h-4" />
                   تۆمارکردن و ناردن بۆ ئامادە بۆ فرۆشتن
