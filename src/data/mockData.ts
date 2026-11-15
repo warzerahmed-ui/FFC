@@ -195,96 +195,9 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
   },
 ];
 
-export const INITIAL_DISPATCHES: DispatchOrder[] = [
-  {
-    id: 'disp-1',
-    manualReceiptNo: 'D-801',
-    date: '2026-11-04',
-    time: '09:15 ص',
-    destinationType: 'REP',
-    destinationName: 'سوپەرمارکێتی بەختەوەری (بەختیاری)',
-    repName: 'مەندوب شوان (هێڵی بەختیاری)',
-    customerName: 'سوپەرمارکێتی بەختەوەری (بەختیاری)',
-    paymentType: 'CREDIT',
-    driverOrRepPhone: '0770 234 5678',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش (پاكکراو)', barcode: '2100101018501', weightKg: 185.5, pricePerKg: 3300, totalAmount: 612150 },
-      { productId: 'prod-2', productName: 'سنگی مریشکی بێ ئێسک', barcode: '2100102008402', weightKg: 84.0, pricePerKg: 6200, totalAmount: 520800 },
-      { productId: 'prod-3', productName: 'ڕانی مریشک (تەواو)', barcode: '2100103009505', weightKg: 95.0, pricePerKg: 3800, totalAmount: 361000 },
-    ],
-    totalWeightKg: 364.5,
-    totalAmount: 1493950,
-    status: 'COMPLETED',
-    notes: 'فرۆشی بەیانی مەندوب بە وەسڵی دەستی بە قەرز',
-  },
-  {
-    id: 'disp-2',
-    manualReceiptNo: 'D-802',
-    date: '2026-11-05',
-    time: '08:40 ص',
-    destinationType: 'REP',
-    destinationName: 'مارکێتی سلێمانی نوێ',
-    repName: 'مەندوب هێمن (هێڵی تووی مەلیك)',
-    customerName: 'مارکێتی سلێمانی نوێ',
-    paymentType: 'CASH',
-    driverOrRepPhone: '0750 345 6789',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش (پاكکراو)', barcode: '2100101012001', weightKg: 120.0, pricePerKg: 3300, totalAmount: 396000 },
-      { productId: 'prod-4', productName: 'باڵ و گەردەنی مریشک', barcode: '2100104003001', weightKg: 30.0, pricePerKg: 3500, totalAmount: 105000 },
-    ],
-    totalWeightKg: 150.0,
-    totalAmount: 501000,
-    status: 'COMPLETED',
-    notes: 'فرۆشی کاش بە وەسڵی دەستی',
-  },
-  {
-    id: 'disp-3',
-    manualReceiptNo: 'G-105',
-    date: '2026-11-05',
-    time: '10:00 ص',
-    destinationType: 'GIFT',
-    destinationName: 'ڕێکخراوی چاکەخوازی و هەژاران',
-    repName: 'مەندوب شوان',
-    customerName: 'ڕێکخراوی چاکەخوازی',
-    paymentType: 'CASH',
-    driverOrRepPhone: '0770 234 5678',
-    items: [
-      {
-        productId: 'prod-1',
-        productName: 'مریشکی تەواو فرێش',
-        barcode: '2100101005000',
-        weightKg: 50.0,
-        pricePerKg: 0,
-        totalAmount: 0,
-        factoryCostPerKg: 2750,
-        factoryCostAmount: 137500,
-      },
-    ],
-    totalWeightKg: 50.0,
-    totalAmount: 0,
-    totalFactoryCost: 137500,
-    status: 'COMPLETED',
-    notes: 'دیاری و خێرخوازی بە ٠ دینار لەسەر خەڵک و ١٣٧,٥٠٠ د.ع تێچوو لەسەر کارگە',
-  },
-];
+export const INITIAL_DISPATCHES: DispatchOrder[] = [];
 
-export const INITIAL_RETURNS: ReturnOrder[] = [
-  {
-    id: 'ret-1',
-    manualReceiptNo: 'RET-301',
-    date: '2026-11-04',
-    sourceType: 'REP',
-    sourceName: 'مەندوب هێمن (هێڵی بەختیاری)',
-    items: [
-      { productId: 'prod-1', productName: 'مریشکی تەواو فرێش', barcode: '2100101001850', weightKg: 18.5, unitCost: 2750, totalLoss: 50875, reason: 'EXPIRED_3_DAYS' },
-      { productId: 'prod-4', productName: 'باڵی مریشک', barcode: '2100104000800', weightKg: 8.0, unitCost: 3200, totalLoss: 25600, reason: 'EXPIRED_3_DAYS' },
-    ],
-    totalWeightKg: 26.5,
-    totalLossAmount: 76475,
-    disposalMethod: 'DESTROYED',
-    notes: 'بەرواری ٣ ڕۆژی تێپەڕیوە لە مارکێتەکانەوە گەڕێندرایەوە و لەناو برا (تەلەف)',
-  },
-];
+export const INITIAL_RETURNS: ReturnOrder[] = [];
 
 export const INITIAL_EXPENSES: ExpenseRecord[] = [
   {
