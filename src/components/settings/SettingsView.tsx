@@ -167,7 +167,7 @@ export const SettingsView: React.FC = () => {
     const a = document.createElement('a');
     const dateStamp = toLocalISODate();
     a.href = url;
-    a.download = `${factorySettings.shortCode || 'FFC-POS'}-Backup-${dateStamp}.json`;
+    a.download = `${factorySettings.shortCode || 'FFC-ERP'}-Backup-${dateStamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast('فایلی باکئەپی تەواوی سیستەم دابەزێنرا', 'success');
@@ -199,7 +199,7 @@ export const SettingsView: React.FC = () => {
     updateFactorySettings({
       ...factoryForm,
       factoryName: factoryForm.factoryName.trim(),
-      shortCode: factoryForm.shortCode.trim() || 'FFC-POS',
+      shortCode: factoryForm.shortCode.trim() || 'FFC-ERP',
       returnWindowDays: Math.max(1, Number(factoryForm.returnWindowDays) || 3),
     });
     showToast('زانیارییەکانی کارگە بە سەرکەوتوویی پاشەکەوت کرا', 'success');
@@ -814,7 +814,7 @@ export const SettingsView: React.FC = () => {
                       {factoryForm.factoryName || 'کارگەی مریشکی فرێش'}
                     </div>
                     <div className="text-[11px] font-bold text-[#0071E3]">
-                      {factoryForm.shortCode || 'FFC-POS'} • {factoryForm.showroomName}
+                      {factoryForm.shortCode || 'FFC-ERP'} • {factoryForm.showroomName}
                     </div>
                   </div>
                 </div>

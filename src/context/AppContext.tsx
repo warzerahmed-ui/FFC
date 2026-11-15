@@ -220,8 +220,8 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_FACTORY_SETTINGS: FactorySettings = {
-  factoryName: 'کارگەی مریشکی فرێش',
-  shortCode: 'FFC-POS',
+  factoryName: 'فروج فریش چیکن',
+  shortCode: 'FFC-ERP',
   tagline: 'سیستەمی بەڕێوەبردنی کارگە، مەندوب، شۆرۆم و ژمێریاری',
   showroomName: 'فرۆشگای تایبەت (شۆرۆم POS)',
   phone1: '0770 111 2233',
@@ -2094,7 +2094,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const exportSystemBackup = (): string => {
     const payload = {
-      version: 'FFC-POS-v4',
+      version: 'FFC-ERP-v4',
       exportedAt: new Date().toISOString(),
       data: {
         products,
