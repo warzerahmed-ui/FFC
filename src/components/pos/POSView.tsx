@@ -200,13 +200,21 @@ export const POSView: React.FC = () => {
       const weight = result.weightKg > 0 ? result.weightKg : 1.0;
 
       const currentStock = branchItem ? branchItem.inStockKg : prod.inStockKg;
-      if (currentStock <= 0) {
-        showToast(`ئاگاداری: ستۆکی (${prod.nameKu}) لە شۆرۆمدا نەماوە!`, 'warn');
+      const inCartWeight = cart.filter(i => i.productId === prod.id).reduce((s, i) => s + i.weightKg, 0);
+      if (weight + inCartWeight > currentStock + 0.001) {
+        playPosBeep('error');
+        alert(
+          `ڕێگری لە سکانکردن:\nبڕی کێش لە بارکۆدەدا (${weight.toFixed(3)} کگم) لەگەڵ ئەوەی لە سەبەتەدایە (${inCartWeight.toFixed(3)} کگم) لە ستۆکی بەردەستی شۆرۆم (${currentStock.toFixed(1)} کگم) زیاترە!\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر شۆرۆم.`
+        );
+        setScannerInput('');
+        return;
       }
 
-      addItemToCart(prod, weight, retailPrice, rawBarcode);
-      playPosBeep(rawBarcode.length === 13 ? 'scale' : 'success');
-      showToast(`سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم)`, 'success');
+      const added = addItemToCart(prod, weight, retailPrice, rawBarcode);
+      if (added) {
+        playPosBeep(rawBarcode.length === 13 ? 'scale' : 'success');
+        showToast(`سکان کرا: ${prod.nameKu} (${weight.toFixed(3)} کگم)`, 'success');
+      }
       setScannerInput('');
     } else {
       playPosBeep('error');
@@ -215,7 +223,21 @@ export const POSView: React.FC = () => {
     }
   };
 
-  const addItemToCart = (product: ProductItem, weightKg: number, pricePerKg: number, barcodeStr?: string) => {
+  const addItemToCart = (product: ProductItem, weightKg: number, pricePerKg: number, barcodeStr?: string): boolean => {
+    const branchItem = branchStock.find(b => b.productId === product.id);
+    const availableStock = branchItem ? branchItem.inStockKg : product.inStockKg;
+    const existingIndex = cart.findIndex(item => item.productId === product.id);
+    const existingWeight = existingIndex > -1 && (!barcodeStr || barcodeStr.length < 13) ? cart[existingIndex].weightKg : 0;
+    const newTotalWeight = Math.round((existingWeight + weightKg) * 1000) / 1000;
+
+    if (newTotalWeight > availableStock + 0.001) {
+      playPosBeep('error');
+      alert(
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە بڕی بەردەستی کۆگای شۆرۆم زیاتر بفرۆشیت!\n\nبەرهەم: ${product.nameKu}\nبەردەست لە کۆگا: ${availableStock.toFixed(1)} کگم\nکێشی داواکراو: ${newTotalWeight.toFixed(3)} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر کۆگای شۆرۆم.`
+      );
+      return false;
+    }
+
     const total = roundTo250(weightKg * pricePerKg);
     setCart(prev => {
       const existing = prev.findIndex(item => item.productId === product.id);
@@ -241,13 +263,25 @@ export const POSView: React.FC = () => {
         },
       ];
     });
+    return true;
   };
 
   const updateCartItemWeight = (index: number, delta: number) => {
     setCart(prev => {
-      const updated = [...prev];
-      const item = updated[index];
+      const item = prev[index];
+      const branchItem = branchStock.find(b => b.productId === item.productId);
+      const availableStock = branchItem ? branchItem.inStockKg : 9999;
       const newWeight = Math.max(0.1, Math.round((item.weightKg + delta) * 1000) / 1000);
+
+      if (delta > 0 && newWeight > availableStock + 0.001) {
+        playPosBeep('error');
+        alert(
+          `ڕێگری لە زیادکردنی کێش:\nبڕی بەردەست لە کۆگای شۆرۆم تەنها ${availableStock.toFixed(1)} کگم ـە، ناتوانیت زیاتری بکەیت!`
+        );
+        return prev;
+      }
+
+      const updated = [...prev];
       updated[index] = {
         ...item,
         weightKg: newWeight,
@@ -283,6 +317,24 @@ export const POSView: React.FC = () => {
   const handleCompleteSale = () => {
     if (cart.length === 0) {
       showToast('سەبەتە بەتاڵە! تکایە بەرهەم هەڵبژێرە یان بارکۆد سکان بکە', 'warn');
+      return;
+    }
+
+    // Strict Stock Validation Check before issuing receipt:
+    const stockShortages: string[] = [];
+    cart.forEach(item => {
+      const branchItem = branchStock.find(b => b.productId === item.productId);
+      const avail = branchItem ? branchItem.inStockKg : 0;
+      if (item.weightKg > avail + 0.001) {
+        stockShortages.push(`• ${item.productName}: لە وەسڵدایە ${item.weightKg.toFixed(3)} کگم / بەردەست لە کۆگا ${avail.toFixed(1)} کگم`);
+      }
+    });
+
+    if (stockShortages.length > 0) {
+      playPosBeep('error');
+      alert(
+        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تەواو بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای شۆرۆمدا لە کێشی داواکراو کەمترە:\n\n${stockShortages.join('\n')}\n\nتکایە کێشەکەیان کەم بکەرەوە یان سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر شۆرۆم.`
+      );
       return;
     }
 
@@ -680,8 +732,14 @@ export const POSView: React.FC = () => {
                       type="button"
                       key={product.id}
                       onClick={() => {
+                        if (inStock <= 0) {
+                          playPosBeep('error');
+                          alert(`ئەم بەرهەمە (${product.nameKu}) لە کۆگای شۆرۆمدا بەردەست نییە و تەواوبووە!\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) کاڵا بار بکە سەر کۆگای شۆرۆم.`);
+                          return;
+                        }
                         setWeightModalProduct(product);
-                        setWeightKeypadValue('1.000');
+                        const initialWeight = inStock < 1 ? inStock.toFixed(3) : '1.000';
+                        setWeightKeypadValue(initialWeight);
                         playPosBeep('scale');
                       }}
                       className="text-right p-3.5 rounded-2xl bg-[#F5F5F7]/70 hover:bg-white border border-black/[0.05] hover:border-[#0071E3]/40 hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between min-h-[108px] group"
@@ -1425,84 +1483,129 @@ export const POSView: React.FC = () => {
       {/* ========================================================================= */}
       {weightModalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
-            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-              <div>
-                <h3 className="font-extrabold text-sm text-[#1D1D1F]">{weightModalProduct.nameKu}</h3>
-                <span className="text-xs text-[#86868B] tabular-nums">
-                  {(branchStock.find(b => b.productId === weightModalProduct.id)?.retailPricePerKg || weightModalProduct.pricePerKg).toLocaleString()} د.ع / کگم
-                </span>
-              </div>
-              <button
-                onClick={() => setWeightModalProduct(null)}
-                className="w-7 h-7 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] apple-sheet">
+            {(() => {
+              const branchItem = branchStock.find(b => b.productId === weightModalProduct.id);
+              const availableStock = branchItem ? branchItem.inStockKg : weightModalProduct.inStockKg;
+              const inCartItem = cart.find(i => i.productId === weightModalProduct.id);
+              const inCartWeight = inCartItem ? inCartItem.weightKg : 0;
+              const remainingAllowed = Math.max(0, Number((availableStock - inCartWeight).toFixed(3)));
+              const enteredWeight = parseFloat(weightKeypadValue || '0') || 0;
+              const isExceeded = enteredWeight > remainingAllowed + 0.001;
 
-            <div className="p-4 rounded-2xl bg-[#F5F5F7] text-center space-y-1">
-              <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider">کێشی تەرازوو</span>
-              <div className="text-4xl font-black text-[#1D1D1F] tabular-nums">
-                {parseFloat(weightKeypadValue || '0').toFixed(3)}{' '}
-                <span className="text-sm font-semibold text-[#86868B]">کگم</span>
-              </div>
-              <div className="text-xs font-bold text-[#0071E3] tabular-nums">
-                کۆ: {roundTo250((parseFloat(weightKeypadValue || '0') || 0) * (branchStock.find(b => b.productId === weightModalProduct.id)?.retailPricePerKg || weightModalProduct.pricePerKg)).toLocaleString()} د.ع
-              </div>
-            </div>
+              return (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+                    <div>
+                      <h3 className="font-extrabold text-sm text-[#1D1D1F]">{weightModalProduct.nameKu}</h3>
+                      <span className="text-xs text-[#86868B] tabular-nums">
+                        {(branchItem?.retailPricePerKg || weightModalProduct.pricePerKg).toLocaleString()} د.ع / کگم
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setWeightModalProduct(null)}
+                      className="w-7 h-7 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#86868B] flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-            <div className="grid grid-cols-4 gap-1.5">
-              {['0.500', '1.000', '1.500', '2.000'].map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setWeightKeypadValue(val)}
-                  className="py-1.5 bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-bold text-xs rounded-full tabular-nums transition-colors"
-                >
-                  {val}
-                </button>
-              ))}
-            </div>
+                  {/* Stock Availability Pill */}
+                  <div className="flex items-center justify-between text-xs px-1">
+                    <span className="text-[#86868B] font-semibold">بەردەست لە کۆگای شۆرۆم:</span>
+                    <span
+                      className={`font-bold tabular-nums px-2.5 py-0.5 rounded-full text-xs ${
+                        availableStock > 0 ? 'bg-[#34C759]/12 text-[#248A3D]' : 'bg-[#FF3B30]/12 text-[#FF3B30]'
+                      }`}
+                    >
+                      {availableStock.toFixed(1)} کگم {inCartWeight > 0 ? `(${inCartWeight.toFixed(1)} لە سەبەتەیە)` : ''}
+                    </span>
+                  </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', '.'].map(char => (
-                <button
-                  key={char}
-                  type="button"
-                  onClick={() => {
-                    if (char === 'C') {
-                      setWeightKeypadValue('0');
-                    } else if (char === '.') {
-                      if (!weightKeypadValue.includes('.')) setWeightKeypadValue(prev => prev + '.');
-                    } else {
-                      setWeightKeypadValue(prev => (prev === '0' || prev === '1.000' ? char : prev + char));
-                    }
-                  }}
-                  className="py-3 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-lg rounded-2xl tabular-nums transition-colors active:scale-95"
-                >
-                  {char}
-                </button>
-              ))}
-            </div>
+                  <div className="p-4 rounded-2xl bg-[#F5F5F7] text-center space-y-1">
+                    <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider">کێشی تەرازوو</span>
+                    <div className={`text-4xl font-black tabular-nums ${isExceeded ? 'text-[#FF3B30]' : 'text-[#1D1D1F]'}`}>
+                      {enteredWeight.toFixed(3)}{' '}
+                      <span className="text-sm font-semibold text-[#86868B]">کگم</span>
+                    </div>
+                    <div className="text-xs font-bold text-[#0071E3] tabular-nums">
+                      کۆ: {roundTo250(enteredWeight * (branchItem?.retailPricePerKg || weightModalProduct.pricePerKg)).toLocaleString()} د.ع
+                    </div>
+                  </div>
 
-            <button
-              onClick={() => {
-                const w = parseFloat(weightKeypadValue);
-                if (w > 0) {
-                  const branchItem = branchStock.find(b => b.productId === weightModalProduct.id);
-                  const price = branchItem ? branchItem.retailPricePerKg : weightModalProduct.pricePerKg;
-                  addItemToCart(weightModalProduct, w, price);
-                  playPosBeep('scale');
-                  showToast(`${weightModalProduct.nameKu} (${w.toFixed(3)} کگم) زیادکرا`, 'success');
-                  setWeightModalProduct(null);
-                }
-              }}
-              className="w-full py-3.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-sm rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.985]"
-            >
-              <Check className="w-4 h-4" />
-              <span>خستنە ناو سەبەتە</span>
-            </button>
+                  {isExceeded && (
+                    <div className="p-2.5 rounded-xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-[#D70015] text-xs font-bold flex items-center gap-1.5 animate-in fade-in duration-150">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>
+                        ناتوانیت {enteredWeight.toFixed(3)} کگم بفرۆشیت! کۆگای شۆرۆم تەنها {remainingAllowed.toFixed(1)} کگم ماوە.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {['0.500', '1.000', '1.500', '2.000'].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setWeightKeypadValue(val)}
+                        className="py-1.5 bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-bold text-xs rounded-full tabular-nums transition-colors"
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', '.'].map(char => (
+                      <button
+                        key={char}
+                        type="button"
+                        onClick={() => {
+                          if (char === 'C') {
+                            setWeightKeypadValue('0');
+                          } else if (char === '.') {
+                            if (!weightKeypadValue.includes('.')) setWeightKeypadValue(prev => prev + '.');
+                          } else {
+                            setWeightKeypadValue(prev => (prev === '0' || prev === '1.000' ? char : prev + char));
+                          }
+                        }}
+                        className="py-3 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-lg rounded-2xl tabular-nums transition-colors active:scale-95"
+                      >
+                        {char}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    disabled={isExceeded || enteredWeight <= 0}
+                    onClick={() => {
+                      if (isExceeded) {
+                        playPosBeep('error');
+                        alert(
+                          `ڕێگری لە فرۆشتنی زێدە:\nکۆگای شۆرۆم بۆ ئەم بەرهەمە تەنها ${availableStock.toFixed(1)} کگم هەیە، ناتوانیت ${enteredWeight.toFixed(3)} کگم بفرۆشیت!`
+                        );
+                        return;
+                      }
+                      const price = branchItem ? branchItem.retailPricePerKg : weightModalProduct.pricePerKg;
+                      const added = addItemToCart(weightModalProduct, enteredWeight, price);
+                      if (added) {
+                        playPosBeep('scale');
+                        showToast(`${weightModalProduct.nameKu} (${enteredWeight.toFixed(3)} کگم) زیادکرا`, 'success');
+                        setWeightModalProduct(null);
+                      }
+                    }}
+                    className={`w-full py-3.5 font-bold text-sm rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.985] ${
+                      isExceeded || enteredWeight <= 0
+                        ? 'bg-[#E5E5EA] text-[#8E8E93] cursor-not-allowed'
+                        : 'bg-[#0071E3] hover:bg-[#0077ED] text-white'
+                    }`}
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{isExceeded ? 'لە بڕی بەردەستی کۆگا زیاترە' : 'خستنە ناو سەبەتە'}</span>
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

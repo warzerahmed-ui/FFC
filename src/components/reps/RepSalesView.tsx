@@ -239,6 +239,17 @@ export const RepSalesView: React.FC = () => {
     const price = itemPrice !== '' ? Number(itemPrice) : prod.pricePerKg;
     const weight = Number(itemWeight);
 
+    // Check rep vehicle custody stock
+    const custItem = selectedRepCustody.items.find(c => c.productId === prod.id);
+    const avail = custItem ? custItem.remainingKg : 0;
+    const inListWeight = itemsList.filter(i => i.productId === prod.id).reduce((s, i) => s + i.weightKg, 0);
+    if (weight + inListWeight > avail + 0.001) {
+      alert(
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە عەهدەی مەندوب زیاتر بفرۆشیت!\n\nبەرهەم: ${prod.nameKu}\nعەهدەی بەردەست لە ئۆتۆمبێل: ${avail} کگم\nلە وەسڵدایە: ${inListWeight} کگم\nکێشی داواکراو: ${weight} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر عەهدەی ئەم مەندوبە.`
+      );
+      return;
+    }
+
     setItemsList(prev => [
       ...prev,
       {
@@ -319,10 +330,10 @@ export const RepSalesView: React.FC = () => {
       }
     });
     if (custodyShortages.length > 0) {
-      const proceed = window.confirm(
-        `ئاگاداربە: عەهدەی ${repName} بۆ ئەم بەرهەمانە کەمترە لە کێشی فرۆشراو:\n\n• ${custodyShortages.join('\n• ')}\n\nپێویستە سەرەتا لە قۆناغی ٤ بار بخەیتە سەر عەهدەکەی. دەتەوێت هەر تۆماری بکەیت؟`
+      alert(
+        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تۆمار بکەیت چونکە بڕی ئەم کاڵایانە لە عەهدەی مەندوبدا لە کێشی داواکراو کەمترە:\n\n• ${custodyShortages.join('\n• ')}\n\nتکایە سەرەتا لە قۆناغی ٤ (تەحویل) بار بخە سەر عەهدەکەی تا بتوانیت وەسڵ بکەیت.`
       );
-      if (!proceed) return;
+      return;
     }
 
     const finalCustomer = customCustomer.trim() || customerName;
