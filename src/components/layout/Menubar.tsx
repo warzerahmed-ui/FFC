@@ -99,8 +99,8 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       {
         id: 'custody',
-        label: '٤. ناردن بۆ مەندوب و شۆرۆم',
-        description: 'بارگواستنەوە و عەهدەی مەندوب و فرۆشگا',
+        label: '٤. ناردن بۆ حسابی مەندوب',
+        description: 'بارکردنی گۆشت بۆ سەر عەهدە و حسابی مەندوب',
         badge: 'قۆناغی ٤',
         icon: ClipboardList,
       },

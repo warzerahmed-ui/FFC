@@ -14,9 +14,7 @@ import {
   ArrowRight,
   PackageCheck,
 } from 'lucide-react';
-import { TabType, roundTo250 } from '../../types';
-
-const BRANCH_HOLDER_NAME = 'فرۆشگای تایبەت (POS / شۆرۆم)';
+import { TabType } from '../../types';
 
 interface CustodyViewProps {
   onNavigate?: (tab: TabType) => void;
@@ -45,21 +43,17 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const {
     products,
     dispatches,
-    posSales,
-    branchStock,
-    branchDeliveries,
     custodyTransfers,
     loadToRepCustody,
-    addBranchDelivery,
     returnUnsoldToReadyStock,
     repNames,
   } = useApp();
 
   const [selectedFilterHolder, setSelectedFilterHolder] = useState<string>('ALL');
 
-  // Modal 1: Load / Send from Ready Stock onto Rep or Store Custody Account
+  // Modal 1: Load / Send from Ready Stock onto Rep Custody Account
   const [showLoadModal, setShowLoadModal] = useState(false);
-  const [loadHolderKey, setLoadHolderKey] = useState<string>(repNames[0] || 'BRANCH');
+  const [loadHolderKey, setLoadHolderKey] = useState<string>(repNames[0] || '');
   const [loadReceiptNo, setLoadReceiptNo] = useState('');
   const [loadDate, setLoadDate] = useState(new Date().toISOString().split('T')[0]);
   const [loadTime, setLoadTime] = useState(
@@ -162,52 +156,8 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       };
     });
 
-    // Dedicated Store (POS / Showroom) reconciliation
-    const branchBreakdown: ProductBreakdown[] = products
-      .map(p => {
-        const loadedKg = branchDeliveries.reduce(
-          (s, d) =>
-            s + d.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
-          0
-        );
-        const soldKg = posSales.reduce(
-          (s, sale) =>
-            s + sale.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
-          0
-        );
-        const returnedKg = custodyTransfers
-          .filter(t => t.holderType === 'BRANCH' && t.direction === 'RETURN_TO_READY')
-          .reduce(
-            (s, t) =>
-              s + t.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
-            0
-          );
-        const stockMatch = branchStock.find(b => b.productId === p.id);
-        const remainingKg = stockMatch ? Number(stockMatch.inStockKg.toFixed(2)) : 0;
-
-        return {
-          productId: p.id,
-          productName: p.nameKu,
-          loadedKg: Number(loadedKg.toFixed(2)),
-          soldKg: Number(soldKg.toFixed(2)),
-          returnedKg: Number(returnedKg.toFixed(2)),
-          remainingKg,
-        };
-      })
-      .filter(b => b.loadedKg > 0 || b.soldKg > 0 || b.returnedKg > 0 || b.remainingKg > 0);
-
-    const branchSummary: HolderSummary = {
-      holderType: 'BRANCH',
-      holderName: BRANCH_HOLDER_NAME,
-      loadedKg: Number(branchBreakdown.reduce((s, b) => s + b.loadedKg, 0).toFixed(2)),
-      soldKg: Number(branchBreakdown.reduce((s, b) => s + b.soldKg, 0).toFixed(2)),
-      returnedKg: Number(branchBreakdown.reduce((s, b) => s + b.returnedKg, 0).toFixed(2)),
-      remainingKg: Number(branchBreakdown.reduce((s, b) => s + b.remainingKg, 0).toFixed(2)),
-      products: branchBreakdown,
-    };
-
-    return [branchSummary, ...repSummaries];
-  }, [products, custodyTransfers, dispatches, branchDeliveries, posSales, branchStock]);
+    return repSummaries;
+  }, [products, custodyTransfers, dispatches]);
 
   // Overall Totals
   const totalLoadedAll = Number(
@@ -225,13 +175,9 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
   // --- Load Modal Handlers ---
   const handleOpenLoadModal = (defaultHolder?: string) => {
-    const holder = defaultHolder || repNames[0] || 'BRANCH';
+    const holder = defaultHolder || repNames[0] || 'مەندوب';
     setLoadHolderKey(holder);
-    setLoadReceiptNo(
-      holder === 'BRANCH'
-        ? `BR-${Math.floor(200 + Math.random() * 800)}`
-        : `LD-${Math.floor(110 + Math.random() * 890)}`
-    );
+    setLoadReceiptNo(`LD-${Math.floor(110 + Math.random() * 890)}`);
     setLoadDate(new Date().toISOString().split('T')[0]);
     setLoadTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setLoadNotes('');
@@ -274,40 +220,16 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
     const totalKg = Number(loadItems.reduce((s, i) => s + i.weightKg, 0).toFixed(2));
 
-    if (loadHolderKey === 'BRANCH') {
-      const deliveryItems = loadItems.map(i => {
-        const prod = products.find(p => p.id === i.productId);
-        const factoryPrice = prod ? prod.costPerKg : 2750;
-        return {
-          productId: i.productId,
-          productName: i.productName,
-          weightKg: i.weightKg,
-          factoryPricePerKg: factoryPrice,
-          totalCost: roundTo250(i.weightKg * factoryPrice),
-        };
-      });
-      addBranchDelivery({
-        manualReceiptNo: loadReceiptNo.trim(),
-        date: loadDate,
-        time: loadTime,
-        repName: 'گەیاندنی کارگە بۆ فرۆشگای POS',
-        items: deliveryItems,
-        totalWeightKg: totalKg,
-        totalCost: deliveryItems.reduce((s, d) => s + d.totalCost, 0),
-        notes: loadNotes.trim() || 'ناردنی ڕۆژانە بۆ حسابی فرۆشگای تایبەت',
-      });
-    } else {
-      loadToRepCustody({
-        receiptNo: loadReceiptNo.trim(),
-        date: loadDate,
-        time: loadTime,
-        holderType: 'REP',
-        holderName: loadHolderKey,
-        items: loadItems,
-        totalWeightKg: totalKg,
-        notes: loadNotes.trim() || `ناردنی ڕۆژانە بۆ عەهدەی ${loadHolderKey}`,
-      });
-    }
+    loadToRepCustody({
+      receiptNo: loadReceiptNo.trim(),
+      date: loadDate,
+      time: loadTime,
+      holderType: 'REP',
+      holderName: loadHolderKey,
+      items: loadItems,
+      totalWeightKg: totalKg,
+      notes: loadNotes.trim() || `ناردنی ڕۆژانە بۆ عەهدەی ${loadHolderKey}`,
+    });
 
     setShowLoadModal(false);
   };
@@ -396,10 +318,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-              ٤. ناردنە سەر حسابی مەندوب و شۆرۆم (عەهدەی کاڵا)
+              ٤. ناردنە سەر حسابی مەندوب (عەهدەی کاڵا)
             </h2>
             <p className="text-xs text-[#86868B] mt-0.5">
-              ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ مەندوب و شۆرۆم، بەدواداچوونی ماوەی نەفرۆشراو، و گەڕاندنەوەی بۆ کۆگای ئامادە
+              ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ سەر حسابی مەندوبەکان، بەدواداچوونی ماوەی نەفرۆشراو، و گەڕاندنەوەی بۆ کۆگای ئامادە
             </p>
           </div>
         </div>
@@ -411,7 +333,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm shadow-[#0071E3]/25 flex items-center gap-1.5 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            ناردنە سەر حسابی مەندوب / شۆرۆم
+            ناردنە سەر حسابی مەندوب
           </button>
 
           {onNavigate && (
@@ -471,7 +393,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             <span className="text-xs font-medium text-[#86868B]">کگم</span>
           </div>
           <div className="text-[11px] text-[#B25000] font-semibold mt-1">
-            بە تەواوی لەسەر مەندوب و شۆرۆم دیارە
+            بە تەواوی لەسەر مەندوبەکان دیارە
           </div>
         </div>
       </div>
@@ -759,10 +681,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-[#1D1D1F]">
-                    ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ حسابی مەندوب / فرۆشگا
+                    ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ حسابی مەندوب
                   </h3>
                   <p className="text-[11px] text-[#86868B]">
-                    لە کۆگای ئامادە دادەبەزێت و دەچێتە سەر عەهدەیان هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
+                    لە کۆگای ئامادە دادەبەزێت و دەچێتە سەر عەهدەی مەندوب هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
                   </p>
                 </div>
               </div>
@@ -779,14 +701,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-[#515154] font-semibold mb-1">
-                    ناردنە سەر حسابی کێ؟ *
+                    مەندوب هەڵبژێرە *
                   </label>
                   <select
                     value={loadHolderKey}
                     onChange={e => setLoadHolderKey(e.target.value)}
                     className="apple-input w-full px-3.5 py-2.5 font-bold"
                   >
-                    <option value="BRANCH">{BRANCH_HOLDER_NAME}</option>
                     {repNames.map(r => (
                       <option key={r} value={r}>
                         {r}

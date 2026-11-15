@@ -49,7 +49,7 @@ export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: strin
   { id: 'intake', label: '١. وەرگرتنی مریشک (کێڵگە)', groupLabel: 'کارگە و کۆگا' },
   { id: 'production', label: '٢. سەربڕین و پارچەکردن', groupLabel: 'کارگە و کۆگا' },
   { id: 'ready-for-sale', label: '٣. ئامادە بۆ فرۆشتن', groupLabel: 'کارگە و کۆگا' },
-  { id: 'custody', label: '٤. ناردن بۆ مەندوب و شۆرۆم', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'custody', label: '٤. ناردن بۆ حسابی مەندوب', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'rep-sales', label: '٥. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'pos', label: '٦. فرۆشگای شۆرۆم (POS)', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'gifts', label: '٧. دیاری و هەدیە', groupLabel: 'ناردن و فرۆشتن' },
@@ -972,6 +972,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { ...p, inStockKg: Math.max(0, Number((p.inStockKg - item.weightKg).toFixed(2))) };
         }
         return p;
+      }));
+    }
+
+    // When a rep delivers goods to the showroom with a sales receipt, replenish showroom branchStock for POS!
+    const targetName = (dispatch.customerName || dispatch.destinationName || '').toLowerCase();
+    const isShowroom = targetName.includes('شۆرۆم') || targetName.includes('فرۆشگا') || (factorySettings.showroomName && targetName.includes(factorySettings.showroomName.toLowerCase()));
+    if (isShowroom && Array.isArray(dispatch.items)) {
+      setBranchStock(prev => prev.map(bs => {
+        const arrived = dispatch.items.find(i => i.productId === bs.productId);
+        if (arrived) {
+          return { ...bs, inStockKg: Math.round((bs.inStockKg + arrived.weightKg) * 1000) / 1000 };
+        }
+        return bs;
       }));
     }
   };

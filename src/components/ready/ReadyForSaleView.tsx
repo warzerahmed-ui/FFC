@@ -28,7 +28,6 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
   const {
     products,
     custodyTransfers,
-    branchDeliveries,
     returns,
     convertReturnOrder,
     updateProductPrice,
@@ -80,11 +79,9 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
 
   const totalStockKg = products.reduce((sum, p) => sum + p.inStockKg, 0);
   const totalStockValue = products.reduce((sum, p) => sum + p.inStockKg * p.pricePerKg, 0);
-  const totalLoadedOutKg =
-    custodyTransfers
-      .filter(t => t.direction === 'LOAD')
-      .reduce((s, t) => s + t.totalWeightKg, 0) +
-    branchDeliveries.reduce((s, b) => s + b.totalWeightKg, 0);
+  const totalLoadedOutKg = custodyTransfers
+    .filter(t => t.direction === 'LOAD')
+    .reduce((s, t) => s + t.totalWeightKg, 0);
   const totalReturnedUnsoldKg = custodyTransfers
     .filter(t => t.direction === 'RETURN_TO_READY')
     .reduce((s, t) => s + t.totalWeightKg, 0);
@@ -408,7 +405,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                       className="flex-1 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                     >
                       <ClipboardList className="w-3.5 h-3.5" />
-                      ناردن بۆ مەندوب / شۆرۆم
+                      ناردن بۆ حسابی مەندوب
                     </button>
                   )}
 
