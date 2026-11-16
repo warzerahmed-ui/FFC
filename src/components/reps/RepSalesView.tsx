@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Download,
   Calendar,
+  Barcode,
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -35,10 +36,11 @@ const REASON_LABELS: Record<'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED', string> = 
 };
 
 export const RepSalesView: React.FC = () => {
-  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, addReturn, softDeleteRecord, hasAccess } =
+  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, addReturn, softDeleteRecord, parseWeightBarcode, hasAccess } =
     useApp();
 
   const isRepRole = currentUser.role === 'REP';
+  const [saleScannerInput, setSaleScannerInput] = useState('');
   const [subTab, setSubTab] = useState<SubTabType>('sales');
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -99,10 +101,13 @@ export const RepSalesView: React.FC = () => {
   const [selectedSaleForPrint, setSelectedSaleForPrint] = useState<DispatchOrder | null>(null);
   const [selectedReturnForPrint, setSelectedReturnForPrint] = useState<ReturnOrder | null>(null);
 
-  // Derived data
+  // Derived data (strictly scoped for REP role)
   const repSalesList = useMemo(
-    () => dispatches.filter(d => d.destinationType === 'REP'),
-    [dispatches]
+    () =>
+      dispatches.filter(
+        d => d.destinationType === 'REP' && (!isRepRole || d.repName === currentUser.name)
+      ),
+    [dispatches, isRepRole, currentUser.name]
   );
 
   const selectedRepCustody = useMemo(() => {
@@ -171,8 +176,11 @@ export const RepSalesView: React.FC = () => {
 
   // KPIs
   const repReturnsList = useMemo(
-    () => returns.filter(r => r.sourceType === 'REP'),
-    [returns]
+    () =>
+      returns.filter(
+        r => r.sourceType === 'REP' && (!isRepRole || r.repName === currentUser.name)
+      ),
+    [returns, isRepRole, currentUser.name]
   );
 
   // Filtered Lists for Table
@@ -282,6 +290,59 @@ export const RepSalesView: React.FC = () => {
     setInlineReturnItems([]);
     setInlineReturnWeight('');
     setShowSaleModal(true);
+  };
+
+  const handleScanSaleBarcode = () => {
+    const raw = saleScannerInput.trim();
+    if (!raw) return;
+    const decoded = parseWeightBarcode(raw);
+    if (!decoded.valid || !decoded.product) {
+      alert('بارکۆد نەناسراوە یان هەڵەیە!');
+      setSaleScannerInput('');
+      return;
+    }
+    const prod = decoded.product;
+    const weight = decoded.weightKg > 0 ? decoded.weightKg : 1;
+    const activeCust = customers.find(c => c.name === (customCustomer.trim() || customerName));
+    const disc =
+      activeCust?.customDiscountPerKg ||
+      (activeCust?.priceTier === 'WHOLESALE'
+        ? 250
+        : activeCust?.priceTier === 'SPECIAL'
+        ? 150
+        : 0);
+    const price = Math.max(0, prod.pricePerKg - disc);
+    const custItem = selectedRepCustody.items.find(c => c.productId === prod.id);
+    const avail = custItem ? custItem.remainingKg : 0;
+    const inListWeight = itemsList
+      .filter(i => i.productId === prod.id)
+      .reduce((s, i) => s + i.weightKg, 0);
+    if (weight + inListWeight > avail + 0.001) {
+      alert(`کێشی داواکراو بۆ "${prod.nameKu}" لە بڕی بەردەستی ناو ئۆتۆمبێل (${avail} کگم) زیاترە!`);
+      setSaleScannerInput('');
+      return;
+    }
+    setItemsList(prev => {
+      const idx = prev.findIndex(item => item.productId === prod.id && item.pricePerKg === price);
+      if (idx > -1) {
+        const updated = [...prev];
+        const newW = Math.round((updated[idx].weightKg + weight) * 1000) / 1000;
+        updated[idx] = { ...updated[idx], weightKg: newW, totalAmount: roundTo250(newW * price) };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          productId: prod.id,
+          productName: prod.nameKu,
+          barcode: raw,
+          weightKg: weight,
+          pricePerKg: price,
+          totalAmount: roundTo250(weight * price),
+        },
+      ];
+    });
+    setSaleScannerInput('');
   };
 
   const handleAddSaleItem = () => {
@@ -1344,8 +1405,35 @@ export const RepSalesView: React.FC = () => {
                 <div className="font-bold text-[#1D1D1F] flex items-center justify-between">
                   <span>بەرهەمە فرۆشراوەکان بە مارکێت</span>
                   <span className="text-[11px] font-normal text-[#86868B]">
-                    هەر بەرهەمێک لەگەڵ کێش و نرخەکەی زیاد بکە
+                    بە بارکۆد سکان بکە یان بە دەست زیادی بکە
                   </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Barcode className="w-4 h-4 text-[#0071E3] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={saleScannerInput}
+                      onChange={e => setSaleScannerInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleScanSaleBarcode();
+                        }
+                      }}
+                      placeholder="بارکۆدی قاپ سکان بکە و Enter دابگرە..."
+                      className="w-full bg-white border border-[#0071E3]/30 rounded-xl pr-9 pl-3 py-2 text-xs font-mono font-bold outline-none focus:border-[#0071E3]"
+                      dir="ltr"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleScanSaleBarcode}
+                    className="px-4 py-2 rounded-xl bg-[#0071E3] text-white font-bold text-xs shrink-0"
+                  >
+                    سکان
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">

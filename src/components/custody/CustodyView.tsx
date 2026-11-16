@@ -15,6 +15,7 @@ import {
   Printer,
   Download,
   Calendar,
+  Barcode,
 } from 'lucide-react';
 import { CustodyTransfer, TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -47,11 +48,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     products,
     dispatches,
     returns,
+    vouchers,
     custodyTransfers,
     loadToRepCustody,
     returnUnsoldToReadyStock,
     acceptCustodyTransfer,
     rejectCustodyTransfer,
+    parseWeightBarcode,
     currentUser,
     repNames,
     factorySettings,
@@ -78,6 +81,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const [loadNotes, setLoadNotes] = useState('');
   const [loadProductId, setLoadProductId] = useState(products[0]?.id || '');
   const [loadWeight, setLoadWeight] = useState<number | ''>('');
+  const [loadScannerInput, setLoadScannerInput] = useState('');
   const [loadItems, setLoadItems] = useState<
     { productId: string; productName: string; weightKg: number }[]
   >([]);
@@ -212,6 +216,39 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     setLoadProductId(products[0]?.id || '');
     setLoadWeight('');
     setShowLoadModal(true);
+  };
+
+  const handleScanLoadBarcode = () => {
+    const raw = loadScannerInput.trim();
+    if (!raw) return;
+    const decoded = parseWeightBarcode(raw);
+    if (!decoded.valid || !decoded.product) {
+      alert('بارکۆد نەناسراوە یان هەڵەیە!');
+      setLoadScannerInput('');
+      return;
+    }
+    const prod = decoded.product;
+    const weight = decoded.weightKg > 0 ? decoded.weightKg : 1;
+    const alreadyQueued = loadItems
+      .filter(i => i.productId === prod.id)
+      .reduce((s, i) => s + i.weightKg, 0);
+    const pendingLoadKg = custodyTransfers
+      .filter(t => t.direction === 'LOAD' && t.status === 'PENDING')
+      .reduce(
+        (s, t) =>
+          s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
+        0
+      );
+    const availableStock = Math.max(0, prod.inStockKg - pendingLoadKg);
+    if (alreadyQueued + weight > availableStock) {
+      alert(
+        `بڕی پێویست لە کۆگای ئامادەدا نییە! تەنها ${(availableStock - alreadyQueued).toFixed(1)} کگم ماوە`
+      );
+      setLoadScannerInput('');
+      return;
+    }
+    setLoadItems(prev => [...prev, { productId: prod.id, productName: prod.nameKu, weightKg: weight }]);
+    setLoadScannerInput('');
   };
 
   const handleAddLoadItem = () => {
@@ -611,6 +648,23 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {filteredSummaries.map(holder => {
           const hasRemaining = holder.remainingKg > 0;
+          const freshWindowDays = factorySettings.returnWindowDays || 3;
+          const todayMs = new Date(`${toLocalISODate()}T00:00:00`).getTime();
+          const maxAgeDays = hasRemaining
+            ? custodyTransfers
+                .filter(
+                  t =>
+                    t.holderName === holder.holderName &&
+                    t.direction === 'LOAD' &&
+                    (!t.status || t.status === 'ACCEPTED')
+                )
+                .reduce((maxD, t) => {
+                  const dMs = new Date(`${t.date.slice(0, 10)}T00:00:00`).getTime();
+                  const age = Number.isFinite(dMs) ? Math.max(0, Math.floor((todayMs - dMs) / 86400000)) : 0;
+                  return Math.max(maxD, age);
+                }, 0)
+            : 0;
+          const showFreshAlert = hasRemaining && maxAgeDays >= Math.max(2, freshWindowDays - 1);
           return (
             <div key={holder.holderName} className="apple-card p-5 flex flex-col justify-between gap-4">
               <div>
@@ -628,17 +682,31 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  {hasRemaining ? (
-                    <span className="inline-flex items-center gap-1 bg-[#FF9500]/15 text-[#B25000] px-3 py-1 rounded-full text-[11px] font-black w-fit tabular-nums">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      {holder.remainingKg.toLocaleString()} کگم لەسەر حساب ماوە
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 bg-[#34C759]/12 text-[#248A3D] px-3 py-1 rounded-full text-[11px] font-bold w-fit">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      تەسفیەکراوە (٠ کگم)
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {showFreshAlert && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black ${
+                          maxAgeDays >= freshWindowDays
+                            ? 'bg-[#FF3B30]/12 text-[#D70015]'
+                            : 'bg-[#FF9500]/15 text-[#B25000]'
+                        }`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        فرێشی: {maxAgeDays} ڕۆژ
+                      </span>
+                    )}
+                    {hasRemaining ? (
+                      <span className="inline-flex items-center gap-1 bg-[#FF9500]/15 text-[#B25000] px-3 py-1 rounded-full text-[11px] font-black w-fit tabular-nums">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        {holder.remainingKg.toLocaleString()} کگم لەسەر حساب ماوە
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 bg-[#34C759]/12 text-[#248A3D] px-3 py-1 rounded-full text-[11px] font-bold w-fit">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        تەسفیەکراوە (٠ کگم)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* 4-Column Reconciliation Summary */}
@@ -965,6 +1033,34 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
               <div className="p-4 rounded-2xl bg-[#FBFBFD] border border-black/[0.06] space-y-3">
                 <div className="font-bold text-[#1D1D1F]">بەرهەمەکانی کۆگای ئامادە</div>
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Barcode className="w-4 h-4 text-[#0071E3] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={loadScannerInput}
+                      onChange={e => setLoadScannerInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleScanLoadBarcode();
+                        }
+                      }}
+                      placeholder="بارکۆدی قاپ سکان بکە و Enter دابگرە..."
+                      className="w-full bg-white border border-[#0071E3]/30 rounded-xl pr-9 pl-3 py-2 text-xs font-mono font-bold outline-none focus:border-[#0071E3]"
+                      dir="ltr"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleScanLoadBarcode}
+                    className="px-4 py-2 rounded-xl bg-[#0071E3] text-white font-bold text-xs shrink-0"
+                  >
+                    سکان
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <select
                     value={loadProductId}
@@ -1206,6 +1302,16 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
         const electronicTotal = repDispatches
           .filter(d => d.paymentType === 'ELECTRONIC')
           .reduce((s, d) => s + d.totalAmount, 0);
+        const repDebtCollectionsCash = vouchers
+          .filter(
+            v =>
+              v.type === 'RECEIPT' &&
+              v.date.slice(0, 10) === reportDate &&
+              v.collectedByRep === reportHolder.holderName &&
+              v.paymentMethod === 'CASH'
+          )
+          .reduce((s, v) => s + v.amount, 0);
+        const totalCashInHand = cashTotal + repDebtCollectionsCash;
         const daySoldKg = repDispatches.reduce((s, d) => s + d.totalWeightKg, 0);
         const dayReturnedKg = repReturns.reduce((s, r) => s + r.totalWeightKg, 0);
 
@@ -1265,23 +1371,29 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                 <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
-                  <span className="text-[11px] text-[#86868B] block">فرۆشتنی کاش (پارەی دەست)</span>
-                  <span className="text-lg font-black text-[#248A3D] tabular-nums">
+                  <span className="text-[11px] text-[#86868B] block">فرۆشتنی کاش</span>
+                  <span className="text-base font-black text-[#248A3D] tabular-nums">
                     {cashTotal.toLocaleString()} د.ع
                   </span>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
-                  <span className="text-[11px] text-[#86868B] block">فرۆشتنی قەرز</span>
-                  <span className="text-lg font-black text-[#FF9500] tabular-nums">
-                    {creditTotal.toLocaleString()} د.ع
+                  <span className="text-[11px] text-[#86868B] block">قەرزی وەرگیراو (تەحصیلات)</span>
+                  <span className="text-base font-black text-[#5856D6] tabular-nums">
+                    {repDebtCollectionsCash.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#34C759]/12 border border-[#34C759]/25">
+                  <span className="text-[11px] text-[#248A3D] font-bold block">کۆی کاشی ناو دەست</span>
+                  <span className="text-base font-black text-[#248A3D] tabular-nums">
+                    {totalCashInHand.toLocaleString()} د.ع
                   </span>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
-                  <span className="text-[11px] text-[#86868B] block">ئەلکترۆنی / حەواڵە</span>
-                  <span className="text-lg font-black text-[#0071E3] tabular-nums">
-                    {electronicTotal.toLocaleString()} د.ع
+                  <span className="text-[11px] text-[#86868B] block">قەرز + ئەلکترۆنی</span>
+                  <span className="text-base font-black text-[#FF9500] tabular-nums">
+                    {(creditTotal + electronicTotal).toLocaleString()} د.ع
                   </span>
                 </div>
               </div>

@@ -19,8 +19,9 @@ import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
 export const GiftsView: React.FC = () => {
-  const { dispatches, products, custodyTransfers, factorySettings, repNames, addDispatch, softDeleteRecord, hasAccess } = useApp();
+  const { dispatches, products, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, softDeleteRecord, hasAccess } = useApp();
 
+  const isRepRole = currentUser.role === 'REP';
   const [showModal, setShowModal] = useState(false);
   const [selectedReceiptForPrint, setSelectedReceiptForPrint] = useState<DispatchOrder | null>(null);
   const [showFactoryCostOnPrint, setShowFactoryCostOnPrint] = useState(false);
@@ -34,8 +35,14 @@ export const GiftsView: React.FC = () => {
   const [time, setTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
-  const [sourceCustody, setSourceCustody] = useState<'READY' | 'REP'>('READY');
-  const [repName, setRepName] = useState(repNames[0] || 'مەندوب شوان');
+  const [sourceCustody, setSourceCustody] = useState<'READY' | 'REP'>(() =>
+    currentUser.role === 'REP' ? 'REP' : 'READY'
+  );
+  const [repName, setRepName] = useState(() =>
+    currentUser.role === 'REP' ? currentUser.name : repNames[0] || 'مەندوب شوان'
+  );
+  const effectiveSourceCustody = isRepRole ? 'REP' : sourceCustody;
+  const effectiveRepName = isRepRole ? currentUser.name : repName;
   const [recipientName, setRecipientName] = useState('');
   const [notes, setNotes] = useState('دیاری و بەخشین — لەسەر خەڵک فری (٠ دینار) و تێچوو لەسەر کارگە');
 
@@ -83,12 +90,12 @@ export const GiftsView: React.FC = () => {
       .reduce((s, i) => s + i.weightKg, 0);
 
     let availableStock = prod.inStockKg;
-    if (sourceCustody === 'REP') {
+    if (effectiveSourceCustody === 'REP') {
       const loaded = custodyTransfers
         .filter(
           t =>
             t.holderType === 'REP' &&
-            t.holderName === repName &&
+            t.holderName === effectiveRepName &&
             t.direction === 'LOAD' &&
             (!t.status || t.status === 'ACCEPTED')
         )
@@ -100,7 +107,7 @@ export const GiftsView: React.FC = () => {
         .filter(
           d =>
             (d.destinationType === 'REP' || (d.destinationType === 'GIFT' && d.sourceCustody === 'REP')) &&
-            (d.repName || '') === repName
+            (d.repName || '') === effectiveRepName
         )
         .reduce(
           (s, d) => s + d.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
@@ -110,7 +117,7 @@ export const GiftsView: React.FC = () => {
         .filter(
           t =>
             t.holderType === 'REP' &&
-            t.holderName === repName &&
+            t.holderName === effectiveRepName &&
             t.direction === 'RETURN_TO_READY' &&
             (!t.status || t.status === 'ACCEPTED')
         )
@@ -124,7 +131,7 @@ export const GiftsView: React.FC = () => {
     if (weight + alreadyQueued > availableStock + 0.001) {
       alert(
         `ڕێگری لە دەرکردنی دیاری:\nبڕی پێویست لە ${
-          sourceCustody === 'REP' ? `کۆگای مەندوب (${repName})` : 'کۆگای ئامادەی کارگە'
+          effectiveSourceCustody === 'REP' ? `کۆگای مەندوب (${effectiveRepName})` : 'کۆگای ئامادەی کارگە'
         } بەردەست نییە!\n\nبەرهەم: ${prod.nameKu}\nبەردەست: ${availableStock.toLocaleString()} کگم\nداواکراو: ${(weight + alreadyQueued).toLocaleString()} کگم`
       );
       return;
@@ -195,10 +202,10 @@ export const GiftsView: React.FC = () => {
       time,
       destinationType: 'GIFT',
       destinationName: recipientName.trim(),
-      repName,
+      repName: effectiveRepName,
       customerName: recipientName.trim(),
       paymentType: 'CASH',
-      sourceCustody,
+      sourceCustody: effectiveSourceCustody,
       items: itemsList,
       totalWeightKg: totalWeight,
       totalAmount: 0, // Always 0 IQD (Free on recipient)
@@ -210,8 +217,10 @@ export const GiftsView: React.FC = () => {
     setShowModal(false);
   };
 
-  // Only GIFT dispatches + Filters
-  const giftsList = dispatches.filter(d => d.destinationType === 'GIFT');
+  // Only GIFT dispatches + Filters (RBAC scoped for REP)
+  const giftsList = dispatches.filter(
+    d => d.destinationType === 'GIFT' && (!isRepRole || d.repName === currentUser.name)
+  );
   const filteredGifts = giftsList.filter(d => {
     const q = searchTerm.trim().toLowerCase();
     const matchesQ =

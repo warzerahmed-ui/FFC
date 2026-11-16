@@ -295,6 +295,7 @@ export interface PaymentVoucher {
   discount: number;              // داشکاندن (خصم)
   remainingDebt: number;         // بڕی قەرزی ماوە دوای ئەم سەنەدە
   paymentMethod: 'CASH' | 'TRANSFER';
+  collectedByRep?: string;       // ناوی مەندوب ئەگەر قەرزەکە لەلایەن مەندوبەوە وەرگیرابێت
   notes?: string;
 }
 

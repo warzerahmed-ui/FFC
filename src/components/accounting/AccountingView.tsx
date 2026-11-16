@@ -28,7 +28,7 @@ interface AccountingViewProps {
 export const AccountingView: React.FC<AccountingViewProps> = ({
   activeSubTab: controlledSubTab,
 }) => {
-  const { customers, suppliers, vouchers, dispatches, intakes, posSales, returns, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
+  const { customers, suppliers, vouchers, dispatches, intakes, posSales, returns, repNames, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<AccountingSubTab>(controlledSubTab || 'VOUCHERS');
 
@@ -59,6 +59,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [voucherAmount, setVoucherAmount] = useState<number | ''>('');
   const [voucherDiscount, setVoucherDiscount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
+  const [collectedByRep, setCollectedByRep] = useState<string>('');
   const [voucherNotes, setVoucherNotes] = useState('');
 
   // Search in customers
@@ -106,12 +107,14 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
       amount: Number(voucherAmount),
       discount: Number(voucherDiscount) || 0,
       paymentMethod,
+      ...(voucherType === 'RECEIPT' && collectedByRep ? { collectedByRep } : {}),
       notes: voucherNotes,
     });
 
     setShowVoucherModal(false);
     setVoucherAmount('');
     setVoucherDiscount('');
+    setCollectedByRep('');
     setVoucherNotes('');
   };
 
@@ -1212,16 +1215,33 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               </div>
 
               {voucherType === 'RECEIPT' && (
-                <div>
-                  <label className="block text-[#515154] font-semibold mb-1">شێوازی وەرگرتن:</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e: any) => setPaymentMethod(e.target.value)}
-                    className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F]"
-                  >
-                    <option value="CASH">کاش (لە ڕێگەی مەندوب یان نووسینگە)</option>
-                    <option value="TRANSFER">حەواڵە / FIB</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#515154] font-semibold mb-1">شێوازی وەرگرتن:</label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e: any) => setPaymentMethod(e.target.value)}
+                      className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F]"
+                    >
+                      <option value="CASH">کاش (لە ڕێگەی مەندوب یان نووسینگە)</option>
+                      <option value="TRANSFER">حەواڵە / FIB</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[#515154] font-semibold mb-1">مەندوبی وەرگر (ئارەزوومەندانە):</label>
+                    <select
+                      value={collectedByRep}
+                      onChange={e => setCollectedByRep(e.target.value)}
+                      className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F]"
+                    >
+                      <option value="">ڕاستەوخۆ / نووسینگە</option>
+                      {repNames.map(r => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
