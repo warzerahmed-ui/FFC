@@ -30,6 +30,8 @@ import {
   Calendar,
   ArrowLeftRight,
   CheckCircle,
+  UserCheck,
+  LogOut,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -154,8 +156,10 @@ export const POSView: React.FC<POSViewProps> = ({
     customers,
     vouchers,
     branchExpenses,
+    users,
     currentUser,
     factorySettings,
+    logout,
     addPOSSale,
     addReturn,
     addVoucher,
@@ -234,18 +238,28 @@ export const POSView: React.FC<POSViewProps> = ({
   const [newPriceInput, setNewPriceInput] = useState<string>('');
   const [newMinAlertInput, setNewMinAlertInput] = useState<string>('5');
 
-  // Shift Opening Float & Actual Cash Drawer Count
+  // Shift Opening Float & Actual Cash Drawer Count (Per-Date & Per-Cashier)
   const todayISO = toLocalISODate();
-  const [openingFloat, setOpeningFloat] = useState<number>(() => {
+  const canViewAllCashiers = hasAccess('reports') || hasAccess('settings');
+  const [reportCashierFilter, setReportCashierFilter] = useState<string>(() =>
+    canViewAllCashiers ? 'ALL' : currentUser?.name || 'ALL'
+  );
+  const [floatByCashierMap, setFloatByCashierMap] = useState<Record<string, number>>(() => {
     try {
-      const raw = localStorage.getItem('ffc_pos_drawer_float_v1');
-      if (!raw) return 0;
-      const parsed = JSON.parse(raw) as { date?: string; amount?: number };
-      return parsed.date === toLocalISODate() ? Number(parsed.amount) || 0 : 0;
+      const raw = localStorage.getItem('ffc_pos_drawer_float_v2');
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as { date?: string; floats?: Record<string, number> };
+      return parsed.date === toLocalISODate() && parsed.floats ? parsed.floats : {};
     } catch {
-      return 0;
+      return {};
     }
   });
+  const activeFloatKey = reportCashierFilter === 'ALL' ? currentUser?.name || 'ALL' : reportCashierFilter;
+  const openingFloat =
+    reportCashierFilter === 'ALL'
+      ? Object.values(floatByCashierMap).reduce((s, v) => s + (Number(v) || 0), 0)
+      : floatByCashierMap[activeFloatKey] || 0;
+
   const [actualCashCount, setActualCashCount] = useState<string>('');
   const [salesSearch, setSalesSearch] = useState<string>('');
   const [reportDate, setReportDate] = useState<string>(todayISO);
@@ -275,12 +289,16 @@ export const POSView: React.FC<POSViewProps> = ({
 
   const handleOpeningFloatChange = (val: number) => {
     const clean = Math.max(0, val || 0);
-    setOpeningFloat(clean);
-    try {
-      localStorage.setItem('ffc_pos_drawer_float_v1', JSON.stringify({ date: todayISO, amount: clean }));
-    } catch {
-      // ignore
-    }
+    const key = reportCashierFilter === 'ALL' ? currentUser?.name || 'کاشێر' : reportCashierFilter;
+    setFloatByCashierMap(prev => {
+      const next = { ...prev, [key]: clean };
+      try {
+        localStorage.setItem('ffc_pos_drawer_float_v2', JSON.stringify({ date: todayISO, floats: next }));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   // Customer Return / Refund Modal
@@ -838,6 +856,7 @@ export const POSView: React.FC<POSViewProps> = ({
       title: expTitle.trim(),
       amount: roundTo250(amount),
       category: expCategory,
+      cashierName: currentUser?.name || 'کاشێری شۆرۆم',
     });
     playPosBeep('success');
     showToast('خەرجی شۆرۆم تۆمارکرا', 'success');
@@ -855,11 +874,81 @@ export const POSView: React.FC<POSViewProps> = ({
     return matchesCat && matchesSearch;
   });
 
-  const periodSales = posSales.filter(s => !reportDate || s.date === reportDate);
-  const periodExpenses = branchExpenses.filter(e => !reportDate || e.date === reportDate);
-  const periodPosDebtVouchers = vouchers.filter(
+  const dateSales = posSales.filter(s => !reportDate || s.date === reportDate);
+  const dateExpenses = branchExpenses.filter(e => !reportDate || e.date === reportDate);
+  const datePosDebtVouchers = vouchers.filter(
     v => v.collectedAtPos && (!reportDate || v.date === reportDate)
   );
+
+  const cashierOptions = Array.from(
+    new Set([
+      ...(currentUser?.name ? [currentUser.name] : []),
+      ...users.filter(u => u.allowedTabs?.includes('pos') || u.role === 'CASHIER' || u.role === 'ADMIN').map(u => u.name),
+      ...posSales.map(s => s.cashierName).filter(Boolean),
+    ])
+  );
+
+  const periodSales = dateSales.filter(
+    s => reportCashierFilter === 'ALL' || (s.cashierName || '') === reportCashierFilter
+  );
+  const periodExpenses = dateExpenses.filter(
+    e => reportCashierFilter === 'ALL' || !e.cashierName || e.cashierName === reportCashierFilter
+  );
+  const periodPosDebtVouchers = datePosDebtVouchers.filter(
+    v => reportCashierFilter === 'ALL' || !v.collectedByCashier || v.collectedByCashier === reportCashierFilter
+  );
+
+  const cashierShiftBreakdown = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        cashierName: string;
+        receiptCount: number;
+        cashSales: number;
+        cardSales: number;
+        debtSales: number;
+        giftCount: number;
+        debtCollectedCash: number;
+        expenses: number;
+      }
+    >();
+    const ensure = (name: string) => {
+      const key = name || 'نەناسراو';
+      if (!map.has(key)) {
+        map.set(key, {
+          cashierName: key,
+          receiptCount: 0,
+          cashSales: 0,
+          cardSales: 0,
+          debtSales: 0,
+          giftCount: 0,
+          debtCollectedCash: 0,
+          expenses: 0,
+        });
+      }
+      return map.get(key)!;
+    };
+    dateSales.forEach(s => {
+      const row = ensure(s.cashierName);
+      row.receiptCount += 1;
+      if (s.paymentType === 'CASH') row.cashSales += s.total;
+      else if (s.paymentType === 'FIB_OR_CARD') row.cardSales += s.total;
+      else if (s.paymentType === 'SPLIT') {
+        row.cashSales += s.cashAmount || 0;
+        row.cardSales += s.cardAmount || 0;
+      } else if (s.paymentType === 'DEBT') row.debtSales += s.total;
+      else if (s.paymentType === 'GIFT') row.giftCount += 1;
+    });
+    datePosDebtVouchers.forEach(v => {
+      if (v.paymentMethod === 'CASH') {
+        ensure(v.collectedByCashier || 'کاشێری شۆرۆم').debtCollectedCash += v.amount;
+      }
+    });
+    dateExpenses.forEach(e => {
+      ensure(e.cashierName || 'کاشێری شۆرۆم').expenses += e.amount;
+    });
+    return Array.from(map.values()).sort((a, b) => b.cashSales + b.cardSales - (a.cashSales + a.cardSales));
+  }, [dateSales, datePosDebtVouchers, dateExpenses]);
 
   const totalCashSales = periodSales.reduce(
     (sum, s) => sum + (s.paymentType === 'CASH' ? s.total : s.paymentType === 'SPLIT' ? s.cashAmount || 0 : 0),
@@ -1031,6 +1120,23 @@ export const POSView: React.FC<POSViewProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
                 دووکانی سەربەخۆ
               </span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-2.5 py-0.5 rounded-full">
+                <UserCheck className="w-3 h-3" />
+                کاشێری ئێستا: {currentUser?.name || '---'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('دەتەوێت هەژماری کاشێر بگۆڕیت و بچیتە دەرەوە؟')) {
+                    logout();
+                  }
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#515154] hover:text-[#FF3B30] bg-[#F5F5F7] hover:bg-[#FF3B30]/10 px-2.5 py-0.5 rounded-full transition-colors"
+                title="گۆڕینی کاشێر / چوونەدەرەوە"
+              >
+                <LogOut className="w-3 h-3" />
+                گۆڕینی کاشێر
+              </button>
               {lowStockCount > 0 && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D70015] bg-[#FF3B30]/12 px-2.5 py-0.5 rounded-full">
                   <AlertCircle className="w-3 h-3" />
@@ -2274,6 +2380,34 @@ export const POSView: React.FC<POSViewProps> = ({
                   هەموو
                 </button>
               </div>
+              <div className="flex items-center gap-1.5 bg-[#F5F5F7] px-2.5 py-1.5 rounded-full">
+                <UserCheck className="w-3.5 h-3.5 text-[#0071E3]" />
+                <select
+                  value={reportCashierFilter}
+                  onChange={e => setReportCashierFilter(e.target.value)}
+                  className="bg-transparent text-xs font-bold outline-none"
+                >
+                  <option value="ALL">هەموو کاشێرەکان</option>
+                  {cashierOptions.map(cName => (
+                    <option key={cName} value={cName}>
+                      {cName}
+                    </option>
+                  ))}
+                </select>
+                {currentUser?.name && (
+                  <button
+                    type="button"
+                    onClick={() => setReportCashierFilter(currentUser.name)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      reportCashierFilter === currentUser.name
+                        ? 'bg-[#0071E3] text-white'
+                        : 'bg-white text-[#515154]'
+                    }`}
+                  >
+                    شەفتی من
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleExportPosSalesCsv}
@@ -2381,6 +2515,56 @@ export const POSView: React.FC<POSViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Per-Cashier Shift Breakdown (when viewing ALL cashiers) */}
+          {reportCashierFilter === 'ALL' && cashierShiftBreakdown.length > 0 && (
+            <div className="apple-card overflow-hidden">
+              <div className="p-4 border-b border-black/[0.06] flex items-center justify-between">
+                <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#0071E3]" />
+                  پوختەی شەفتی هەر کاشێرێک ({reportDate || 'هەموو ڕۆژەکان'})
+                </h4>
+                <span className="text-[11px] text-[#86868B]">کلیک لەسەر ناوی هەر کاشێرێک بکە بۆ بینینی شەفتەکەی</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-[#F5F5F7] text-[#515154] font-semibold border-b border-black/[0.06]">
+                    <tr>
+                      <th className="p-3">کاشێر</th>
+                      <th className="p-3">وەسڵ</th>
+                      <th className="p-3">فرۆشی نەقد</th>
+                      <th className="p-3">کارت / FIB</th>
+                      <th className="p-3">قەرز</th>
+                      <th className="p-3">وەرگرتنەوەی قەرز</th>
+                      <th className="p-3">خەرجی</th>
+                      <th className="p-3">صافی کاش</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.05]">
+                    {cashierShiftBreakdown.map(row => {
+                      const netCash = row.cashSales + row.debtCollectedCash - row.expenses;
+                      return (
+                        <tr
+                          key={row.cashierName}
+                          onClick={() => setReportCashierFilter(row.cashierName)}
+                          className="hover:bg-[#0071E3]/5 cursor-pointer transition-colors"
+                        >
+                          <td className="p-3 font-extrabold text-[#0071E3]">{row.cashierName}</td>
+                          <td className="p-3 font-bold tabular-nums">{row.receiptCount}</td>
+                          <td className="p-3 font-bold text-[#248A3D] tabular-nums">{row.cashSales.toLocaleString()}</td>
+                          <td className="p-3 font-bold text-[#0071E3] tabular-nums">{row.cardSales.toLocaleString()}</td>
+                          <td className="p-3 font-bold text-[#D70015] tabular-nums">{row.debtSales.toLocaleString()}</td>
+                          <td className="p-3 font-bold text-[#248A3D] tabular-nums">+{row.debtCollectedCash.toLocaleString()}</td>
+                          <td className="p-3 font-bold text-[#FF3B30] tabular-nums">-{row.expenses.toLocaleString()}</td>
+                          <td className="p-3 font-black text-[#1D1D1F] tabular-nums">{netCash.toLocaleString()} د.ع</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* POS Sales History */}
@@ -2885,7 +3069,9 @@ export const POSView: React.FC<POSViewProps> = ({
                   <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right font-sans">
                     <div className="flex justify-between">
                       <span className="text-[#86868B]">کاشێر:</span>
-                      <span className="font-bold">{currentUser?.name || '---'}</span>
+                      <span className="font-bold">
+                        {reportCashierFilter === 'ALL' ? `هەموو کاشێرەکان (${currentUser?.name || '---'})` : reportCashierFilter}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#86868B]">ژمارەی وەسڵەکان:</span>
@@ -3475,6 +3661,7 @@ export const POSView: React.FC<POSViewProps> = ({
                   discount: disc,
                   paymentMethod: collectMethod,
                   collectedAtPos: true,
+                  collectedByCashier: currentUser?.name || 'کاشێری شۆرۆم',
                   notes: collectNotes.trim() || `وەرگیراوە لە کاشێری شۆرۆم (${currentUser?.name || ''})`,
                 });
                 playPosBeep('success');

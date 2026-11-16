@@ -297,6 +297,7 @@ export interface PaymentVoucher {
   paymentMethod: 'CASH' | 'TRANSFER';
   collectedByRep?: string;       // ناوی مەندوب ئەگەر قەرزەکە لەلایەن مەندوبەوە وەرگیرابێت
   collectedAtPos?: boolean;      // ئەگەر قەرزەکە لە کاشێری شۆرۆم وەرگیرابێت
+  collectedByCashier?: string;   // ناوی ئەو کاشێرەی قەرزەکەی لە شۆرۆم وەرگرتووە
   notes?: string;
 }
 
@@ -374,6 +375,7 @@ export interface BranchExpense {
   title: string;
   category: 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER';
   amount: number;
+  cashierName?: string;
   notes?: string;
 }
 
