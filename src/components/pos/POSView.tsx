@@ -627,17 +627,16 @@ export const POSView: React.FC<POSViewProps> = ({
     const selectedCust = selectedDebtCustomerId
       ? customers.find(c => c.id === selectedDebtCustomerId)
       : undefined;
-    const trimmedInputName = customerNameInput.trim();
 
-    if (paymentType === 'DEBT' && !selectedCust && (!trimmedInputName || trimmedInputName === 'کڕیاری ئاسایی نەقد')) {
+    if (paymentType === 'DEBT' && !selectedCust) {
       playPosBeep('error');
-      showToast('تکایە کڕیاری قەرز هەڵبژێرە یان ناوەکەی بنووسە', 'warn');
+      showToast('تکایە کڕیاری قەرز هەڵبژێرە یان "+ کڕیاری نوێ" دابگرە', 'warn');
       return;
     }
 
-    if (paymentType === 'GIFT' && !selectedCust && (!trimmedInputName || trimmedInputName === 'کڕیاری ئاسایی نەقد')) {
+    if (paymentType === 'GIFT' && !selectedCust) {
       playPosBeep('error');
-      showToast('تکایە ناوی وەرگری هەدیە بنووسە', 'warn');
+      showToast('تکایە وەرگری هەدیە هەڵبژێرە یان "+ کڕیاری نوێ" دابگرە', 'warn');
       return;
     }
 
@@ -647,9 +646,7 @@ export const POSView: React.FC<POSViewProps> = ({
       return;
     }
 
-    const resolvedCustomerName = selectedCust
-      ? selectedCust.name
-      : trimmedInputName || (paymentType === 'DEBT' ? 'کڕیاری قەرز' : paymentType === 'GIFT' ? 'وەرگری هەدیە' : 'کڕیاری ئاسایی نەقد');
+    const resolvedCustomerName = selectedCust ? selectedCust.name : 'کڕیاری ئاسایی نەقد';
 
     const giftCost =
       paymentType === 'GIFT'
@@ -1573,9 +1570,9 @@ export const POSView: React.FC<POSViewProps> = ({
                     className="apple-input bg-white w-full px-3 py-1.5 text-xs font-bold"
                   >
                     <option value="">
-                      {paymentType === 'GIFT'
-                        ? '-- وەرگر لە کڕیارەکان هەڵبژێرە یان ناوەکەی لە خوارەوە بنووسە --'
-                        : '-- کڕیارێکی نوێ بنووسە یان هەڵبژێرە --'}
+                      {paymentType === 'DEBT' || paymentType === 'GIFT'
+                        ? '-- هەڵبژێرە یان "+ کڕیاری نوێ" دابگرە --'
+                        : '-- کڕیاری ئاسایی نەقد (یان هەڵبژێرە) --'}
                     </option>
                     {customers.map(c => (
                       <option key={c.id} value={c.id}>
@@ -1583,33 +1580,6 @@ export const POSView: React.FC<POSViewProps> = ({
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <input
-                    type="text"
-                    value={customerNameInput}
-                    onChange={e => {
-                      setCustomerNameInput(e.target.value);
-                      if (selectedDebtCustomerId) setSelectedDebtCustomerId('');
-                    }}
-                    placeholder={
-                      paymentType === 'DEBT'
-                        ? 'ناوی کڕیاری قەرز...'
-                        : paymentType === 'GIFT'
-                        ? 'ناوی وەرگری هەدیە...'
-                        : 'ناوی کڕیار...'
-                    }
-                    className="apple-input px-3 py-1.5 text-xs font-medium"
-                  />
-                  <input
-                    type="tel"
-                    dir="ltr"
-                    value={customerPhoneInput}
-                    onChange={e => setCustomerPhoneInput(e.target.value)}
-                    placeholder="ژمارە مۆبایل (0750...)"
-                    className="apple-input px-3 py-1.5 text-xs font-mono text-right"
-                  />
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 text-xs">
@@ -4079,7 +4049,7 @@ export const POSView: React.FC<POSViewProps> = ({
                   showToast('تکایە ناوی کڕیار بنووسە', 'warn');
                   return;
                 }
-                addCustomer({
+                const created = addCustomer({
                   name: newCustName.trim(),
                   phone: newCustPhone.trim(),
                   type: 'SUPERMARKET',
@@ -4087,9 +4057,9 @@ export const POSView: React.FC<POSViewProps> = ({
                   currentDebt: 0,
                   creditLimit: 3000000,
                 });
-                setCustomerNameInput(newCustName.trim());
-                setCustomerPhoneInput(newCustPhone.trim());
-                setSelectedDebtCustomerId('');
+                setCustomerNameInput(created.name);
+                setCustomerPhoneInput(created.phone || '');
+                setSelectedDebtCustomerId(created.id);
                 playPosBeep('success');
                 showToast(`کڕیار "${newCustName.trim()}" زیادکرا`, 'success');
                 setShowNewCustomerModal(false);

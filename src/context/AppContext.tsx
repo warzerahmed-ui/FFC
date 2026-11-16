@@ -109,7 +109,7 @@ interface AppContextType {
     notes?: string
   ) => void;
   addExpense: (expense: Omit<ExpenseRecord, 'id'>) => void;
-  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
+  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => Customer;
   addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
   addVoucher: (voucher: Omit<PaymentVoucher, 'id' | 'previousDebt' | 'remainingDebt'>) => void;
   addPOSSale: (sale: Omit<POSSale, 'id' | 'saleNo'>) => POSSale;
@@ -1145,7 +1145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordActivity('FINANCE', 'CREATE', 'تۆمارکردنی خەرجی کارگە', `${newExpense.title} • ${newExpense.amount.toLocaleString()} د.ع`, newExpense.receiptNo);
   };
 
-  const addCustomer = (newCustomer: Omit<Customer, 'id' | 'createdAt'>) => {
+  const addCustomer = (newCustomer: Omit<Customer, 'id' | 'createdAt'>): Customer => {
     const id = `cust-${genId()}`;
     const customer: Customer = {
       ...newCustomer,
@@ -1154,6 +1154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setCustomers(prev => [...prev, customer]);
     recordActivity('FINANCE', 'CREATE', 'زیادکردنی کڕیار / مارکێت', `${customer.name} (${customer.phone || 'بێ ژمارە'})`);
+    return customer;
   };
 
   const addSupplier = (newSupplier: Omit<Supplier, 'id' | 'createdAt'>) => {
