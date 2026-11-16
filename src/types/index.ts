@@ -366,6 +366,11 @@ export interface BranchDelivery {
   totalWeightKg: number;
   totalCost: number;
   notes?: string;
+  status?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  sentBy?: string;
+  respondedBy?: string;
+  respondedAt?: string;
+  rejectReason?: string;
 }
 
 export interface BranchExpense {

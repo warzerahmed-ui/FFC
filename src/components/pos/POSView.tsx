@@ -164,6 +164,8 @@ export const POSView: React.FC<POSViewProps> = ({
     addReturn,
     addVoucher,
     addBranchDelivery,
+    acceptBranchDelivery,
+    rejectBranchDelivery,
     addBranchExpense,
     updateBranchStockItem,
     adjustBranchStock,
@@ -699,6 +701,11 @@ export const POSView: React.FC<POSViewProps> = ({
   // ==========================================
   // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)
   // ==========================================
+  const pendingBranchDeliveries = useMemo(
+    () => branchDeliveries.filter(b => b.status === 'PENDING'),
+    [branchDeliveries]
+  );
+
   const showroomInboundReceipts = useMemo(() => {
     const showroomNameNorm = (factorySettings.showroomName || '').trim().replace(/\s+/g, ' ').toLowerCase();
     const repDeliveries = dispatches
@@ -718,17 +725,19 @@ export const POSView: React.FC<POSViewProps> = ({
         source: 'REP_RECEIPT' as const,
       }));
 
-    const manualDeliveries = branchDeliveries.map(b => ({
-      id: b.id,
-      receiptNo: b.manualReceiptNo,
-      date: b.date,
-      time: b.time,
-      repName: b.repName,
-      totalWeightKg: b.totalWeightKg,
-      itemsCount: b.items.length,
-      items: b.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
-      source: 'DIRECT_INBOUND' as const,
-    }));
+    const manualDeliveries = branchDeliveries
+      .filter(b => !b.status || b.status === 'ACCEPTED')
+      .map(b => ({
+        id: b.id,
+        receiptNo: b.manualReceiptNo,
+        date: b.date,
+        time: b.time,
+        repName: b.repName,
+        totalWeightKg: b.totalWeightKg,
+        itemsCount: b.items.length,
+        items: b.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
+        source: 'DIRECT_INBOUND' as const,
+      }));
 
     return [...repDeliveries, ...manualDeliveries].sort((a, b) => b.date.localeCompare(a.date));
   }, [dispatches, branchDeliveries, factorySettings.showroomName]);
@@ -1137,6 +1146,16 @@ export const POSView: React.FC<POSViewProps> = ({
                 <LogOut className="w-3 h-3" />
                 گۆڕینی کاشێر
               </button>
+              {pendingBranchDeliveries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleSubTabChange('INVENTORY')}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-[#B25000] bg-[#FF9500]/18 hover:bg-[#FF9500] hover:text-white px-2.5 py-0.5 rounded-full transition-colors animate-pulse"
+                >
+                  <Truck className="w-3 h-3" />
+                  {pendingBranchDeliveries.length} باری چاوەڕوانی ئەکسیپت
+                </button>
+              )}
               {lowStockCount > 0 && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D70015] bg-[#FF3B30]/12 px-2.5 py-0.5 rounded-full">
                   <AlertCircle className="w-3 h-3" />
@@ -1777,6 +1796,83 @@ export const POSView: React.FC<POSViewProps> = ({
       {/* ===================================================================== */}
       {activeSubTab === 'INVENTORY' && (
         <div className="space-y-5">
+          {/* Pending Factory-to-Showroom Deliveries Awaiting Showroom Acceptance */}
+          {pendingBranchDeliveries.length > 0 && (
+            <div className="apple-card p-5 border-2 border-[#FF9500]/40 bg-[#FF9500]/[0.04] space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-extrabold text-sm text-[#B25000] flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#FF9500]" />
+                  باری نێردراو لە کارگەوە (چاوەڕوانی ئەکسیپت و وەرگرتنی شۆرۆم: {pendingBranchDeliveries.length})
+                </h3>
+                <span className="text-[11px] text-[#86868B] font-semibold">
+                  تا ئەکسیپت نەکرێت ناچێتە سەر کۆگای شۆرۆم
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {pendingBranchDeliveries.map(del => (
+                  <div key={del.id} className="bg-white rounded-2xl p-4 border border-[#FF9500]/25 shadow-2xs space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-mono font-extrabold text-[#0071E3] text-sm">#{del.manualReceiptNo}</span>
+                        <span className="text-[11px] text-[#86868B] mr-2">
+                          {del.date} {del.time}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#FF9500]/15 text-[#B25000] font-extrabold">
+                        {del.totalWeightKg.toFixed(2)} کگم
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#515154]">
+                      نێردراو لەلایەن: <span className="font-bold text-[#1D1D1F]">{del.sentBy || del.repName}</span>
+                      {del.notes && <span className="text-[#86868B]"> • {del.notes}</span>}
+                    </div>
+                    <div className="bg-[#F5F5F7] rounded-xl p-2.5 space-y-1">
+                      {del.items.map((it, idx) => (
+                        <div key={idx} className="flex justify-between font-semibold">
+                          <span>{it.productName}</span>
+                          <span className="font-extrabold tabular-nums">{it.weightKg.toFixed(2)} کگم</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = acceptBranchDelivery(del.id);
+                          if (!res.ok) {
+                            playPosBeep('error');
+                            showToast(res.error || 'هەڵە لە وەرگرتنی بار', 'warn');
+                          } else {
+                            playPosBeep('success');
+                            showToast(`باری #${del.manualReceiptNo} (${del.totalWeightKg.toFixed(1)} کگم) ئەکسیپت کرا و خرایە سەر کۆگای شۆرۆم`, 'success');
+                          }
+                        }}
+                        className="flex-1 py-2 rounded-xl bg-[#34C759] hover:bg-[#2FB350] text-white font-extrabold flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        ئەکسیپت و وەرگرتن
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reason = window.prompt('هۆکاری ڕەتکردنەوەی ئەم بارە بنووسە (ئارەزوومەندانە):', '');
+                          if (reason !== null) {
+                            rejectBranchDelivery(del.id, reason);
+                            playPosBeep('scale');
+                            showToast(`باری #${del.manualReceiptNo} ڕەتکرایەوە`, 'info');
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white font-bold transition-all"
+                      >
+                        ڕەتکردنەوە
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Inventory Header + Receive Stock Button */}
           <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>

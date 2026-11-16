@@ -130,6 +130,8 @@ interface AppContextType {
     manualReceiptNo?: string;
     notes?: string;
   }) => BranchDelivery | null;
+  acceptBranchDelivery: (deliveryId: string) => { ok: boolean; error?: string };
+  rejectBranchDelivery: (deliveryId: string, reason?: string) => void;
   
   // Dedicated Store Actions
   addBranchDelivery: (delivery: Omit<BranchDelivery, 'id'>) => void;
@@ -1460,37 +1462,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: validItems,
       totalWeightKg,
       totalCost,
-      notes: payload.notes?.trim() || 'ناردنی ڕاستەوخۆ لە کۆگای ئامادەی کارگەوە بۆ شۆرۆم (POS)',
+      notes: payload.notes?.trim() || 'ناردن لە کۆگای ئامادەی کارگەوە بۆ شۆرۆم (چاوەڕوانی ئەکسیپت)',
+      status: 'PENDING',
+      sentBy: currentUser.name,
     };
 
-    const byProd = new Map<string, number>();
-    validItems.forEach(it => byProd.set(it.productId, (byProd.get(it.productId) || 0) + it.weightKg));
+    // Stock is NOT moved until Showroom accepts (just like Rep Custody PENDING -> ACCEPTED).
+    setBranchDeliveries(prev => [delivery, ...prev]);
+
+    recordActivity(
+      'SALES',
+      'CREATE',
+      'ناردن لە کارگەوە بۆ شۆرۆم (چاوەڕوانی ئەکسیپت)',
+      `${totalWeightKg.toLocaleString()} کگم • ${delivery.repName}`,
+      receiptNo
+    );
+
+    return delivery;
+  };
+
+  const acceptBranchDelivery = (deliveryId: string): { ok: boolean; error?: string } => {
+    if (!hasAccess('pos')) return { ok: false, error: 'مۆڵەتی شۆرۆمت نییە' };
+    const target = branchDeliveries.find(b => b.id === deliveryId);
+    if (!target || target.status !== 'PENDING') {
+      return { ok: false, error: 'ئەم بارە چاوەڕوانی ئەکسیپت نییە' };
+    }
+
+    // Verify factory ready stock still has enough weight
+    const neededByProd = new Map<string, number>();
+    target.items.forEach(it => neededByProd.set(it.productId, (neededByProd.get(it.productId) || 0) + it.weightKg));
+    for (const [prodId, w] of neededByProd.entries()) {
+      const prod = products.find(p => p.id === prodId);
+      if (!prod || prod.inStockKg + 0.001 < w) {
+        return {
+          ok: false,
+          error: `بڕی پێویست لە کۆگای ئامادەی کارگە نەماوە بۆ "${prod?.nameKu || prodId}"`,
+        };
+      }
+    }
+
+    const respondedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setBranchDeliveries(prev =>
+      prev.map(b =>
+        b.id === deliveryId
+          ? { ...b, status: 'ACCEPTED', respondedBy: currentUser.name, respondedAt }
+          : b
+      )
+    );
 
     setProducts(prev =>
       prev.map(p => {
-        const w = byProd.get(p.id);
+        const w = neededByProd.get(p.id);
         return w ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - w).toFixed(3))) } : p;
       })
     );
 
     setBranchStock(prev =>
       prev.map(bs => {
-        const w = byProd.get(bs.productId);
+        const w = neededByProd.get(bs.productId);
         return w ? { ...bs, inStockKg: Math.round((bs.inStockKg + w) * 1000) / 1000 } : bs;
       })
     );
 
-    setBranchDeliveries(prev => [delivery, ...prev]);
+    recordActivity(
+      'SALES',
+      'UPDATE',
+      'ئەکسیپتی وەرگرتنی بار لەلایەن شۆرۆم (POS)',
+      `${target.totalWeightKg.toLocaleString()} کگم • وەرگر: ${currentUser.name}`,
+      target.manualReceiptNo
+    );
+
+    return { ok: true };
+  };
+
+  const rejectBranchDelivery = (deliveryId: string, reason?: string) => {
+    if (!hasAccess('pos')) return;
+    const target = branchDeliveries.find(b => b.id === deliveryId);
+    if (!target || target.status !== 'PENDING') return;
+
+    const respondedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setBranchDeliveries(prev =>
+      prev.map(b =>
+        b.id === deliveryId
+          ? {
+              ...b,
+              status: 'REJECTED',
+              respondedBy: currentUser.name,
+              respondedAt,
+              rejectReason: reason?.trim() || 'ڕەتکرایەوە لەلایەن شۆرۆمەوە',
+            }
+          : b
+      )
+    );
 
     recordActivity(
       'SALES',
-      'CREATE',
-      'ناردن لە کارگەوە بۆ شۆرۆم (POS)',
-      `${totalWeightKg.toLocaleString()} کگم • ${delivery.repName}`,
-      receiptNo
+      'UPDATE',
+      'ڕەتکردنەوەی باری نێردراو لەلایەن شۆرۆم',
+      `${target.totalWeightKg.toLocaleString()} کگم • ${reason || 'بێ هۆکار'}`,
+      target.manualReceiptNo
     );
-
-    return delivery;
   };
 
   const addProduct = (newProd: {
@@ -2470,6 +2541,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnBranchToReady,
         updateProductPrice,
         transferReadyToBranch,
+        acceptBranchDelivery,
+        rejectBranchDelivery,
         loadToRepCustody,
         returnUnsoldToReadyStock,
         acceptCustodyTransfer,
