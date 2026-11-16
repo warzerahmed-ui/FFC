@@ -31,7 +31,6 @@ import {
   ArrowLeftRight,
   CheckCircle,
   UserCheck,
-  LogOut,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -159,7 +158,6 @@ export const POSView: React.FC<POSViewProps> = ({
     users,
     currentUser,
     factorySettings,
-    logout,
     addPOSSale,
     addReturn,
     addCustomer,
@@ -1138,19 +1136,6 @@ export const POSView: React.FC<POSViewProps> = ({
                 <UserCheck className="w-3 h-3" />
                 کاشێری ئێستا: {currentUser?.name || '---'}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm('دەتەوێت هەژماری کاشێر بگۆڕیت و بچیتە دەرەوە؟')) {
-                    logout();
-                  }
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#515154] hover:text-[#FF3B30] bg-[#F5F5F7] hover:bg-[#FF3B30]/10 px-2.5 py-0.5 rounded-full transition-colors"
-                title="گۆڕینی کاشێر / چوونەدەرەوە"
-              >
-                <LogOut className="w-3 h-3" />
-                گۆڕینی کاشێر
-              </button>
               {pendingBranchDeliveries.length > 0 && (
                 <button
                   type="button"
