@@ -1186,46 +1186,6 @@ export const POSView: React.FC<POSViewProps> = ({
         </div>
       </div>
 
-      {/* 5-TAB SHOWROOM NAVIGATION BAR */}
-      <div className="apple-card p-2 flex flex-wrap items-center gap-1.5 no-print">
-        {(
-          [
-            { id: 'REGISTER' as PosSubTab, label: '١. کاشێر و فرۆشتن', icon: Barcode, badge: cart.length > 0 ? cart.length : undefined },
-            { id: 'INVENTORY' as PosSubTab, label: '٢. کۆگا، وەرگرتن و جەرد', icon: Boxes, badge: lowStockCount > 0 ? lowStockCount : undefined },
-            { id: 'CUSTOMERS_DEBT' as PosSubTab, label: '٣. قەرزی کڕیاران', icon: Users, badge: customersWithDebtCount > 0 ? customersWithDebtCount : undefined },
-            { id: 'GIFTS' as PosSubTab, label: '٤. هەدیە و بەخشین', icon: Gift, badge: allPosGifts.length > 0 ? allPosGifts.length : undefined },
-            { id: 'REGISTER_REPORT' as PosSubTab, label: '٥. سەندوق و Z-Report', icon: Receipt },
-          ]
-        ).map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => handleSubTabChange(tab.id)}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all ${
-                isActive
-                  ? 'bg-[#0071E3] text-white shadow-sm'
-                  : 'text-[#515154] hover:bg-[#F5F5F7] hover:text-[#1D1D1F]'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-              {tab.badge !== undefined && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-black tabular-nums ${
-                    isActive ? 'bg-white/25 text-white' : 'bg-[#F5F5F7] text-[#1D1D1F]'
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       {/* ===================================================================== */}
       {/* TAB 1: POS REGISTER (کاشێر و فرۆشتن) */}
       {/* ===================================================================== */}
