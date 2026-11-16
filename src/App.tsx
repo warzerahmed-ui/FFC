@@ -4,6 +4,7 @@ import { Menubar } from './components/layout/Menubar';
 import type { PosSubTab } from './components/pos/POSView';
 import type { AccountingSubTab } from './components/accounting/AccountingView';
 import type { ReportSubTab } from './components/reports/ReportsView';
+import type { SettingsSubTab } from './components/settings/SettingsView';
 import { TabType } from './types';
 import { LoginScreen } from './components/auth/LoginScreen';
 
@@ -46,6 +47,7 @@ function AppContent() {
   const [posSubTab, setPosSubTab] = useState<PosSubTab>('REGISTER');
   const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('FACTORY_INFO');
   const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
   const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud, factorySettings } = useApp();
 
@@ -111,6 +113,8 @@ function AppContent() {
         setAccountingSubTab={setAccountingSubTab}
         activeReportSubTab={reportSubTab}
         setReportSubTab={setReportSubTab}
+        activeSettingsSubTab={settingsSubTab}
+        setSettingsSubTab={setSettingsSubTab}
       />
 
       <main className="flex-1 p-4 md:p-6 lg:p-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">
@@ -154,7 +158,9 @@ function AppContent() {
           {activeTab === 'reports' && hasAccess('reports') && (
             <ReportsView activeReportTab={reportSubTab} />
           )}
-          {activeTab === 'settings' && hasAccess('settings') && <SettingsView />}
+          {activeTab === 'settings' && hasAccess('settings') && (
+            <SettingsView activeSubTab={settingsSubTab} onSubTabChange={setSettingsSubTab} />
+          )}
         </Suspense>
       </main>
 

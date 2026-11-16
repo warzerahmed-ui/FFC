@@ -5,6 +5,7 @@ import { FactoryLogo } from './FactoryLogo';
 import type { PosSubTab } from '../pos/POSView';
 import type { AccountingSubTab } from '../accounting/AccountingView';
 import type { ReportSubTab } from '../reports/ReportsView';
+import type { SettingsSubTab } from '../settings/SettingsView';
 import {
   LayoutDashboard,
   Truck,
@@ -33,6 +34,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Trash2,
+  Activity,
 } from 'lucide-react';
 
 interface MenubarProps {
@@ -44,6 +47,8 @@ interface MenubarProps {
   setAccountingSubTab?: (tab: AccountingSubTab) => void;
   activeReportSubTab?: ReportSubTab;
   setReportSubTab?: (tab: ReportSubTab) => void;
+  activeSettingsSubTab?: SettingsSubTab;
+  setSettingsSubTab?: (tab: SettingsSubTab) => void;
 }
 
 interface MenuSubItem {
@@ -251,6 +256,8 @@ export const Menubar: React.FC<MenubarProps> = ({
   setAccountingSubTab,
   activeReportSubTab = 'PNL',
   setReportSubTab,
+  activeSettingsSubTab = 'FACTORY_INFO',
+  setSettingsSubTab,
 }) => {
   const {
     currentUser,
@@ -559,7 +566,36 @@ export const Menubar: React.FC<MenubarProps> = ({
             <span className="text-black/20">/</span>
           </div>
 
-          {!isSettingsTab && activeGroupObj && activeGroupObj.items.length > 1 ? (
+          {isSettingsTab ? (
+            <div className="flex items-center gap-1.5">
+              {(
+                [
+                  { id: 'FACTORY_INFO' as SettingsSubTab, label: '١. زانیاری کارگە و باکئەپ', icon: Building2 },
+                  { id: 'ACCOUNTS' as SettingsSubTab, label: '٢. ئەکاونت و مۆڵەتەکان', icon: Users },
+                  { id: 'SOFT_DELETE' as SettingsSubTab, label: '٣. سەبەتەی سۆفت دیلیت', icon: Trash2 },
+                  { id: 'ACTIVITY_LOG' as SettingsSubTab, label: '٤. ئەکتیڤتی لۆگ', icon: Activity },
+                ]
+              ).map(sub => {
+                const SubIcon = sub.icon;
+                const subActive = activeSettingsSubTab === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setSettingsSubTab?.(sub.id)}
+                    className={`px-3 py-1 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      subActive
+                        ? 'bg-white text-[#0071E3] font-extrabold shadow-[0_1px_4px_rgba(0,0,0,0.08)] border border-[#0071E3]/25'
+                        : 'text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.05] font-semibold'
+                    }`}
+                  >
+                    <SubIcon className={`w-3.5 h-3.5 ${subActive ? 'text-[#0071E3]' : 'text-[#86868B]'}`} />
+                    <span>{sub.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : activeGroupObj && activeGroupObj.items.length > 1 ? (
             <div className="flex items-center gap-1.5">
               {activeGroupObj.items.map(sub => {
                 const SubIcon = sub.icon;

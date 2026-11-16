@@ -3,9 +3,7 @@ import { useApp, ALL_SYSTEM_SECTIONS, getDefaultTabsForRole } from '../../contex
 import {
   Settings,
   Building2,
-  Users,
   Trash2,
-  Activity,
   Plus,
   Save,
   CheckCircle2,
@@ -39,7 +37,7 @@ import {
 } from '../../types';
 import { toLocalISODate } from '../../utils/date';
 
-type SettingsSubTab = 'FACTORY_INFO' | 'ACCOUNTS' | 'SOFT_DELETE' | 'ACTIVITY_LOG';
+export type SettingsSubTab = 'FACTORY_INFO' | 'ACCOUNTS' | 'SOFT_DELETE' | 'ACTIVITY_LOG';
 
 const ROLE_OPTIONS: { value: Exclude<UserRole, 'SUPER_ADMIN'>; label: string; emoji: string }[] = [
   { value: 'ADMIN', label: 'بەڕێوەبەر', emoji: '👔' },
@@ -63,7 +61,14 @@ const TRASH_ENTITY_OPTIONS: { value: TrashEntityType; label: string }[] = [
   { value: 'USER', label: 'ئەکاونتی بەکارهێنەر' },
 ];
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  activeSubTab?: SettingsSubTab;
+  onSubTabChange?: (tab: SettingsSubTab) => void;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({
+  activeSubTab: controlledSubTab,
+}) => {
   const {
     factorySettings,
     updateFactorySettings,
@@ -92,7 +97,13 @@ export const SettingsView: React.FC = () => {
     resetToCleanStart,
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>('FACTORY_INFO');
+  const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>(controlledSubTab || 'FACTORY_INFO');
+
+  useEffect(() => {
+    if (controlledSubTab && controlledSubTab !== activeSubTab) {
+      setActiveSubTab(controlledSubTab);
+    }
+  }, [controlledSubTab]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'warn' } | null>(null);
   const [showCleanStartModal, setShowCleanStartModal] = useState(false);
   const [cleanStartClearParties, setCleanStartClearParties] = useState(false);
@@ -553,53 +564,6 @@ export const SettingsView: React.FC = () => {
               بەڕێوەبردنی زانیارییەکانی کارگە، دروستکردنی ئەکاونت بۆ کارمەندان، گەڕاندنەوەی سڕدراوەکان و چاودێری تۆماری چالاکییەکان
             </p>
           </div>
-        </div>
-
-        {/* Sub-Tabs */}
-        <div className="apple-segmented overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('FACTORY_INFO')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'FACTORY_INFO' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5 text-[#0071E3]" />
-            <span>زانیاری کارگە</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('ACCOUNTS')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'ACCOUNTS' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 text-[#5856D6]" />
-            <span>ئەکاونتەکان ({visibleUsers.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('SOFT_DELETE')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'SOFT_DELETE' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <Trash2 className="w-3.5 h-3.5 text-[#FF9500]" />
-            <span>سۆفت دیلیت ({trashItems.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('ACTIVITY_LOG')}
-            className={`apple-segment-btn flex items-center gap-1.5 ${
-              activeSubTab === 'ACTIVITY_LOG' ? 'apple-segment-btn-active' : ''
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5 text-[#34C759]" />
-            <span>ئەکتیڤتی لۆگ ({activityLogs.length})</span>
-          </button>
         </div>
       </div>
 
@@ -1410,6 +1374,36 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = [
+                    ['بەروار', 'کات', 'بەکارهێنەر', 'بەش', 'کردار', 'سەردێڕ', 'وردەکاری', 'سەرچاوە'],
+                    ...filteredLogs.map(l => [
+                      l.date,
+                      l.time,
+                      l.userName,
+                      l.category,
+                      l.action,
+                      l.title,
+                      l.details || '',
+                      l.refNo || '',
+                    ]),
+                  ];
+                  const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `activity-log-${todayStr}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3.5 py-2 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Excel / CSV
+              </button>
               <button
                 type="button"
                 onClick={() => window.print()}
