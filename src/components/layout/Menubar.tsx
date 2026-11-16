@@ -36,6 +36,8 @@ import {
   EyeOff,
   Trash2,
   Activity,
+  Smartphone,
+  Share,
 } from 'lucide-react';
 
 interface MenubarProps {
@@ -279,6 +281,54 @@ export const Menubar: React.FC<MenubarProps> = ({
   const [pwdStatus, setPwdStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [pwdSaving, setPwdSaving] = useState(false);
 
+  // PWA Install Prompt & Standalone Detection
+  interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  }
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showIosInstallModal, setShowIosInstallModal] = useState(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    try {
+      return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        Boolean((window.navigator as unknown as { standalone?: boolean }).standalone)
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    const onAppInstalled = () => {
+      setIsStandalone(true);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, []);
+
+  const handleInstallPwaClick = async () => {
+    if (deferredPrompt) {
+      await deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice.outcome === 'accepted') {
+        setIsStandalone(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      setShowIosInstallModal(true);
+    }
+  };
+
   // Live clock tick
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
@@ -495,6 +545,19 @@ export const Menubar: React.FC<MenubarProps> = ({
             </div>
           </div>
 
+          {/* Mobile PWA Install Pill */}
+          {!isStandalone && (
+            <button
+              type="button"
+              onClick={handleInstallPwaClick}
+              className="lg:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#0071E3] text-white text-[11px] font-bold shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer"
+              title="دابەزاندنی ئەپ بۆ سەر شاشەی مۆبایل"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>ئەپ</span>
+            </button>
+          )}
+
           {/* Factory Settings Quick Pill (Admin Only) */}
           {hasAccess('settings') && (
             <button
@@ -637,79 +700,406 @@ export const Menubar: React.FC<MenubarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Dropdown Navigation Drawer */}
+      {/* Mobile Bottom Sheet Drawer */}
       {mobileOpen && (
-        <div className="lg:hidden bg-white border-b border-slate-200 shadow-lg max-h-[75vh] overflow-y-auto p-3 space-y-3 apple-sheet">
-          {hasAccess('settings') && (
-            <button
-              type="button"
-              onClick={() => handleSelectTab('settings')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all ${
-                isSettingsTab
-                  ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'
-                  : 'bg-slate-50/70 text-slate-700 font-semibold hover:bg-slate-100'
-              }`}
-            >
+        <div
+          className="fixed inset-0 z-50 lg:hidden bg-black/40 backdrop-blur-xs flex items-end no-print"
+          onClick={() => setMobileOpen(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="rounded-t-[28px] bg-white w-full max-h-[82vh] overflow-y-auto p-4 pb-8 space-y-3 shadow-2xl border-t border-black/[0.08] apple-sheet"
+          >
+            <div className="w-10 h-1 rounded-full bg-slate-300 mx-auto mb-1" />
+            <div className="flex items-center justify-between bg-[#F5F5F7] rounded-2xl p-3">
               <div className="flex items-center gap-2.5">
-                <Settings className="w-4 h-4 shrink-0 text-[#0071E3]" />
-                <span>سیتینی کارگە، ئەکاونتەکان، سۆفت دیلیت و لۆگ</span>
+                <div className="w-9 h-9 rounded-full bg-[#0071E3] text-white flex items-center justify-center font-black text-sm">
+                  {avatarInitial}
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-[#1D1D1F]">{displayName}</div>
+                  <div className="text-[11px] font-bold text-[#0071E3]">{displayRole}</div>
+                </div>
               </div>
-              {isSettingsTab && <Check className="w-4 h-4 text-[#2563EB]" />}
-            </button>
-          )}
-          {accessibleGroups.map(group => (
-            <div key={group.key} className="space-y-1">
-              <div className="px-2.5 py-1 text-[11px] font-extrabold text-slate-400">
-                {group.label}
+              {!isStandalone && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    handleInstallPwaClick();
+                  }}
+                  className="px-3 py-1.5 rounded-full bg-[#0071E3] text-white text-[11px] font-bold flex items-center gap-1"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  دابەزاندنی ئەپ
+                </button>
+              )}
+            </div>
+
+            {hasAccess('settings') && (
+              <button
+                type="button"
+                onClick={() => handleSelectTab('settings')}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs transition-all ${
+                  isSettingsTab
+                    ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'
+                    : 'bg-slate-50/90 text-slate-700 font-semibold hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings className="w-4 h-4 shrink-0 text-[#0071E3]" />
+                  <span>سیتینی کارگە، ئەکاونتەکان، سۆفت دیلیت و لۆگ</span>
+                </div>
+                {isSettingsTab && <Check className="w-4 h-4 text-[#2563EB]" />}
+              </button>
+            )}
+            {accessibleGroups.map(group => (
+              <div key={group.key} className="space-y-1">
+                <div className="px-2.5 py-1 text-[11px] font-extrabold text-slate-400">
+                  {group.label}
+                </div>
+                <div className="space-y-1">
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    const itemActive = isItemActive(item);
+                    return (
+                      <button
+                        key={`${item.id}-${item.posSubTab ?? item.accountingSubTab ?? item.reportSubTab ?? ''}`}
+                        type="button"
+                        onClick={() => handleSelectItem(item)}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs transition-all ${
+                          itemActive
+                            ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'
+                            : 'bg-slate-50/90 text-slate-700 font-semibold hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span>{item.label}</span>
+                        </div>
+                        {itemActive && <Check className="w-4 h-4 text-[#2563EB]" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="space-y-1">
-                {group.items.map(item => {
-                  const Icon = item.icon;
-                  const itemActive = isItemActive(item);
-                  return (
-                    <button
-                      key={`${item.id}-${item.posSubTab ?? item.accountingSubTab ?? item.reportSubTab ?? ''}`}
-                      type="button"
-                      onClick={() => handleSelectItem(item)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all ${
-                        itemActive
-                          ? 'bg-[#EFF6FF] border border-[#3B82F6]/35 text-[#1D4ED8] font-bold'
-                          : 'bg-slate-50/70 text-slate-700 font-semibold hover:bg-slate-100'
+            ))}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {!isSuper && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setCurrPwd('');
+                    setNewPwd('');
+                    setConfirmPwd('');
+                    setPwdStatus(null);
+                    setShowPwdModal(true);
+                  }}
+                  className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl text-xs bg-[#F5F5F7] text-[#1D1D1F] font-bold"
+                >
+                  <KeyRound className="w-4 h-4 text-[#0071E3]" />
+                  <span>گۆڕینی پاسوۆرد</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                className={`flex items-center justify-center gap-2 px-3 py-3 rounded-2xl text-xs bg-[#FF3B30]/10 text-[#FF3B30] font-bold ${
+                  isSuper ? 'col-span-2' : ''
+                }`}
+              >
+                <LogOut className="w-4 h-4" />
+                <span>چوونەدەرەوە</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role-Specific Native Mobile Bottom Tab Bar */}
+      {(() => {
+        interface BottomNavItem {
+          key: string;
+          label: string;
+          icon: React.ComponentType<{ className?: string }>;
+          active: boolean;
+          onClick: () => void;
+        }
+        const role = currentUser?.role || 'ADMIN';
+        let items: BottomNavItem[] = [];
+
+        if (role === 'CASHIER') {
+          items = [
+            {
+              key: 'pos-reg',
+              label: 'کاشێر',
+              icon: Barcode,
+              active: activeTab === 'pos' && activePosSubTab === 'REGISTER',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('REGISTER');
+              },
+            },
+            {
+              key: 'pos-inv',
+              label: 'کۆگا',
+              icon: Boxes,
+              active: activeTab === 'pos' && activePosSubTab === 'INVENTORY',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('INVENTORY');
+              },
+            },
+            {
+              key: 'pos-debt',
+              label: 'قەرز',
+              icon: Users,
+              active: activeTab === 'pos' && activePosSubTab === 'CUSTOMERS_DEBT',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('CUSTOMERS_DEBT');
+              },
+            },
+            {
+              key: 'pos-gift',
+              label: 'هەدیە',
+              icon: Gift,
+              active: activeTab === 'pos' && activePosSubTab === 'GIFTS',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('GIFTS');
+              },
+            },
+            {
+              key: 'pos-rep',
+              label: 'سەندوق',
+              icon: Receipt,
+              active: activeTab === 'pos' && activePosSubTab === 'REGISTER_REPORT',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('REGISTER_REPORT');
+              },
+            },
+          ];
+        } else if (role === 'REP') {
+          items = [
+            {
+              key: 'dash',
+              label: 'سەرەکی',
+              icon: LayoutDashboard,
+              active: activeTab === 'dashboard',
+              onClick: () => setActiveTab('dashboard'),
+            },
+            {
+              key: 'custody',
+              label: 'عەهدە',
+              icon: PackageCheck,
+              active: activeTab === 'custody',
+              onClick: () => setActiveTab('custody'),
+            },
+            {
+              key: 'rep-sales',
+              label: 'فرۆشتن',
+              icon: Send,
+              active: activeTab === 'rep-sales',
+              onClick: () => setActiveTab('rep-sales'),
+            },
+            {
+              key: 'gifts',
+              label: 'هەدیە',
+              icon: Gift,
+              active: activeTab === 'gifts',
+              onClick: () => setActiveTab('gifts'),
+            },
+            {
+              key: 'more',
+              label: 'بەشەکان',
+              icon: Menu,
+              active: mobileOpen,
+              onClick: () => setMobileOpen(prev => !prev),
+            },
+          ];
+        } else if (role === 'ACCOUNTANT') {
+          items = [
+            {
+              key: 'dash',
+              label: 'سەرەکی',
+              icon: LayoutDashboard,
+              active: activeTab === 'dashboard',
+              onClick: () => setActiveTab('dashboard'),
+            },
+            {
+              key: 'acc-vouch',
+              label: 'سەنەد',
+              icon: Receipt,
+              active: activeTab === 'accounting' && activeAccountingSubTab === 'VOUCHERS',
+              onClick: () => {
+                setActiveTab('accounting');
+                setAccountingSubTab?.('VOUCHERS');
+              },
+            },
+            {
+              key: 'acc-cust',
+              label: 'کڕیاران',
+              icon: Users,
+              active: activeTab === 'accounting' && activeAccountingSubTab === 'CUSTOMERS',
+              onClick: () => {
+                setActiveTab('accounting');
+                setAccountingSubTab?.('CUSTOMERS');
+              },
+            },
+            {
+              key: 'rep-pnl',
+              label: 'قازانج',
+              icon: TrendingUp,
+              active: activeTab === 'reports' && activeReportSubTab === 'PNL',
+              onClick: () => {
+                setActiveTab('reports');
+                setReportSubTab?.('PNL');
+              },
+            },
+            {
+              key: 'more',
+              label: 'بەشەکان',
+              icon: Menu,
+              active: mobileOpen,
+              onClick: () => setMobileOpen(prev => !prev),
+            },
+          ];
+        } else {
+          items = [
+            {
+              key: 'dash',
+              label: 'سەرەکی',
+              icon: LayoutDashboard,
+              active: activeTab === 'dashboard',
+              onClick: () => setActiveTab('dashboard'),
+            },
+            {
+              key: 'ready',
+              label: 'ئامادە',
+              icon: PackageCheck,
+              active: activeTab === 'ready-for-sale',
+              onClick: () => setActiveTab('ready-for-sale'),
+            },
+            {
+              key: 'rep-sales',
+              label: 'فرۆشتن',
+              icon: Send,
+              active: activeTab === 'rep-sales',
+              onClick: () => setActiveTab('rep-sales'),
+            },
+            {
+              key: 'pos',
+              label: 'شۆرۆم',
+              icon: ShoppingBag,
+              active: activeTab === 'pos',
+              onClick: () => {
+                setActiveTab('pos');
+                setPosSubTab?.('REGISTER');
+              },
+            },
+            {
+              key: 'more',
+              label: 'بەشەکان',
+              icon: Menu,
+              active: mobileOpen,
+              onClick: () => setMobileOpen(prev => !prev),
+            },
+          ];
+        }
+
+        return (
+          <nav
+            aria-label="مینیوی خوارەوەی مۆبایل"
+            className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-black/[0.08] pb-safe no-print shadow-[0_-4px_20px_rgba(0,0,0,0.05)]"
+          >
+            <div className="grid grid-cols-5 items-center h-16 px-1">
+              {items.map(navItem => {
+                const NavIcon = navItem.icon;
+                return (
+                  <button
+                    key={navItem.key}
+                    type="button"
+                    onClick={navItem.onClick}
+                    className={`flex flex-col items-center justify-center gap-1 py-1.5 rounded-xl transition-all active:scale-95 ${
+                      navItem.active ? 'text-[#0071E3] font-extrabold' : 'text-[#86868B] font-semibold'
+                    }`}
+                  >
+                    <span
+                      className={`px-3 py-0.5 rounded-full transition-colors ${
+                        navItem.active ? 'bg-[#0071E3]/12' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Icon className="w-4 h-4 shrink-0" />
-                        <span>{item.label}</span>
-                      </div>
-                      {itemActive && <Check className="w-4 h-4 text-[#2563EB]" />}
-                    </button>
-                  );
-                })}
+                      <NavIcon className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] leading-none">{navItem.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        );
+      })()}
+
+      {/* iOS / Browser Manual Add-to-Home-Screen Guide Modal */}
+      {showIosInstallModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 no-print"
+          onClick={() => setShowIosInstallModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-black/[0.06] space-y-4 apple-sheet"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <div className="flex items-center gap-2.5">
+                <img src="/icon.svg" alt="FFC" className="w-10 h-10 rounded-xl shadow-xs" />
+                <div>
+                  <h3 className="text-sm font-black text-[#1D1D1F]">دابەزاندنی ئەپی FFC-ERP</h3>
+                  <p className="text-[11px] text-[#86868B]">وەک ئەپێکی سەربەخۆ لەسەر مۆبایلەکەت</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIosInstallModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-[#1D1D1F] leading-relaxed">
+              <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-1.5">
+                <div className="font-extrabold text-[#0071E3] flex items-center gap-1.5">
+                  <Share className="w-3.5 h-3.5" />
+                  <span>بۆ ئایفۆن و ئایپاد (Safari):</span>
+                </div>
+                <p>
+                  ١. لە خوارەوەی شاشە کلیک لە دوگمەی <strong>Share (⬆️)</strong> بکە.<br />
+                  ٢. هەڵبژێرە <strong>Add to Home Screen</strong> (زیادکردن بۆ شاشەی سەرەکی).<br />
+                  ٣. کلیک لە <strong>Add</strong> بکە.
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-1.5">
+                <div className="font-extrabold text-[#248A3D] flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>بۆ ئەندرۆید (Chrome):</span>
+                </div>
+                <p>
+                  لە سێ خاڵەکەی سەرەوە (⋮) کلیک لە <strong>Install App</strong> یان <strong>Add to Home Screen</strong> بکە.
+                </p>
               </div>
             </div>
-          ))}
-          {!isSuper && (
+
             <button
               type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                setCurrPwd('');
-                setNewPwd('');
-                setConfirmPwd('');
-                setPwdStatus(null);
-                setShowPwdModal(true);
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs bg-slate-50/70 text-slate-700 font-semibold hover:bg-slate-100"
+              onClick={() => setShowIosInstallModal(false)}
+              className="w-full py-2.5 rounded-full bg-[#0071E3] text-white font-bold text-xs"
             >
-              <KeyRound className="w-4 h-4 shrink-0 text-[#0071E3]" />
-              <span>گۆڕینی وشەی نهێنیی خۆم</span>
+              تێگەیشتم
             </button>
-          )}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-2 text-[10px] text-slate-400 font-semibold">
-            <span>دروستکراوە لەلایەن</span>
-            <span dir="ltr" className="font-black tracking-wider text-[#0071E3]">
-              RAND SUITE
-            </span>
           </div>
         </div>
       )}

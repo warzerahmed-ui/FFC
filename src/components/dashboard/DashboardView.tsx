@@ -13,6 +13,9 @@ import {
   Calculator,
   FileSpreadsheet,
   AlertTriangle,
+  Scissors,
+  Send,
+  ClipboardList,
 } from 'lucide-react';
 import { TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -187,6 +190,124 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           </p>
         </div>
       </div>
+
+      {/* Role-Based Mobile Quick-Action Hub */}
+      {(() => {
+        const allQuickActions: {
+          tab: TabType;
+          label: string;
+          sub: string;
+          icon: React.ComponentType<{ className?: string }>;
+          color: string;
+          bg: string;
+        }[] = [
+          {
+            tab: 'intake',
+            label: 'وەرگرتنی زیندوو',
+            sub: 'قۆناغی ١',
+            icon: Truck,
+            color: 'text-[#0071E3]',
+            bg: 'bg-[#0071E3]/12',
+          },
+          {
+            tab: 'production',
+            label: 'سەربڕین و بەشکردن',
+            sub: 'قۆناغی ٢',
+            icon: Scissors,
+            color: 'text-[#5856D6]',
+            bg: 'bg-[#5856D6]/12',
+          },
+          {
+            tab: 'ready-for-sale',
+            label: 'کۆگای ئامادە',
+            sub: 'قۆناغی ٣',
+            icon: PackageCheck,
+            color: 'text-[#248A3D]',
+            bg: 'bg-[#34C759]/12',
+          },
+          {
+            tab: 'custody',
+            label: 'کۆگای مەندوب',
+            sub: 'عەهدە و بار',
+            icon: ClipboardList,
+            color: 'text-[#B25000]',
+            bg: 'bg-[#FF9500]/15',
+          },
+          {
+            tab: 'rep-sales',
+            label: 'فرۆشتنی مەندوب',
+            sub: 'وەسڵ و گەڕاوە',
+            icon: Send,
+            color: 'text-[#0071E3]',
+            bg: 'bg-[#0071E3]/12',
+          },
+          {
+            tab: 'pos',
+            label: 'فرۆشگای شۆرۆم POS',
+            sub: 'کاشێر و قاسە',
+            icon: ShoppingBag,
+            color: 'text-[#248A3D]',
+            bg: 'bg-[#34C759]/12',
+          },
+          {
+            tab: 'gifts',
+            label: 'دیاری و هەدیە',
+            sub: 'بەخشین',
+            icon: Gift,
+            color: 'text-[#8944AB]',
+            bg: 'bg-[#AF52DE]/12',
+          },
+          {
+            tab: 'accounting',
+            label: 'ژمێریاری و قەرز',
+            sub: 'سەنەد و کەشف',
+            icon: Calculator,
+            color: 'text-[#0071E3]',
+            bg: 'bg-[#0071E3]/12',
+          },
+          {
+            tab: 'reports',
+            label: 'ڕاپۆرت و P&L',
+            sub: 'قازانج و تەسفییە',
+            icon: FileSpreadsheet,
+            color: 'text-[#B25000]',
+            bg: 'bg-[#FF9500]/15',
+          },
+        ];
+        const quickActions = allQuickActions.filter(a => hasAccess(a.tab));
+
+        if (quickActions.length === 0) return null;
+
+        return (
+          <div className="lg:hidden space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-extrabold text-[#1D1D1F]">کردارە خێراکانی مۆبایل</h3>
+              <span className="text-[11px] font-bold text-[#86868B]">{quickActions.length} بەش</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {quickActions.map(action => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.tab}
+                    type="button"
+                    onClick={() => setActiveTab(action.tab)}
+                    className="apple-card p-3.5 text-right flex items-center gap-3 active:scale-[0.97] transition-transform"
+                  >
+                    <div className={`w-10 h-10 rounded-2xl ${action.bg} ${action.color} flex items-center justify-center shrink-0`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-extrabold text-[#1D1D1F] truncate">{action.label}</div>
+                      <div className="text-[10px] font-semibold text-[#86868B] mt-0.5">{action.sub}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Automatic 3-Day Freshness Expiry Alert */}
       {expiryWarnings.length > 0 && (hasAccess('custody') || hasAccess('pos')) && (

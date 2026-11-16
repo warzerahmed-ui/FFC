@@ -117,7 +117,7 @@ function AppContent() {
         setSettingsSubTab={setSettingsSubTab}
       />
 
-      <main className="flex-1 p-4 md:p-6 lg:p-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">
+      <main className="flex-1 p-3.5 sm:p-5 lg:p-7 pb-24 lg:pb-7 max-w-[1440px] mx-auto w-full overflow-x-hidden">
         <Suspense
           fallback={
             <div className="apple-card p-10 text-center text-xs font-bold text-[#86868B]">
@@ -164,7 +164,7 @@ function AppContent() {
         </Suspense>
       </main>
 
-      <footer className="no-print border-t border-black/[0.06] bg-white/75 backdrop-blur-md px-4 lg:px-7 py-3 mt-auto">
+      <footer className="no-print hidden lg:block border-t border-black/[0.06] bg-white/75 backdrop-blur-md px-4 lg:px-7 py-3 mt-auto">
         <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#86868B]">
           <div className="font-semibold text-[#515154]">
             {factorySettings.factoryName} ({factorySettings.shortCode}) • سیستەمی بەڕێوەبردنی کارگە و فرۆشگا
