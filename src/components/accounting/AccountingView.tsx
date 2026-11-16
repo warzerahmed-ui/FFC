@@ -15,7 +15,7 @@ import {
   Trash2,
   MessageCircle,
 } from 'lucide-react';
-import { Customer, Supplier } from '../../types';
+import { Customer, Supplier, PaymentVoucher } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
@@ -62,8 +62,14 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [collectedByRep, setCollectedByRep] = useState<string>('');
   const [voucherNotes, setVoucherNotes] = useState('');
 
-  // Search in customers
+  // Search & Filter states
   const [customerSearch, setCustomerSearch] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [voucherSearch, setVoucherSearch] = useState('');
+  const [voucherTypeFilter, setVoucherTypeFilter] = useState<'ALL' | 'RECEIPT' | 'PAYMENT' | 'POS'>('ALL');
+  const [voucherStartDate, setVoucherStartDate] = useState('');
+  const [voucherEndDate, setVoucherEndDate] = useState('');
+  const [printVoucher, setPrintVoucher] = useState<PaymentVoucher | null>(null);
 
   // Selected party's current debt
   const selectedCustomerObj = customers.find(c => c.id === selectedPartyId) || customers[0];
@@ -203,21 +209,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         discount: s.discount || 0,
       }));
 
-    // Add baseline historical purchase if needed
-    if (purchaseTx.length === 0 && posDebtTx.length === 0) {
-      purchaseTx.push({
-        id: 'tx-base',
-        date: '2026-10-15',
-        time: '09:00 ص',
-        refNo: 'D-710',
-        type: 'PURCHASE' as const,
-        description: 'وەجبەی مریشکی فرێش و پارچەکراو (١٢٠ کگم)',
-        debit: 2525000,
-        credit: 0,
-        discount: 0,
-      });
-    }
-
     // 2. Real-time Payments (from vouchers where partyId === customer.id)
     const paymentTx = vouchers
       .filter(v => v.partyId === customer.id || v.partyName.includes(customer.name) || customer.name.includes(v.partyName))
@@ -341,16 +332,137 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
       </div>
 
       {/* View 1: Vouchers List */}
-      {activeSubTab === 'VOUCHERS' && (
-        <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
-          <div className="p-4 bg-[#FBFBFD] border-b border-black/[0.05] flex items-center justify-between">
-            <span className="text-xs font-bold text-[#1D1D1F] flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-[#34C759]" />
-              لیستی سەنەدەکان بە پیشاندانی بەروار، کاتژمێر، بڕی پارەی دراو و قەرزی ماوە (باڵانس)
-            </span>
-            <span className="text-xs text-[#86868B]">
-              کۆی سەنەدەکان: <strong>{vouchers.length}</strong>
-            </span>
+      {activeSubTab === 'VOUCHERS' && (() => {
+        const vq = voucherSearch.trim().toLowerCase();
+        const filteredVouchers = vouchers.filter(v => {
+          if (voucherTypeFilter === 'RECEIPT' && v.type !== 'RECEIPT') return false;
+          if (voucherTypeFilter === 'PAYMENT' && v.type !== 'PAYMENT') return false;
+          if (voucherTypeFilter === 'POS' && !v.collectedAtPos) return false;
+          if (voucherStartDate && v.date < voucherStartDate) return false;
+          if (voucherEndDate && v.date > voucherEndDate) return false;
+          if (!vq) return true;
+          return (
+            v.voucherNo.toLowerCase().includes(vq) ||
+            v.partyName.toLowerCase().includes(vq) ||
+            (v.notes || '').toLowerCase().includes(vq)
+          );
+        });
+
+        const totalReceiptsAmt = filteredVouchers.filter(v => v.type === 'RECEIPT').reduce((s, v) => s + v.amount, 0);
+        const totalPaymentsAmt = filteredVouchers.filter(v => v.type === 'PAYMENT').reduce((s, v) => s + v.amount, 0);
+
+        const handleExportVouchersCsv = () => {
+          const rows = [
+            ['ژ. سەنەد', 'بەروار', 'کات', 'جۆر', 'لایەن', 'قەرزی پێشوو', 'بڕی دراو/وەرگیراو', 'داشکاندن', 'قەرزی ماوە', 'شێواز', 'تێبینی'],
+            ...filteredVouchers.map(v => [
+              v.voucherNo,
+              v.date,
+              v.time || '',
+              v.type === 'RECEIPT' ? 'سند قبض' : 'سند صرف',
+              v.partyName,
+              String(v.previousDebt || 0),
+              String(v.amount),
+              String(v.discount || 0),
+              String(v.remainingDebt || 0),
+              v.paymentMethod === 'CASH' ? 'کاش' : 'حەواڵە/کارت',
+              v.notes || '',
+            ]),
+          ];
+          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `vouchers-${toLocalISODate()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+
+        return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">وەرگیراو لە کڕیاران (سند قبض)</span>
+              <div className="text-xl font-black text-[#248A3D] tabular-nums mt-1">
+                +{totalReceiptsAmt.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">دراو بە کێڵگەکان (سند صرف)</span>
+              <div className="text-xl font-black text-[#FF9500] tabular-nums mt-1">
+                -{totalPaymentsAmt.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">صافی جوڵەی نەقدی سەنەدەکان</span>
+              <div className="text-xl font-black text-[#0071E3] tabular-nums mt-1">
+                {(totalReceiptsAmt - totalPaymentsAmt).toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
+          <div className="p-4 bg-[#FBFBFD] border-b border-black/[0.05] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { id: 'ALL', label: 'هەموو' },
+                  { id: 'RECEIPT', label: 'سند قبض (کڕیار)' },
+                  { id: 'PAYMENT', label: 'سند صرف (کێڵگە)' },
+                  { id: 'POS', label: 'وەرگیراوی شۆرۆم (POS)' },
+                ] as const
+              ).map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setVoucherTypeFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    voucherTypeFilter === f.id
+                      ? 'bg-[#0071E3] text-white'
+                      : 'bg-[#F5F5F7] text-[#515154] hover:bg-[#E8E8ED]'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="relative w-48">
+                <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={voucherSearch}
+                  onChange={e => setVoucherSearch(e.target.value)}
+                  placeholder="گەڕان بە سەنەد یان ناو..."
+                  className="apple-input w-full pr-8 pl-3 py-1.5 text-xs"
+                />
+              </div>
+              <input
+                type="date"
+                value={voucherStartDate}
+                onChange={e => setVoucherStartDate(e.target.value)}
+                className="apple-input px-2.5 py-1.5 text-xs"
+              />
+              <span className="text-[#86868B]">تا</span>
+              <input
+                type="date"
+                value={voucherEndDate}
+                onChange={e => setVoucherEndDate(e.target.value)}
+                className="apple-input px-2.5 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={handleExportVouchersCsv}
+                className="px-3 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+              <span className="text-xs text-[#86868B]">
+                کۆ: <strong>{filteredVouchers.length}</strong>
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -367,11 +479,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   <th className="p-4">قەرزی ماوە (باڵانس)</th>
                   <th className="p-4">شێوازی پارەدان</th>
                   <th className="p-4">تێبینی</th>
+                  <th className="p-4 text-center">چاپ</th>
                   {hasAccess('settings') && <th className="p-4 text-center">سڕینەوە</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
-                {vouchers.map((v) => (
+                {filteredVouchers.map((v) => (
                   <tr key={v.id} className="hover:bg-[#FBFBFD] transition-colors">
                     <td className="p-4 font-mono font-bold text-[#0071E3]">
                       <span className="bg-[#0071E3]/10 px-2.5 py-1 rounded-full text-[11px]">
@@ -429,6 +542,16 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                       </span>
                     </td>
                     <td className="p-4 text-[#86868B]">{v.notes || '---'}</td>
+                    <td className="p-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setPrintVoucher(v)}
+                        className="p-1.5 rounded-lg bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white transition-colors"
+                        title="چاپکردنی سەنەد"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                     {hasAccess('settings') && (
                       <td className="p-4 text-center">
                         <button
@@ -451,11 +574,53 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             </table>
           </div>
         </div>
-      )}
+        </div>
+        );
+      })()}
 
       {/* View 2: Customers Ledger */}
-      {activeSubTab === 'CUSTOMERS' && (
+      {activeSubTab === 'CUSTOMERS' && (() => {
+        const totalCustomersDebt = customers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
+        const debtorCount = customers.filter(c => c.currentDebt > 0).length;
+        const handleExportCustomersCsv = () => {
+          const rows = [
+            ['ناوی کڕیار', 'جۆر', 'مۆبایل', 'ناونیشان', 'سنووری قەرز', 'قەرزی ئێستا (د.ع)'],
+            ...filteredCustomers.map(c => [
+              c.name,
+              c.type,
+              c.phone || '',
+              c.address || '',
+              String(c.creditLimit),
+              String(c.currentDebt),
+            ]),
+          ];
+          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `customers-debt-${toLocalISODate()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+
+        return (
         <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">کۆی قەرزی کڕیاران لە بازاڕدا</span>
+              <div className="text-xl font-black text-[#FF3B30] tabular-nums mt-1">
+                {totalCustomersDebt.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">کڕیارە قەرزارەکان</span>
+              <div className="text-xl font-black text-[#1D1D1F] tabular-nums mt-1">
+                {debtorCount} <span className="text-[11px] font-medium text-[#86868B]">لە کۆی {customers.length} کڕیار</span>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative w-full sm:w-80">
@@ -469,12 +634,22 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               />
             </div>
 
-            <button
-              onClick={() => setShowAddCustomerModal(true)}
-              className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1 self-start sm:self-auto"
-            >
-              + زیادکردنی کڕیاری نوێ
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={handleExportCustomersCsv}
+                className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+              <button
+                onClick={() => setShowAddCustomerModal(true)}
+                className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
+              >
+                + زیادکردنی کڕیاری نوێ
+              </button>
+            </div>
           </div>
 
           <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
@@ -521,19 +696,67 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             </table>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* View 3: Suppliers Ledger */}
-      {activeSubTab === 'SUPPLIERS' && (
+      {activeSubTab === 'SUPPLIERS' && (() => {
+        const sq = supplierSearch.trim().toLowerCase();
+        const filteredSuppliers = suppliers.filter(
+          s => !sq || s.name.toLowerCase().includes(sq) || (s.phone || '').includes(sq) || (s.farmLocation || '').toLowerCase().includes(sq)
+        );
+        const totalSupplierDebt = suppliers.reduce((s, sup) => s + Math.max(0, sup.currentBalance), 0);
+        const handleExportSuppliersCsv = () => {
+          const rows = [
+            ['ناوی کێڵگە', 'مۆبایل', 'ناونیشان', 'قەرزی سەر کارگە (د.ع)'],
+            ...filteredSuppliers.map(s => [s.name, s.phone || '', s.farmLocation || '', String(s.currentBalance)]),
+          ];
+          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `suppliers-balance-${toLocalISODate()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+
+        return (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-[#86868B]">لیستی کێڵگە پەلەوەرییەکان:</span>
-            <button
-              onClick={() => setShowAddSupplierModal(true)}
-              className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
-            >
-              + زیادکردنی کێڵگەی نوێ
-            </button>
+          <div className="apple-card p-4 flex items-center justify-between text-xs">
+            <span className="font-bold text-[#515154]">کۆی قەرزی کێڵگەکان لەسەر کارگە:</span>
+            <span className="text-xl font-black text-[#FF9500] tabular-nums">
+              {totalSupplierDebt.toLocaleString()} د.ع
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-[#86868B] absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="گەڕان بەپێی ناوی کێڵگە یان ناونیشان..."
+                value={supplierSearch}
+                onChange={(e) => setSupplierSearch(e.target.value)}
+                className="w-full bg-white border border-black/[0.08] rounded-full pr-9 pl-4 py-2 text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none focus:border-[#0071E3]"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportSuppliersCsv}
+                className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+              <button
+                onClick={() => setShowAddSupplierModal(true)}
+                className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
+              >
+                + زیادکردنی کێڵگەی نوێ
+              </button>
+            </div>
           </div>
 
           <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
@@ -548,7 +771,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
-                {suppliers.map((s) => (
+                {filteredSuppliers.map((s) => (
                   <tr key={s.id} className="hover:bg-[#FBFBFD]">
                     <td className="p-4 font-bold text-[#1D1D1F]">{s.name}</td>
                     <td className="p-4 text-[#86868B]">{s.phone}</td>
@@ -571,7 +794,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             </table>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* DYNAMIC REAL-TIME CUSTOMER STATEMENT WITH DATE RANGE FILTER (Directly addressing user request!) */}
       {selectedCustomer && (() => {
@@ -1402,6 +1626,91 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 <button type="submit" className="w-1/2 py-2.5 bg-[#0071E3] text-white font-bold rounded-full">زیادکردن</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Voucher Modal */}
+      {printVoucher && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
+              <span className="text-xs font-bold text-[#86868B]">
+                {printVoucher.type === 'RECEIPT' ? 'سند قبض (وەرگرتن)' : 'سند صرف (پێدان)'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  چاپکردن
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintVoucher(null)}
+                  className="px-3 py-1.5 bg-[#F5F5F7] text-[#515154] rounded-full text-xs font-bold"
+                >
+                  داخستن
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-center text-xs text-[#1D1D1F]">
+              <div className="flex justify-center">
+                <FactoryLogo size="sm" />
+              </div>
+              <h4 className="font-black text-base">{factorySettings.factoryName}</h4>
+              <p className="text-[11px] font-bold text-[#0071E3]">
+                {printVoucher.type === 'RECEIPT' ? 'سەنەدی وەرگرتن (سند قبض)' : 'سەنەدی پێدان (سند صرف)'}
+              </p>
+
+              <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">ژ. سەنەد:</span>
+                  <span className="font-mono font-bold">{printVoucher.voucherNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">بەروار و کات:</span>
+                  <span>{printVoucher.date} {printVoucher.time}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">لایەن:</span>
+                  <span className="font-bold">{printVoucher.partyName}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 text-[11px] text-right">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">قەرزی پێشوو:</span>
+                  <span className="font-bold tabular-nums">{(printVoucher.previousDebt || 0).toLocaleString()} د.ع</span>
+                </div>
+                <div className="flex justify-between text-[#248A3D]">
+                  <span className="font-bold">بڕی دراو / وەرگیراو:</span>
+                  <span className="font-black tabular-nums">{printVoucher.amount.toLocaleString()} د.ع</span>
+                </div>
+                {printVoucher.discount > 0 && (
+                  <div className="flex justify-between text-[#FF9500]">
+                    <span>داشکاندن:</span>
+                    <span className="font-bold tabular-nums">{printVoucher.discount.toLocaleString()} د.ع</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-black pt-1.5 border-t border-black/15">
+                  <span>قەرزی ماوە:</span>
+                  <span className={printVoucher.remainingDebt > 0 ? 'text-[#D70015]' : 'text-[#248A3D]'}>
+                    {printVoucher.remainingDebt.toLocaleString()} د.ع
+                  </span>
+                </div>
+              </div>
+
+              {printVoucher.notes && (
+                <p className="text-[10px] text-[#86868B] text-right">تێبینی: {printVoucher.notes}</p>
+              )}
+              <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
+                Powered by RAND SUITE
+              </p>
+            </div>
           </div>
         </div>
       )}

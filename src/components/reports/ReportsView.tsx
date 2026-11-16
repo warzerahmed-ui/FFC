@@ -16,6 +16,7 @@ import {
   Download,
   Boxes,
   X,
+  Trash2,
 } from 'lucide-react';
 import { ExpenseRecord } from '../../types';
 import { DailySettlementView } from '../accounting/DailySettlementView';
@@ -45,6 +46,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     branchStock,
     custodyTransfers,
     addExpense,
+    softDeleteRecord,
+    hasAccess,
     factorySettings,
   } = useApp();
 
@@ -103,6 +106,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     [dispatches, inPeriod]
   );
   const filteredPosSales = useMemo(() => posSales.filter(s => inPeriod(s.date)), [posSales, inPeriod]);
+  const filteredPosRegularSales = useMemo(
+    () => filteredPosSales.filter(s => s.paymentType !== 'GIFT'),
+    [filteredPosSales]
+  );
+  const filteredPosGiftSales = useMemo(
+    () => filteredPosSales.filter(s => s.paymentType === 'GIFT'),
+    [filteredPosSales]
+  );
   const filteredReturns = useMemo(() => returns.filter(r => inPeriod(r.date)), [returns, inPeriod]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inPeriod(e.date)), [expenses, inPeriod]);
   const filteredBranchExpenses = useMemo(
@@ -111,7 +122,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   );
 
   const repSalesRevenue = filteredSalesDispatches.reduce((sum, d) => sum + d.totalAmount, 0);
-  const storePosRevenue = filteredPosSales.reduce((sum, s) => sum + s.total, 0);
+  const storePosRevenue = filteredPosRegularSales.reduce((sum, s) => sum + s.total, 0);
   const totalSalesRevenue = repSalesRevenue + storePosRevenue;
 
   // Latest real slaughter batch cost per product (dressedCostPerKg from yields)
@@ -129,7 +140,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return map;
   }, [yields]);
 
-  // Real Cost of Goods Sold (COGS) across Rep Sales + Showroom POS Sales in selected period
+  // Real Cost of Goods Sold (COGS) across Rep Sales + Showroom POS Regular Sales in selected period
   const repCogsAmount = filteredSalesDispatches.reduce((sum, d) => {
     return (
       sum +
@@ -142,7 +153,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   }, 0);
 
-  const posCogsAmount = filteredPosSales.reduce((sum, sale) => {
+  const posCogsAmount = filteredPosRegularSales.reduce((sum, sale) => {
     return (
       sum +
       sale.items.reduce((s, item) => {
@@ -158,7 +169,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const totalLiveBirdPurchases = filteredIntakes.reduce((sum, i) => sum + i.totalAmount, 0);
   const totalReturnsLoss = filteredReturns.reduce((sum, r) => sum + r.totalLossAmount, 0);
 
-  const totalGiftCost = filteredGiftDispatches.reduce((sum, d) => {
+  const dispatchGiftCost = filteredGiftDispatches.reduce((sum, d) => {
     if (d.totalFactoryCost !== undefined) return sum + d.totalFactoryCost;
     return (
       sum +
@@ -169,6 +180,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }, 0)
     );
   }, 0);
+
+  const posGiftCost = filteredPosGiftSales.reduce((sum, sale) => {
+    if (sale.giftCost !== undefined && sale.giftCost > 0) return sum + sale.giftCost;
+    return (
+      sum +
+      sale.items.reduce((s, item) => {
+        const bItem = branchStock.find(b => b.productId === item.productId);
+        const prod = products.find(p => p.id === item.productId);
+        const unitCost = batchCostMap.get(item.productId) ?? bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
+        return s + Math.round(item.weightKg * unitCost);
+      }, 0)
+    );
+  }, 0);
+
+  const totalGiftCost = dispatchGiftCost + posGiftCost;
 
   const totalFactoryExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalStoreExpenses = filteredBranchExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -237,11 +263,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       ['ڕاپۆرتی قازانج و زەرەر (P&L)', factorySettings.factoryName, periodLabel],
       ['بڕگە', 'وردەکاری', 'بڕ (د.ع)'],
       ['داهاتی فرۆشتنی مەندوب', `${filteredSalesDispatches.length} وەسڵ`, String(repSalesRevenue)],
-      ['داهاتی فرۆشگای POS', `${filteredPosSales.length} وەسڵ`, String(storePosRevenue)],
+      ['داهاتی فرۆشگای POS', `${filteredPosRegularSales.length} وەسڵ`, String(storePosRevenue)],
       ['کۆی داهاتی فرۆشتن', '', String(totalSalesRevenue)],
       ['تێچووی کاڵای فرۆشراو (COGS)', `مەندوب: ${repCogsAmount} | شۆرۆم: ${posCogsAmount}`, String(-totalCogsAmount)],
       ['زیانی گەڕاوەی ٣ ڕۆژ (تەلەف)', `${filteredReturns.length} تۆمار`, String(-totalReturnsLoss)],
-      ['تێچووی دیاری و هەدیە', `${filteredGiftDispatches.length} وەسڵ`, String(-totalGiftCost)],
+      ['تێچووی دیاری و هەدیە', `کارگە/مەندوب: ${dispatchGiftCost} | شۆرۆم: ${posGiftCost}`, String(-totalGiftCost)],
       ['خەرجی کارگە و شۆرۆم', `کارگە: ${totalFactoryExpenses} | شۆرۆم: ${totalStoreExpenses}`, String(-totalOperatingExpenses)],
       ['پوختەی قازانجی خاوێن (Net Operating Profit)', '', String(netProfit)],
       ['---', '---', '---'],
@@ -384,14 +410,52 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowExpenseModal(true)}
-            className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full flex items-center gap-1.5 shadow-sm transition-all active:scale-95 w-fit no-print"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            خەرجی نوێ
-          </button>
+          <div className="flex flex-wrap items-center gap-2 no-print">
+            <button
+              type="button"
+              onClick={() => {
+                const rows = [
+                  ['پۆلێن', 'بەروار', 'ناوی خەرجی', 'وەرگر', 'ژ. وەسڵ', 'بڕی پارە (د.ع)'],
+                  ...filteredExpenses.map(e => [
+                    getCategoryNameKu(e.category),
+                    e.date,
+                    e.title,
+                    e.recipient,
+                    e.receiptNo || '',
+                    String(e.amount),
+                  ]),
+                ];
+                const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `factory-expenses-${todayISO}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Excel / CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
+            >
+              <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
+              چاپکردن
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExpenseModal(true)}
+              className="px-5 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              خەرجی نوێ
+            </button>
+          </div>
         </div>
       )}
 
@@ -506,7 +570,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="flex justify-between items-center p-4 rounded-2xl bg-[#AF52DE]/6 border border-[#AF52DE]/15">
             <div>
               <span className="font-bold text-[#AF52DE] block">تێچووی دیاری و هەدیە (-)</span>
-              <span className="text-[#86868B] text-[11px]">بەخشینی بێبەرامبەر لە کۆگای کارگە و عەهدە</span>
+              <span className="text-[#86868B] text-[11px] tabular-nums">
+                کارگە و عەهدە ({dispatchGiftCost.toLocaleString()} د.ع) + شۆرۆم POS ({posGiftCost.toLocaleString()} د.ع)
+              </span>
             </div>
             <span className="text-base font-bold text-[#AF52DE] tabular-nums">
               -{totalGiftCost.toLocaleString()} د.ع
@@ -598,6 +664,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <th className="p-4">وەرگر</th>
                 <th className="p-4">ژ. وەسڵ</th>
                 <th className="p-4 text-left">بڕی پارە</th>
+                {hasAccess('settings') && <th className="p-4 text-center no-print">سڕینەوە</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
@@ -616,6 +683,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <td className="p-4 text-left font-black text-[#FF9500] tabular-nums">
                     {exp.amount.toLocaleString()} د.ع
                   </td>
+                  {hasAccess('settings') && (
+                    <td className="p-4 text-center no-print">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`خەرجی "${exp.title}" بخرێتە سەبەتەی سۆفت دیلیت؟`)) {
+                            softDeleteRecord('EXPENSE', exp.id, 'سڕینەوە لە لیستی خەرجییەکانی کارگە');
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-colors"
+                        title="سۆفت دیلیت"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
