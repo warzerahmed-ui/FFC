@@ -19,6 +19,7 @@ import {
   ClipboardList,
   MessageCircle,
   AlertTriangle,
+  Download,
   Calendar,
   Barcode,
 } from 'lucide-react';
@@ -235,6 +236,29 @@ export const RepSalesView: React.FC = () => {
     (sum, r) => sum + (r.totalCustomerDeduction ?? r.totalLossAmount),
     0
   );
+
+  const handleExportSalesCsv = () => {
+    const rows = [
+      ['ژ. وەسڵ', 'بەروار', 'مەندوب', 'کڕیار / مارکێت', 'کێش (کگم)', 'شێوازی دان', 'کۆی پارە (د.ع)'],
+      ...filteredRepSales.map(d => [
+        d.manualReceiptNo,
+        d.date,
+        d.repName || '',
+        d.customerName || d.destinationName,
+        String(d.totalWeightKg),
+        d.paymentType || 'CREDIT',
+        String(d.totalAmount),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Rep-Sales-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const filteredReceiptOptions = useMemo(() => {
     const q = searchReceiptQuery.trim().toLowerCase();
@@ -640,6 +664,24 @@ export const RepSalesView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportSalesCsv}
+            title="دابەزاندنی Excel / CSV"
+            aria-label="دابەزاندنی Excel / CSV"
+            className="w-9 h-9 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] flex items-center justify-center transition-all"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            title="چاپکردن"
+            aria-label="چاپکردن"
+            className="w-9 h-9 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] flex items-center justify-center transition-all"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={handleOpenSaleModal}

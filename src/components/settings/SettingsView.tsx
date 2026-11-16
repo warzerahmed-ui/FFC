@@ -16,6 +16,7 @@ import {
   Phone,
   MapPin,
   FileText,
+  Printer,
   AlertTriangle,
   X,
   UserCheck,
@@ -1358,6 +1359,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const rows = [
+                    ['بەروار', 'کات', 'بەکارهێنەر', 'بەش', 'کردار', 'سەردێڕ', 'وردەکاری', 'سەرچاوە'],
+                    ...filteredLogs.map(l => [
+                      l.date,
+                      l.time,
+                      l.userName,
+                      l.category,
+                      l.action,
+                      l.title,
+                      l.details || '',
+                      l.refNo || '',
+                    ]),
+                  ];
+                  const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `activity-log-${todayStr}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                title="دابەزاندنی Excel / CSV"
+                aria-label="دابەزاندنی Excel / CSV"
+                className="w-9 h-9 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] flex items-center justify-center cursor-pointer transition-all"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title="چاپکردن"
+                aria-label="چاپکردن"
+                className="w-9 h-9 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#0071E3] flex items-center justify-center cursor-pointer transition-all"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+
               {!confirmClearLogs ? (
                 <button
                   type="button"

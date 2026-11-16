@@ -16,6 +16,7 @@ import {
   X,
   ArrowLeftRight,
   Clock,
+  Download,
   MessageCircle,
   Truck,
 } from 'lucide-react';
@@ -1213,6 +1214,45 @@ export const DailySettlementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const rows = [
+                      [factorySettings.factoryName, 'کەشفی حسابی فرۆشی ڕۆژانە', statementAccount.accountName, selectedDate],
+                      ['ژ. وەسڵ', 'کات', 'کڕیار / وردەکاری', 'شێواز', 'کێش (کگم)', 'بڕی پارە (د.ع)'],
+                      ...statementAccount.receipts.map(r => [
+                        r.receiptNo,
+                        r.time,
+                        r.partyLabel,
+                        r.paymentKind,
+                        String(r.weightKg),
+                        String(r.amount),
+                      ]),
+                      ['---', '---', '---', '---', '---', '---'],
+                      ['کۆی فرۆشتن', '', '', '', String(statementAccount.totalWeightKg), String(statementAccount.totalSalesAmount)],
+                      ['فرۆشی کاش', '', '', '', '', String(statementAccount.cashSalesAmount)],
+                      ['فرۆشی قەرز', '', '', '', '', String(statementAccount.creditSalesAmount)],
+                      ['فرۆشی کارت / FIB', '', '', '', '', String(statementAccount.cardSalesAmount)],
+                      ['گەڕاوەی ٣ ڕۆژ', '', `${statementAccount.returnsCount} وەسڵ`, '', String(statementAccount.returnsWeightKg), String(statementAccount.returnsAmount)],
+                      ['پێویست بوو بگەڕێتەوە', '', '', '', '', String(statementAccount.expectedTotalToday)],
+                      ['پارەی گەڕاوە', '', '', '', '', String(statementAccount.returnedTotalToday)],
+                      ['جیاوازی', '', '', '', '', String(statementAccount.varianceToday)],
+                    ];
+                    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `DailySettlement-${selectedDate}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  title="دابەزاندنی Excel / CSV"
+                  aria-label="دابەزاندنی Excel / CSV"
+                  className="w-9 h-9 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] flex items-center justify-center transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     if (!statementAccount) return;
                     const msg = `ڕاپۆرتی تەسفییەی حسابی ڕۆژانە\nکارگەی ${factorySettings.factoryName} (${factorySettings.shortCode})\n\nحساب: ${statementAccount.accountName}\nبەروار: ${selectedDate}\n\nکۆی فرۆشتن: ${statementAccount.totalSalesAmount.toLocaleString()} د.ع (${statementAccount.totalWeightKg} کگم)\nفرۆشی کاش: ${statementAccount.cashSalesAmount.toLocaleString()} د.ع\nفرۆشی قەرز: ${statementAccount.creditSalesAmount.toLocaleString()} د.ع\nگەڕاوەی ٣ ڕۆژ: ${statementAccount.returnsAmount.toLocaleString()} د.ع\nخەرجی لێدەرکراو: ${statementAccount.expensesAmount.toLocaleString()} د.ع\nقەرزی وەرگیراو: ${statementAccount.collectedDebtToday.toLocaleString()} د.ع\n\nکاشی گەڕاوە بۆ کارگە: ${statementAccount.returnedCashToday.toLocaleString()} د.ع\nجیاوازی سندووق: ${statementAccount.varianceToday.toLocaleString()} د.ع (${statementAccount.varianceToday === 0 ? 'تەواو و بەرابەر' : statementAccount.varianceToday < 0 ? 'کورتھێنان' : 'زیادە'})\n\nتەلەفۆن: ${factorySettings.phone1}`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -1225,10 +1265,11 @@ export const DailySettlementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center gap-1.5"
+                  title="چاپکردنی کەشفی حساب"
+                  aria-label="چاپکردن"
+                  className="w-9 h-9 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white flex items-center justify-center transition-all"
                 >
-                  <Printer className="w-3.5 h-3.5" />
-                  چاپکردنی کەشفی حساب
+                  <Printer className="w-4 h-4" />
                 </button>
                 <button
                   type="button"

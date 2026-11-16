@@ -14,6 +14,7 @@ import {
   Plus,
   Trash2,
   Search,
+  Download,
   Store,
   Clock,
 } from 'lucide-react';
@@ -204,6 +205,29 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     }
   };
 
+  const handleExportInventoryCsv = () => {
+    const rows = [
+      ['کۆد', 'ناوی پارچە', 'کێشی ئامادە (کگم)', 'سنووری ئاگاداری (کگم)', 'نرخی فرۆش (د.ع)', 'تێچووی کیلۆ (د.ع)', 'بەهای کۆگا (د.ع)'],
+      ...products.map(p => [
+        p.code,
+        p.nameKu,
+        String(p.inStockKg),
+        String(p.minAlertKg ?? 100),
+        String(p.pricePerKg),
+        String(p.costPerKg),
+        String(Math.round(p.inStockKg * p.pricePerKg)),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Ready-Inventory-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // --- 3-Day Return Conversion Handlers ---
   const handleOpenConvertModal = (ret: ReturnOrder) => {
     setConvertingReturn(ret);
@@ -324,6 +348,26 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportInventoryCsv}
+            title="دابەزاندنی Excel / CSV"
+            aria-label="دابەزاندنی Excel / CSV"
+            className="w-9 h-9 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] flex items-center justify-center transition-all"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            title="چاپکردن"
+            aria-label="چاپکردن"
+            className="w-9 h-9 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] flex items-center justify-center transition-all"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+
           <button
             type="button"
             onClick={() => handleOpenBranchTransfer()}
