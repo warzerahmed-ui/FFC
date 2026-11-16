@@ -25,7 +25,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   const [newFarmName, setNewFarmName] = useState('');
   const [newFarmLocation, setNewFarmLocation] = useState('');
   const [newFarmPhone, setNewFarmPhone] = useState('');
-  const [driverName, setDriverName] = useState('');
   const [birdCount, setBirdCount] = useState<number | ''>('');
   const [netWeightInput, setNetWeightInput] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
@@ -86,7 +85,7 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
       manualReceiptNo,
       date,
       farmName,
-      driverName,
+      driverName: '',
       birdCount: Number(birdCount) || 0,
       deadBirdCount: 0,
       deadWeightKg: 0,
@@ -106,7 +105,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
     setShowAddFarmBox(false);
     setManualReceiptNo('');
     setFarmName('');
-    setDriverName('');
     setBirdCount('');
     setNetWeightInput('');
     setPaidAmount(0);
@@ -196,7 +194,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                 <th className="p-4">ژ. وەسڵی دەستی</th>
                 <th className="p-4">بەروار</th>
                 <th className="p-4">ناوی کێڵگە</th>
-                <th className="p-4">شۆفێر</th>
                 <th className="p-4 text-center">ژمارەی مریشک</th>
                 <th className="p-4 text-center">کێشی خاوێن</th>
                 <th className="p-4 text-center">نرخی کیلۆ</th>
@@ -215,7 +212,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                   </td>
                   <td className="p-4 text-[#86868B] tabular-nums">{intake.date}</td>
                   <td className="p-4 font-bold text-[#1D1D1F]">{intake.farmName}</td>
-                  <td className="p-4 text-[#515154]">{intake.driverName || '---'}</td>
                   <td className="p-4 text-center tabular-nums font-semibold">
                     <div>{intake.birdCount > 0 ? intake.birdCount.toLocaleString() : '---'}</div>
                     {Boolean(intake.deadBirdCount && intake.deadBirdCount > 0) && (
@@ -417,17 +413,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
                       </button>
                     </div>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-[#515154] font-semibold mb-1">ناوی شۆفێر</label>
-                  <input
-                    type="text"
-                    placeholder="ناوی شۆفێر..."
-                    value={driverName}
-                    onChange={e => setDriverName(e.target.value)}
-                    className="apple-input w-full px-3.5 py-2"
-                  />
                 </div>
 
                 <div>
