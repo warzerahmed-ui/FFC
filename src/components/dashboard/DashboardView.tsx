@@ -123,7 +123,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             };
           })
       : []),
+    ...(hasAccess('custody') || hasAccess('pos')
+      ? []
+      : []),
   ].filter(w => w.ageDays >= Math.max(2, freshWindowDays - 1));
+
+  // Low-Stock Alerts (Ready Warehouse & Showroom POS)
+  const lowReadyProducts = hasAccess('ready-for-sale')
+    ? products.filter(p => p.inStockKg < (p.minAlertKg ?? 100))
+    : [];
+  const lowBranchProducts = hasAccess('pos')
+    ? branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 10))
+    : [];
+
+  // 7-Day Sales Overview (Rep Sales + Showroom POS)
+  const last7DaysSales = Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(`${todayISO}T00:00:00`);
+    d.setDate(d.getDate() - (6 - idx));
+    const iso = toLocalISODate(d);
+    const repTotal = repSalesList
+      .filter(s => s.date.slice(0, 10) === iso)
+      .reduce((sum, s) => sum + s.totalAmount, 0);
+    const posTotal = posSales
+      .filter(s => s.date.slice(0, 10) === iso)
+      .reduce((sum, s) => sum + s.total, 0);
+    return {
+      iso,
+      label: iso.slice(5),
+      repTotal,
+      posTotal,
+      total: repTotal + posTotal,
+    };
+  });
+  const max7DayTotal = Math.max(1, ...last7DaysSales.map(d => d.total));
 
   const formatIQD = (val: number) => `${val.toLocaleString()} د.ع`;
 
@@ -185,6 +217,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               کۆگای مەندوب و گەڕاوە
             </button>
           )}
+        </div>
+      )}
+
+      {/* Low-Stock Alert Banner (Factory Ready Stock & Showroom POS) */}
+      {(lowReadyProducts.length > 0 || lowBranchProducts.length > 0) && (
+        <div className="p-4 rounded-3xl bg-[#FF3B30]/8 border border-[#FF3B30]/25 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center shrink-0">
+              <Boxes className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-extrabold text-[#B91C1C]">
+                ئاگادارکردنەوەی کەمبوونی کۆگا: {lowReadyProducts.length} بەرهەمی کارگە و {lowBranchProducts.length} بەرهەمی شۆرۆم لە سنووری کەمیدان!
+              </div>
+              <div className="text-[11px] text-[#7F1D1D] mt-1 flex flex-wrap gap-1.5">
+                {lowReadyProducts.slice(0, 4).map(p => (
+                  <span key={p.id} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
+                    کارگە: {p.nameKu} ({p.inStockKg.toLocaleString()} کگم)
+                  </span>
+                ))}
+                {lowBranchProducts.slice(0, 4).map(b => (
+                  <span key={b.productId} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
+                    شۆرۆم: {b.productName} ({b.inStockKg.toFixed(1)} کگم)
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {lowReadyProducts.length > 0 && hasAccess('ready-for-sale') && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('ready-for-sale')}
+                className="px-3.5 py-2 rounded-full bg-[#FF3B30] hover:bg-[#DC2626] text-white text-xs font-bold transition-all"
+              >
+                کۆگای ئامادە
+              </button>
+            )}
+            {lowBranchProducts.length > 0 && hasAccess('pos') && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('pos')}
+                className="px-3.5 py-2 rounded-full bg-[#1D1D1F] hover:bg-black text-white text-xs font-bold transition-all"
+              >
+                کۆگای شۆرۆم
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -476,6 +556,63 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           </button>
         )}
       </div>
+
+      {/* 7-Day Sales Performance Chart */}
+      {(hasAccess('rep-sales') || hasAccess('pos')) && (
+        <div className="apple-card p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-extrabold text-[#1D1D1F]">
+                چالاکی و فرۆشتنی ٧ ڕۆژی ڕابردوو (مەندوب + شۆرۆم)
+              </h3>
+              <p className="text-[11px] text-[#86868B]">
+                بەراوردی داهاتی ڕۆژانەی فرۆشتن لە ماوەی هەفتەیەکدا
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] font-bold">
+              <span className="inline-flex items-center gap-1.5 text-[#0071E3]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#0071E3]" />
+                شۆرۆم (POS)
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[#34C759]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#34C759]" />
+                مەندوب
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 items-end h-36 pt-3">
+            {last7DaysSales.map(day => {
+              const totalPct = Math.round((day.total / max7DayTotal) * 100);
+              const repPct = day.total > 0 ? Math.round((day.repTotal / day.total) * 100) : 0;
+              return (
+                <div key={day.iso} className="flex flex-col items-center gap-1.5 h-full justify-end">
+                  <div className="text-[10px] font-bold text-[#515154] tabular-nums truncate max-w-full">
+                    {day.total > 0 ? `${Math.round(day.total / 1000)}k` : '0'}
+                  </div>
+                  <div className="w-full max-w-[36px] flex-1 flex items-end bg-[#F5F5F7] rounded-xl overflow-hidden p-0.5">
+                    <div
+                      className="w-full rounded-lg overflow-hidden flex flex-col justify-end transition-all"
+                      style={{ height: `${Math.max(day.total > 0 ? 12 : 4, totalPct)}%` }}
+                      title={`${day.iso}: مەندوب ${day.repTotal.toLocaleString()} د.ع • شۆرۆم ${day.posTotal.toLocaleString()} د.ع`}
+                    >
+                      <div
+                        className="w-full bg-[#0071E3]"
+                        style={{ height: `${100 - repPct}%` }}
+                      />
+                      <div
+                        className="w-full bg-[#34C759]"
+                        style={{ height: `${repPct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-mono font-semibold text-[#86868B]">{day.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

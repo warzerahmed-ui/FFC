@@ -12,6 +12,8 @@ import {
   X,
   ArrowRight,
   Clock,
+  Printer,
+  Download,
 } from 'lucide-react';
 import { TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -43,6 +45,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const {
     products,
     dispatches,
+    returns,
     custodyTransfers,
     loadToRepCustody,
     returnUnsoldToReadyStock,
@@ -50,12 +53,15 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     rejectCustodyTransfer,
     currentUser,
     repNames,
+    factorySettings,
   } = useApp();
 
   const isWarehouseAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN';
   const isRepUser = currentUser.role === 'REP';
 
   const [selectedFilterHolder, setSelectedFilterHolder] = useState<string>('ALL');
+  const [reportHolder, setReportHolder] = useState<HolderSummary | null>(null);
+  const [reportDate, setReportDate] = useState<string>(toLocalISODate());
 
   // Modal 1: Load / Send from Ready Stock onto Rep Custody Account
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -684,6 +690,18 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                   </button>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportDate(toLocalISODate());
+                    setReportHolder(holder);
+                  }}
+                  className="px-3.5 py-2 rounded-full bg-[#1D1D1F]/8 hover:bg-[#1D1D1F] text-[#1D1D1F] hover:text-white text-[11px] font-bold flex items-center gap-1 transition-all"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  ڕاپۆرتی کۆتایی ڕۆژ
+                </button>
+
                 {onNavigate && (
                   <button
                     type="button"
@@ -1064,6 +1082,197 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Modal 3: Rep End-of-Day Printable & CSV Report */}
+      {reportHolder && (() => {
+        const repDispatches = dispatches.filter(
+          d =>
+            d.repName === reportHolder.holderName &&
+            d.date.slice(0, 10) === reportDate &&
+            d.destinationType === 'REP'
+        );
+        const repReturns = returns.filter(
+          r => r.repName === reportHolder.holderName && r.date.slice(0, 10) === reportDate
+        );
+        const dayLoadedKg = custodyTransfers
+          .filter(
+            t =>
+              t.holderName === reportHolder.holderName &&
+              t.date.slice(0, 10) === reportDate &&
+              t.direction === 'LOAD' &&
+              (!t.status || t.status === 'ACCEPTED')
+          )
+          .reduce((s, t) => s + t.totalWeightKg, 0);
+
+        const cashTotal = repDispatches
+          .filter(d => d.paymentType === 'CASH')
+          .reduce((s, d) => s + d.totalAmount, 0);
+        const creditTotal = repDispatches
+          .filter(d => d.paymentType === 'CREDIT')
+          .reduce((s, d) => s + d.totalAmount, 0);
+        const electronicTotal = repDispatches
+          .filter(d => d.paymentType === 'ELECTRONIC')
+          .reduce((s, d) => s + d.totalAmount, 0);
+        const daySoldKg = repDispatches.reduce((s, d) => s + d.totalWeightKg, 0);
+        const dayReturnedKg = repReturns.reduce((s, r) => s + r.totalWeightKg, 0);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white rounded-[28px] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-black/[0.08] space-y-5 apple-sheet">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] pb-4">
+                <div>
+                  <h3 className="text-base font-black text-[#1D1D1F]">
+                    ڕاپۆرتی کۆتایی ڕۆژی مەندوب: {reportHolder.holderName}
+                  </h3>
+                  <p className="text-[11px] text-[#86868B]">
+                    {factorySettings.factoryName} ({factorySettings.shortCode}) • {reportDate}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 no-print">
+                  <input
+                    type="date"
+                    value={reportDate}
+                    onChange={e => setReportDate(e.target.value)}
+                    className="apple-input px-3 py-1.5 text-xs font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setReportHolder(null)}
+                    className="w-8 h-8 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 rounded-2xl bg-[#0071E3]/10">
+                  <div className="text-[10px] text-[#0071E3] font-semibold">باری وەرگیراوی ئەمڕۆ</div>
+                  <div className="text-base font-black text-[#0071E3] tabular-nums mt-0.5">
+                    {dayLoadedKg.toLocaleString()} کگم
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#34C759]/10">
+                  <div className="text-[10px] text-[#248A3D] font-semibold">فرۆشراوی ئەمڕۆ</div>
+                  <div className="text-base font-black text-[#248A3D] tabular-nums mt-0.5">
+                    {daySoldKg.toLocaleString()} کگم
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#FF3B30]/10">
+                  <div className="text-[10px] text-[#D70015] font-semibold">گەڕاوەی ٣ ڕۆژ</div>
+                  <div className="text-base font-black text-[#D70015] tabular-nums mt-0.5">
+                    {dayReturnedKg.toLocaleString()} کگم
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-[#FF9500]/12">
+                  <div className="text-[10px] text-[#B25000] font-semibold">ماوەی ناو سەیارە</div>
+                  <div className="text-base font-black text-[#B25000] tabular-nums mt-0.5">
+                    {reportHolder.remainingKg.toLocaleString()} کگم
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
+                  <span className="text-[11px] text-[#86868B] block">فرۆشتنی کاش (پارەی دەست)</span>
+                  <span className="text-lg font-black text-[#248A3D] tabular-nums">
+                    {cashTotal.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
+                  <span className="text-[11px] text-[#86868B] block">فرۆشتنی قەرز</span>
+                  <span className="text-lg font-black text-[#FF9500] tabular-nums">
+                    {creditTotal.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
+                  <span className="text-[11px] text-[#86868B] block">ئەلکترۆنی / حەواڵە</span>
+                  <span className="text-lg font-black text-[#0071E3] tabular-nums">
+                    {electronicTotal.toLocaleString()} د.ع
+                  </span>
+                </div>
+              </div>
+
+              <div className="border border-black/[0.06] rounded-2xl overflow-hidden text-xs">
+                <table className="w-full text-right">
+                  <thead className="bg-[#F5F5F7] text-[#515154] font-bold">
+                    <tr>
+                      <th className="p-3">وەسڵ</th>
+                      <th className="p-3">کڕیار / مارکێت</th>
+                      <th className="p-3">کێش</th>
+                      <th className="p-3">جۆر</th>
+                      <th className="p-3">بڕی پارە</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.05]">
+                    {repDispatches.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-[#86868B]">
+                          هیچ وەسڵێکی فرۆشتن لە {reportDate} بۆ ئەم مەندوبە نییە
+                        </td>
+                      </tr>
+                    ) : (
+                      repDispatches.map(d => (
+                        <tr key={d.id}>
+                          <td className="p-3 font-mono font-bold text-[#0071E3]">{d.manualReceiptNo}</td>
+                          <td className="p-3 font-bold">{d.customerName || d.destinationName}</td>
+                          <td className="p-3 tabular-nums">{d.totalWeightKg} کگم</td>
+                          <td className="p-3 font-semibold">
+                            {d.paymentType === 'CASH' ? 'کاش' : d.paymentType === 'CREDIT' ? 'قەرز' : 'ئەلکترۆنی'}
+                          </td>
+                          <td className="p-3 font-black tabular-nums">{d.totalAmount.toLocaleString()} د.ع</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-black/[0.06] text-xs no-print">
+                <span className="text-[#86868B]">واژۆی مەندوب: _______________</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const csvRows = [
+                        ['ڕاپۆرتی مەندوب', reportHolder.holderName, reportDate],
+                        ['وەسڵ', 'کڕیار', 'کێش (کگم)', 'شێواز', 'بڕ (د.ع)'],
+                        ...repDispatches.map(d => [
+                          d.manualReceiptNo,
+                          d.customerName || d.destinationName,
+                          String(d.totalWeightKg),
+                          d.paymentType,
+                          String(d.totalAmount),
+                        ]),
+                      ];
+                      const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Rep-EOD-${reportHolder.holderName}-${reportDate}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-2 rounded-full bg-[#34C759]/12 text-[#248A3D] font-bold flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Excel / CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-5 py-2 rounded-full bg-[#1D1D1F] text-white font-bold flex items-center gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    چاپکردن
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

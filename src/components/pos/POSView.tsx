@@ -24,6 +24,8 @@ import {
   Clock,
   FileText,
   Truck,
+  RotateCcw,
+  Download,
 } from 'lucide-react';
 import { POSSaleItem, POSSale, ProductItem, BranchStockItem, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -150,6 +152,7 @@ export const POSView: React.FC<POSViewProps> = ({
     currentUser,
     factorySettings,
     addPOSSale,
+    addReturn,
     addBranchDelivery,
     addBranchExpense,
     updateBranchStockItem,
@@ -205,6 +208,49 @@ export const POSView: React.FC<POSViewProps> = ({
   const [showZReportModal, setShowZReportModal] = useState(false);
   const [editingPriceItem, setEditingPriceItem] = useState<BranchStockItem | null>(null);
   const [newPriceInput, setNewPriceInput] = useState<string>('');
+  const [newMinAlertInput, setNewMinAlertInput] = useState<string>('5');
+
+  // Shift Opening Float & Actual Cash Drawer Count
+  const todayISO = toLocalISODate();
+  const [openingFloat, setOpeningFloat] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem('ffc_pos_drawer_float_v1');
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw) as { date?: string; amount?: number };
+      return parsed.date === toLocalISODate() ? Number(parsed.amount) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [actualCashCount, setActualCashCount] = useState<string>('');
+  const [salesSearch, setSalesSearch] = useState<string>('');
+
+  const handleOpeningFloatChange = (val: number) => {
+    const clean = Math.max(0, val || 0);
+    setOpeningFloat(clean);
+    try {
+      localStorage.setItem('ffc_pos_drawer_float_v1', JSON.stringify({ date: todayISO, amount: clean }));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Customer Return / Refund Modal
+  const [returningSale, setReturningSale] = useState<POSSale | null>(null);
+  const [returnWeights, setReturnWeights] = useState<Record<string, number>>({});
+  const [returnNotes, setReturnNotes] = useState('');
+
+  // Inbound Delivery Receipt Print Modal
+  const [selectedInboundReceipt, setSelectedInboundReceipt] = useState<{
+    id: string;
+    receiptNo: string;
+    date: string;
+    time?: string;
+    repName: string;
+    totalWeightKg: number;
+    itemsCount: number;
+    items?: { productName: string; weightKg: number }[];
+  } | null>(null);
 
   // Inbound Stock Receipt Modal (Manual & Barcode Receive at Showroom)
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -260,6 +306,11 @@ export const POSView: React.FC<POSViewProps> = ({
         ) {
           handleCompleteSale();
         }
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        if (posSales.length > 0) {
+          setPrintReceipt(posSales[0]);
+        }
       } else if (e.key === 'Escape') {
         setWeightModalProduct(null);
         setPrintReceipt(null);
@@ -267,6 +318,8 @@ export const POSView: React.FC<POSViewProps> = ({
         setShowZReportModal(false);
         setShowReceiveModal(false);
         setShowAddExpenseModal(false);
+        setReturningSale(null);
+        setSelectedInboundReceipt(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -541,6 +594,7 @@ export const POSView: React.FC<POSViewProps> = ({
         repName: d.repName || d.destinationName,
         totalWeightKg: d.totalWeightKg,
         itemsCount: d.items.length,
+        items: d.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
         source: 'REP_RECEIPT' as const,
       }));
 
@@ -552,6 +606,7 @@ export const POSView: React.FC<POSViewProps> = ({
       repName: b.repName,
       totalWeightKg: b.totalWeightKg,
       itemsCount: b.items.length,
+      items: b.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
       source: 'DIRECT_INBOUND' as const,
     }));
 
@@ -703,9 +758,111 @@ export const POSView: React.FC<POSViewProps> = ({
   const totalDebtSales = posSales.filter(s => s.paymentType === 'DEBT').reduce((sum, s) => sum + s.total, 0);
   const totalAllSales = posSales.reduce((sum, s) => sum + s.total, 0);
   const totalBranchExpenses = branchExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const netCashInDrawer = totalCashSales - totalBranchExpenses;
+  const netCashInDrawer = openingFloat + totalCashSales - totalBranchExpenses;
+  const actualCashNum = actualCashCount === '' ? null : Number(actualCashCount) || 0;
+  const cashDrawerDiff = actualCashNum !== null ? actualCashNum - netCashInDrawer : null;
   const totalShowroomStockKg = branchStock.reduce((sum, b) => sum + b.inStockKg, 0);
-  const lowStockCount = branchStock.filter(b => b.inStockKg < 5).length;
+  const lowStockCount = branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 5)).length;
+
+  const filteredPosSales = posSales.filter(s => {
+    const q = salesSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.saleNo.toLowerCase().includes(q) ||
+      (s.customerName || '').toLowerCase().includes(q) ||
+      (s.cashierName || '').toLowerCase().includes(q)
+    );
+  });
+
+  const handleExportPosSalesCsv = () => {
+    const rows = [
+      ['ژ. وەسڵ', 'بەروار', 'کات', 'کڕیار', 'کاشێر', 'شێواز', 'داشکاندن', 'کۆی گشتی (د.ع)'],
+      ...filteredPosSales.map(s => [
+        s.saleNo,
+        s.date,
+        s.time || '',
+        s.customerName || 'کڕیاری ئاسایی',
+        s.cashierName || '',
+        s.paymentType,
+        String(s.discount || 0),
+        String(s.total),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Showroom-POS-Sales-${todayISO}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleOpenReturnModal = (sale: POSSale) => {
+    setReturningSale(sale);
+    const init: Record<string, number> = {};
+    sale.items.forEach(it => {
+      init[it.productId] = 0;
+    });
+    setReturnWeights(init);
+    setReturnNotes('');
+  };
+
+  const handleSubmitPosReturn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!returningSale) return;
+    const retItems = returningSale.items
+      .map(it => {
+        const w = Math.min(it.weightKg, Number(returnWeights[it.productId] || 0));
+        if (w <= 0) return null;
+        const bItem = branchStock.find(b => b.productId === it.productId);
+        const prod = products.find(p => p.id === it.productId);
+        const unitCost = bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
+        return {
+          productId: it.productId,
+          productName: it.productName,
+          barcode: it.barcode || prod?.barcodePrefix || '',
+          weightKg: Number(w.toFixed(3)),
+          unitCost,
+          costPerKg: unitCost,
+          totalLoss: Math.round(w * unitCost),
+          salePricePerKg: it.pricePerKg,
+          customerDeductionAmount: roundTo250(w * it.pricePerKg),
+          reason: 'DAMAGED' as const,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    if (retItems.length === 0) {
+      showToast('تکایە کێشی گەڕاوە بنووسە', 'warn');
+      return;
+    }
+
+    const totalWeightKg = Number(retItems.reduce((s, i) => s + i.weightKg, 0).toFixed(3));
+    const totalLossAmount = retItems.reduce((s, i) => s + i.totalLoss, 0);
+    const totalCustomerDeduction = retItems.reduce((s, i) => s + (i.customerDeductionAmount || 0), 0);
+
+    addReturn({
+      manualReceiptNo: `POS-RET-${returningSale.saleNo}`,
+      salesReceiptNo: returningSale.saleNo,
+      date: todayISO,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      sourceType: 'BRANCH',
+      sourceName: factorySettings.showroomName || 'فرۆشگای شۆرۆم',
+      customerName: returningSale.customerName,
+      items: retItems,
+      totalWeightKg,
+      totalLossAmount,
+      totalCustomerDeduction,
+      disposalMethod: 'CONVERTED' as const,
+      conversionStatus: 'PENDING' as const,
+      notes: returnNotes.trim() || 'گەڕانەوە لە فرۆشگای شۆرۆم (POS)',
+    });
+
+    playPosBeep('success');
+    showToast(`گەڕاوە بۆ وەسڵی #${returningSale.saleNo} تۆمارکرا و نێردرا بۆ قۆناغی ٣`, 'success');
+    setReturningSale(null);
+  };
 
   return (
     <div className="space-y-5">
@@ -762,6 +919,17 @@ export const POSView: React.FC<POSViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          {posSales.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPrintReceipt(posSales[0])}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0071E3]/10 hover:bg-[#0071E3] text-[#0071E3] hover:text-white font-bold transition-all"
+              title="چاپکردنەوەی دوایین وەسڵ (F8)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>دوا وەسڵ (F8)</span>
+            </button>
+          )}
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] font-bold">
             <Boxes className="w-3.5 h-3.5 text-[#34C759]" />
             <span>کۆگای ئێستا: {totalShowroomStockKg.toFixed(0)} کگم</span>
@@ -1284,9 +1452,9 @@ export const POSView: React.FC<POSViewProps> = ({
                         <td className="p-3.5">
                           <span
                             className={`px-2.5 py-0.5 rounded-full font-bold tabular-nums ${
-                              item.inStockKg > 20
+                              item.inStockKg > (item.minAlertKg ?? 5) * 2
                                 ? 'bg-[#34C759]/12 text-[#248A3D]'
-                                : item.inStockKg >= 5
+                                : item.inStockKg >= (item.minAlertKg ?? 5)
                                 ? 'bg-[#FF9500]/12 text-[#B25000]'
                                 : 'bg-[#FF3B30]/12 text-[#D70015]'
                             }`}
@@ -1303,11 +1471,12 @@ export const POSView: React.FC<POSViewProps> = ({
                             onClick={() => {
                               setEditingPriceItem(item);
                               setNewPriceInput(item.retailPricePerKg.toString());
+                              setNewMinAlertInput(String(item.minAlertKg ?? 5));
                             }}
                             className="px-3 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-semibold text-xs transition-colors inline-flex items-center gap-1"
                           >
                             <Edit3 className="w-3 h-3" />
-                            نرخ
+                            نرخ / ئاگاداری
                           </button>
                         </td>
                       </tr>
@@ -1332,20 +1501,25 @@ export const POSView: React.FC<POSViewProps> = ({
                   <p className="py-10 text-center text-xs text-[#86868B]">هێشتا هیچ وەسڵێکی هاتوو نییە</p>
                 ) : (
                   showroomInboundReceipts.map(rec => (
-                    <div key={rec.id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                    <button
+                      type="button"
+                      key={rec.id}
+                      onClick={() => setSelectedInboundReceipt(rec)}
+                      className="w-full py-2.5 px-1.5 hover:bg-[#F5F5F7]/70 rounded-xl flex items-center justify-between gap-2 text-xs text-right transition-colors"
+                    >
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono font-bold text-[#0071E3]">{rec.receiptNo}</span>
                           <span className="font-bold text-[#1D1D1F]">{rec.repName}</span>
                         </div>
                         <span className="text-[10px] text-[#86868B]">
-                          {rec.date} {rec.time} • {rec.itemsCount} بەرهەم
+                          {rec.date} {rec.time} • {rec.itemsCount} بەرهەم (کلیک بۆ چاپ)
                         </span>
                       </div>
-                      <span className="font-extrabold text-[#248A3D] tabular-nums">
+                      <span className="font-extrabold text-[#248A3D] tabular-nums shrink-0">
                         +{rec.totalWeightKg.toFixed(1)} کگم
                       </span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -1370,14 +1544,82 @@ export const POSView: React.FC<POSViewProps> = ({
                 پوختەی فرۆشتنی نەقد، کارت، قەرز، خەرجی و صافی پارەی ناو قاسە بە 80mm
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowZReportModal(true)}
-              className="px-4 py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 shrink-0"
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleExportPosSalesCsv}
+                className="px-4 py-2.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Excel / CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowZReportModal(true)}
+                className="px-4 py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              >
+                <Printer className="w-4 h-4" />
+                چاپکردنی Z-Report (داخستنی سەندوق)
+              </button>
+            </div>
+          </div>
+
+          {/* Shift Opening Float & Actual Cash Drawer Reconciliation */}
+          <div className="apple-card p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-center text-xs">
+            <div>
+              <label className="font-bold text-[#515154] block mb-1">
+                پارەی سەرەتای شەفت (Opening Float):
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={openingFloat || ''}
+                onChange={e => handleOpeningFloatChange(Number(e.target.value) || 0)}
+                placeholder="0 د.ع"
+                className="apple-input w-full px-3 py-2 font-black tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-[#515154] block mb-1">
+                ژماردنی کاشی ناو قاسە (Actual Cash):
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="250"
+                value={actualCashCount}
+                onChange={e => setActualCashCount(e.target.value)}
+                placeholder="بڕی ژمێردراو..."
+                className="apple-input w-full px-3 py-2 font-black tabular-nums"
+              />
+            </div>
+            <div className="p-3 rounded-2xl bg-[#F5F5F7]">
+              <span className="text-[11px] text-[#86868B] block">کاشی چاوەڕوانکراو (بە فڵۆتەوە):</span>
+              <span className="text-base font-black text-[#0071E3] tabular-nums">
+                {netCashInDrawer.toLocaleString()} د.ع
+              </span>
+            </div>
+            <div
+              className={`p-3 rounded-2xl ${
+                cashDrawerDiff === null
+                  ? 'bg-[#F5F5F7]'
+                  : cashDrawerDiff === 0
+                  ? 'bg-[#34C759]/12 text-[#248A3D]'
+                  : cashDrawerDiff > 0
+                  ? 'bg-[#0071E3]/10 text-[#0071E3]'
+                  : 'bg-[#FF3B30]/12 text-[#D70015]'
+              }`}
             >
-              <Printer className="w-4 h-4" />
-              چاپکردنی Z-Report (داخستنی سەندوق)
-            </button>
+              <span className="text-[11px] opacity-80 block">جیاوازیی قاسە:</span>
+              <span className="text-base font-black tabular-nums">
+                {cashDrawerDiff === null
+                  ? 'نەژمێردراوە'
+                  : cashDrawerDiff === 0
+                  ? '✓ تەواو یەکسانە (0 د.ع)'
+                  : `${cashDrawerDiff > 0 ? '+' : ''}${cashDrawerDiff.toLocaleString()} د.ع`}
+              </span>
+            </div>
           </div>
 
           {/* KPI Bento Row */}
@@ -1414,17 +1656,26 @@ export const POSView: React.FC<POSViewProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* POS Sales History */}
             <div className="lg:col-span-7 apple-card p-5 space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.06]">
                 <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-2">
                   <Receipt className="w-4 h-4 text-[#0071E3]" />
-                  مێژووی وەسڵەکانی فرۆشگا
+                  مێژووی وەسڵەکانی فرۆشگا ({filteredPosSales.length})
                 </h4>
-                <span className="text-xs font-bold text-[#86868B] tabular-nums">{posSales.length} وەسڵ</span>
+                <div className="relative w-full sm:w-52">
+                  <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={salesSearch}
+                    onChange={e => setSalesSearch(e.target.value)}
+                    placeholder="گەڕان بە وەسڵ یان کڕیار..."
+                    className="apple-input w-full pr-8 pl-3 py-1.5 text-xs"
+                  />
+                </div>
               </div>
 
               <div className="divide-y divide-black/[0.05] max-h-[380px] overflow-y-auto">
-                {posSales.map(sale => (
-                  <div key={sale.id} className="py-3 flex items-center justify-between gap-2 text-xs">
+                {filteredPosSales.map(sale => (
+                  <div key={sale.id} className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-[#0071E3]">{sale.saleNo}</span>
@@ -1446,10 +1697,19 @@ export const POSView: React.FC<POSViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-extrabold text-sm text-[#1D1D1F] tabular-nums">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-sm text-[#1D1D1F] tabular-nums ml-1">
                         {sale.total.toLocaleString()} د.ع
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReturnModal(sale)}
+                        className="px-2.5 py-1 rounded-full bg-[#FF9500]/12 hover:bg-[#FF9500] text-[#B25000] hover:text-white font-semibold text-xs transition-colors flex items-center gap-1"
+                        title="گەڕانەوەی وەسڵ / تەلەف"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        گەڕانەوە
+                      </button>
                       <button
                         type="button"
                         onClick={() => setPrintReceipt(sale)}
@@ -1870,6 +2130,12 @@ export const POSView: React.FC<POSViewProps> = ({
                   </div>
 
                   <div className="space-y-1.5 text-right font-sans">
+                    {openingFloat > 0 && (
+                      <div className="flex justify-between text-[11px] text-[#515154]">
+                        <span>سەرەتای شەفت (Opening Float):</span>
+                        <span className="font-bold tabular-nums">+{openingFloat.toLocaleString()} د.ع</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-[11px] text-[#FF3B30]">
                       <span>کۆی خەرجییەکانی شۆرۆم:</span>
                       <span className="font-bold tabular-nums">-{totalBranchExpenses.toLocaleString()} د.ع</span>
@@ -1878,6 +2144,22 @@ export const POSView: React.FC<POSViewProps> = ({
                       <span>صافی پارەی ناو قاسە:</span>
                       <span className="text-[#0071E3] tabular-nums">{netCashInDrawer.toLocaleString()} د.ع</span>
                     </div>
+                    {actualCashNum !== null && (
+                      <>
+                        <div className="flex justify-between text-[11px] text-[#1D1D1F]">
+                          <span>کاشی ژمێردراوی دەستی:</span>
+                          <span className="font-bold tabular-nums">{actualCashNum.toLocaleString()} د.ع</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] font-black">
+                          <span>جیاوازیی قاسە:</span>
+                          <span className={cashDrawerDiff === 0 ? 'text-[#248A3D]' : 'text-[#FF3B30]'}>
+                            {cashDrawerDiff === 0
+                              ? '0 د.ع (تەواو)'
+                              : `${(cashDrawerDiff || 0) > 0 ? '+' : ''}${(cashDrawerDiff || 0).toLocaleString()} د.ع`}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
                     Powered by RAND SUITE
@@ -2066,20 +2348,40 @@ export const POSView: React.FC<POSViewProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <input
-              type="number"
-              value={newPriceInput}
-              onChange={e => setNewPriceInput(e.target.value)}
-              className="apple-input w-full px-3.5 py-2.5 text-base font-extrabold tabular-nums text-center"
-              autoFocus
-            />
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">نرخی فرۆشتنی کیلۆ (د.ع):</label>
+                <input
+                  type="number"
+                  value={newPriceInput}
+                  onChange={e => setNewPriceInput(e.target.value)}
+                  className="apple-input w-full px-3.5 py-2.5 text-base font-extrabold tabular-nums text-center"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">سنووری ئاگادارکردنەوەی کەمبوون (کگم):</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={newMinAlertInput}
+                  onChange={e => setNewMinAlertInput(e.target.value)}
+                  className="apple-input w-full px-3.5 py-2 text-sm font-bold tabular-nums text-center"
+                />
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => {
                 const parsed = parseFloat(newPriceInput);
+                const parsedAlert = parseFloat(newMinAlertInput);
                 if (!isNaN(parsed) && parsed > 0) {
-                  updateBranchStockItem(editingPriceItem.productId, { retailPricePerKg: roundTo250(parsed) });
-                  showToast('نرخ نوێکرایەوە', 'success');
+                  updateBranchStockItem(editingPriceItem.productId, {
+                    retailPricePerKg: roundTo250(parsed),
+                    ...(isNaN(parsedAlert) ? {} : { minAlertKg: Math.max(0, parsedAlert) }),
+                  });
+                  showToast('نرخ و سنووری ئاگاداری نوێکرانەوە', 'success');
                 }
                 setEditingPriceItem(null);
               }}
@@ -2164,6 +2466,167 @@ export const POSView: React.FC<POSViewProps> = ({
               تۆمارکردنی خەرجی
             </button>
           </form>
+        </div>
+      )}
+
+      {/* 7. Showroom Customer Return / Refund Modal */}
+      {returningSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <form
+            onSubmit={handleSubmitPosReturn}
+            className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <div>
+                <h4 className="font-extrabold text-sm text-[#1D1D1F] flex items-center gap-1.5">
+                  <RotateCcw className="w-4 h-4 text-[#FF9500]" />
+                  گەڕانەوەی کاڵا لە وەسڵی #{returningSale.saleNo}
+                </h4>
+                <p className="text-[11px] text-[#86868B]">
+                  {returningSale.customerName || 'کڕیاری ئاسایی'} • دەچێتە قۆناغی ٣ بۆ گۆڕین یان تەلەف
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturningSale(null)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
+              {returningSale.items.map(it => (
+                <div
+                  key={it.productId}
+                  className="p-3 rounded-2xl bg-[#F5F5F7] flex items-center justify-between gap-2"
+                >
+                  <div>
+                    <div className="font-bold text-[#1D1D1F]">{it.productName}</div>
+                    <div className="text-[10px] text-[#86868B] tabular-nums">
+                      فرۆشراو: {it.weightKg.toFixed(3)} کگم × {it.pricePerKg.toLocaleString()} د.ع
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={it.weightKg}
+                    placeholder="0 کگم"
+                    value={returnWeights[it.productId] === 0 ? '' : returnWeights[it.productId] || ''}
+                    onChange={e =>
+                      setReturnWeights(prev => ({
+                        ...prev,
+                        [it.productId]: e.target.value === '' ? 0 : Number(e.target.value),
+                      }))
+                    }
+                    className="w-24 bg-white rounded-xl px-2.5 py-1.5 font-black text-center outline-none border border-black/[0.08] tabular-nums"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="هۆکاری گەڕانەوە (ئارەزوومەندانە)..."
+              value={returnNotes}
+              onChange={e => setReturnNotes(e.target.value)}
+              className="apple-input w-full px-3 py-2 text-xs"
+            />
+
+            <div className="flex gap-2 pt-2 border-t border-black/[0.06] text-xs">
+              <button
+                type="button"
+                onClick={() => setReturningSale(null)}
+                className="w-1/2 py-2.5 bg-[#F5F5F7] text-[#515154] rounded-full font-semibold"
+              >
+                پاشگەزبوونەوە
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 py-2.5 bg-[#FF9500] hover:bg-[#E08600] text-white font-bold rounded-full"
+              >
+                تۆمارکردنی گەڕانەوە
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 8. Inbound Showroom Delivery Receipt Print Modal */}
+      {selectedInboundReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
+              <span className="text-xs font-bold text-[#86868B]">وەسڵی وەرگرتنی بار لە شۆرۆم</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  چاپ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInboundReceipt(null)}
+                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-center text-xs">
+              <div className="flex justify-center">
+                <FactoryLogo size="sm" />
+              </div>
+              <h4 className="font-black text-sm">{factorySettings.factoryName}</h4>
+              <p className="text-[11px] font-bold text-[#0071E3]">
+                {factorySettings.showroomName} • وەسڵی وەرگرتنی بار
+              </p>
+
+              <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">ژمارەی وەسڵ:</span>
+                  <span className="font-mono font-bold">{selectedInboundReceipt.receiptNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">گەیەنەر / مەندوب:</span>
+                  <span className="font-bold">{selectedInboundReceipt.repName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">بەروار و کات:</span>
+                  <span className="tabular-nums">
+                    {selectedInboundReceipt.date} {selectedInboundReceipt.time}
+                  </span>
+                </div>
+              </div>
+
+              {selectedInboundReceipt.items && selectedInboundReceipt.items.length > 0 && (
+                <div className="space-y-1 text-right text-[11px] border-b border-dashed border-black/20 pb-2">
+                  {selectedInboundReceipt.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between">
+                      <span className="font-semibold">{it.productName}</span>
+                      <span className="font-black tabular-nums">{it.weightKg.toFixed(2)} کگم</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-between text-sm font-black pt-1">
+                <span>کۆی کێشی وەرگیراو:</span>
+                <span className="text-[#248A3D] tabular-nums">
+                  {selectedInboundReceipt.totalWeightKg.toFixed(2)} کگم
+                </span>
+              </div>
+
+              <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
+                Powered by RAND SUITE
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

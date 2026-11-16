@@ -28,7 +28,7 @@ interface AccountingViewProps {
 export const AccountingView: React.FC<AccountingViewProps> = ({
   activeSubTab: controlledSubTab,
 }) => {
-  const { customers, suppliers, vouchers, dispatches, posSales, returns, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
+  const { customers, suppliers, vouchers, dispatches, intakes, posSales, returns, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<AccountingSubTab>(controlledSubTab || 'VOUCHERS');
 
@@ -812,76 +812,301 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         );
       })()}
 
-      {/* Supplier Statement Modal */}
-      {selectedSupplier && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 font-sans border border-black/[0.08]">
-            <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
-              <div className="flex items-center gap-3">
-                <FactoryLogo size="md" />
-                <div>
-                  <h3 className="text-lg font-extrabold text-[#1D1D1F]">کەشف حسابی کێڵگە / فرۆشیار</h3>
-                  <p className="text-xs text-[#86868B]">{factorySettings.factoryName} - بەشی کڕین و کۆگا • {factorySettings.phone1}</p>
+      {/* Supplier Statement Modal (Full Running-Balance Ledger with Date Range Filter) */}
+      {selectedSupplier && (() => {
+        const normalizeStr = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        const targetSupName = normalizeStr(selectedSupplier.name);
+
+        type SupTxRow = {
+          id: string;
+          date: string;
+          time: string;
+          refNo: string;
+          description: string;
+          type: 'PURCHASE' | 'PAYMENT';
+          creditIncrease: number; // قەرزی کێڵگە زیاد دەکات (+)
+          debitPaid: number;      // پارەی دراو بە کێڵگە (-)
+          discount: number;
+          balanceAfter: number;
+        };
+
+        const rawSupTx: Omit<SupTxRow, 'balanceAfter'>[] = [];
+
+        intakes.forEach(intake => {
+          if (normalizeStr(intake.farmName) !== targetSupName) return;
+          rawSupTx.push({
+            id: `int-${intake.id}`,
+            date: intake.date,
+            time: '09:00',
+            refNo: intake.manualReceiptNo,
+            description: `کڕینی مریشکی زیندوو (${intake.netWeightKg.toLocaleString()} کگم × ${intake.pricePerKg.toLocaleString()} د.ع)`,
+            type: 'PURCHASE',
+            creditIncrease: intake.totalAmount,
+            debitPaid: intake.paymentStatus === 'PAID' ? intake.totalAmount : intake.paidAmount || 0,
+            discount: 0,
+          });
+        });
+
+        vouchers.forEach(v => {
+          if (v.type !== 'PAYMENT') return;
+          if (v.partyId !== selectedSupplier.id && normalizeStr(v.partyName) !== targetSupName) return;
+          rawSupTx.push({
+            id: `pay-${v.id}`,
+            date: v.date,
+            time: v.time || '12:00',
+            refNo: v.voucherNo,
+            description: `سەنەدی سەرف (${v.paymentMethod === 'CASH' ? 'کاش' : 'حەواڵە'})${v.notes ? ` - ${v.notes}` : ''}`,
+            type: 'PAYMENT',
+            creditIncrease: 0,
+            debitPaid: v.amount,
+            discount: v.discount || 0,
+          });
+        });
+
+        rawSupTx.sort((a, b) => a.date.localeCompare(b.date));
+
+        let running = 0;
+        let openingBal = 0;
+        const periodRows: SupTxRow[] = [];
+        let totalPurchasesPeriod = 0;
+        let totalPaidPeriod = 0;
+
+        rawSupTx.forEach(tx => {
+          const netEffect = tx.creditIncrease - (tx.debitPaid + tx.discount);
+          if (tx.date < startDate) {
+            openingBal += netEffect;
+            running = openingBal;
+          } else if (tx.date <= endDate) {
+            running += netEffect;
+            totalPurchasesPeriod += tx.creditIncrease;
+            totalPaidPeriod += tx.debitPaid + tx.discount;
+            periodRows.push({ ...tx, balanceAfter: running });
+          }
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 font-sans border border-black/[0.08]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-black/[0.06] pb-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <FactoryLogo size="lg" />
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#1D1D1F]">کەشف حسابی کێڵگە / دابینکەر</h3>
+                    <p className="text-xs text-[#86868B]">
+                      {factorySettings.factoryName} - بەشی کڕین و ژمێریاری • {factorySettings.phone1}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-left bg-[#F5F5F7] p-3 rounded-2xl border border-black/[0.04]">
+                  <span className="text-[11px] text-[#86868B] block">قەرزی ماوەی ئێستا (بۆ کێڵگە):</span>
+                  <span className="text-xl font-black text-[#FF9500] tabular-nums">
+                    {selectedSupplier.currentBalance.toLocaleString()} د.ع
+                  </span>
                 </div>
               </div>
-              <div className="text-left text-xs">
-                <div>بەروار: <strong>{toLocalISODate()}</strong></div>
-                <div className="text-[#FF9500] font-bold text-sm">ماوەی قەرز: {selectedSupplier.currentBalance.toLocaleString()} د.ع</div>
+
+              <div className="bg-[#F5F5F7] p-3.5 rounded-2xl text-xs grid grid-cols-1 sm:grid-cols-3 gap-2 text-[#515154]">
+                <div>ناوی کێڵگە: <strong className="text-[#1D1D1F]">{selectedSupplier.name}</strong></div>
+                <div>تەلەفۆن: <strong className="text-[#1D1D1F]">{selectedSupplier.phone || '---'}</strong></div>
+                <div>شوێنی کێڵگە: <strong className="text-[#1D1D1F]">{selectedSupplier.farmLocation || '---'}</strong></div>
               </div>
-            </div>
 
-            <div className="bg-[#F5F5F7] p-4 rounded-2xl text-xs grid grid-cols-2 gap-2 text-[#515154]">
-              <div>ناوی کێڵگە: <strong className="text-[#1D1D1F]">{selectedSupplier.name}</strong></div>
-              <div>تەلەفۆن: <strong className="text-[#1D1D1F]">{selectedSupplier.phone}</strong></div>
-              <div>شوێنی کێڵگە: <strong className="text-[#1D1D1F]">{selectedSupplier.farmLocation}</strong></div>
-            </div>
+              {/* Date Filter */}
+              <div className="p-3.5 rounded-2xl bg-[#FF9500]/6 border border-[#FF9500]/20 flex flex-wrap items-center justify-between gap-3 text-xs no-print">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-bold text-[#1D1D1F] flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-[#FF9500]" />
+                    فلتەری بەروار:
+                  </span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="bg-white border border-black/[0.08] rounded-xl px-3 py-1.5 text-[#1D1D1F] font-semibold outline-none"
+                  />
+                  <span className="text-[#86868B]">بۆ</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="bg-white border border-black/[0.08] rounded-xl px-3 py-1.5 text-[#1D1D1F] font-semibold outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(1);
+                      setStartDate(toLocalISODate(d));
+                      setEndDate(toLocalISODate());
+                    }}
+                    className="px-3 py-1 bg-white hover:bg-[#F5F5F7] text-[#FF9500] border border-[#FF9500]/25 rounded-lg font-bold"
+                  >
+                    ئەم مانگە
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate('2026-01-01');
+                      setEndDate(toLocalISODate());
+                    }}
+                    className="px-3 py-1 bg-white hover:bg-[#F5F5F7] text-[#515154] border border-black/[0.08] rounded-lg font-bold"
+                  >
+                    هەموو کات
+                  </button>
+                </div>
+              </div>
 
-            <div className="flex justify-between items-center pt-3 text-xs border-t border-black/[0.06]">
-              <span className="text-[#86868B]">
-                مۆری فەرمی کارگە: ______________ •{' '}
-                <span dir="ltr" className="font-bold text-[#0071E3]">RAND SUITE</span>
-              </span>
-              <div className="flex gap-2 no-print">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const csvRows = [
-                      [factorySettings.factoryName, 'کەشف حسابی کێڵگە', selectedSupplier.name, toLocalISODate()],
-                      ['ناوی کێڵگە', 'تەلەفۆن', 'شوێن', 'قەرزی ماوە (د.ع)'],
-                      [selectedSupplier.name, selectedSupplier.phone, selectedSupplier.farmLocation, String(selectedSupplier.currentBalance)],
-                    ];
-                    const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `Supplier-${selectedSupplier.name}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] rounded-full font-bold flex items-center gap-1.5"
-                >
-                  <Download className="w-4 h-4" />
-                  Excel / CSV
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="px-5 py-2.5 bg-[#1D1D1F] hover:bg-[#2C2C2E] text-white rounded-full font-semibold flex items-center gap-1.5 shadow-sm"
-                >
-                  <Printer className="w-4 h-4" />
-                  چاپکردن
-                </button>
-                <button
-                  onClick={() => setSelectedSupplier(null)}
-                  className="px-5 py-2.5 bg-[#F5F5F7] text-[#515154] rounded-full font-semibold"
-                >
-                  داخستن
-                </button>
+              {/* KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-[#F5F5F7]">
+                  <span className="text-[#86868B] block text-[11px]">قەرزی سەرەتای ماوە:</span>
+                  <span className="text-base font-black text-[#1D1D1F] mt-0.5 block tabular-nums">
+                    {openingBal.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#FF9500]/10">
+                  <span className="text-[#B25000] block text-[11px]">کۆی کڕینی ئەم ماوەیە:</span>
+                  <span className="text-base font-black text-[#B25000] mt-0.5 block tabular-nums">
+                    +{totalPurchasesPeriod.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#34C759]/10">
+                  <span className="text-[#248A3D] block text-[11px]">پارەی دراو بە کێڵگە:</span>
+                  <span className="text-base font-black text-[#248A3D] mt-0.5 block tabular-nums">
+                    -{totalPaidPeriod.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#FF3B30]/10">
+                  <span className="text-[#FF3B30] block text-[11px]">قەرزی ماوە لە کۆتاییدا:</span>
+                  <span className="text-base font-black text-[#FF3B30] mt-0.5 block tabular-nums">
+                    {running.toLocaleString()} د.ع
+                  </span>
+                </div>
+              </div>
+
+              {/* Ledger Table */}
+              <div className="border border-black/[0.08] rounded-2xl overflow-hidden text-xs">
+                <table className="w-full text-right">
+                  <thead className="bg-[#F5F5F7] text-[#515154] font-bold border-b border-black/[0.06]">
+                    <tr>
+                      <th className="p-3">بەروار و کات</th>
+                      <th className="p-3">ژ. وەسڵ / سەنەد</th>
+                      <th className="p-3">ڕوونکردنەوە</th>
+                      <th className="p-3">کڕین (قەرز +)</th>
+                      <th className="p-3">پارەی دراو (-)</th>
+                      <th className="p-3">داشکاندن</th>
+                      <th className="p-3">باڵانسی ماوە</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
+                    <tr className="bg-[#FBFBFD] font-bold text-[#86868B]">
+                      <td className="p-3">{startDate}</td>
+                      <td className="p-3">---</td>
+                      <td className="p-3">قەرزی سەرەتای ماوە (Opening Balance)</td>
+                      <td className="p-3">---</td>
+                      <td className="p-3">---</td>
+                      <td className="p-3">---</td>
+                      <td className="p-3 font-black text-[#1D1D1F] tabular-nums">
+                        {openingBal.toLocaleString()} د.ع
+                      </td>
+                    </tr>
+                    {periodRows.map(row => (
+                      <tr key={row.id} className="hover:bg-[#FBFBFD]">
+                        <td className="p-3">
+                          <div className="font-semibold">{row.date}</div>
+                          <div className="text-[10px] text-[#86868B] font-mono">{row.time}</div>
+                        </td>
+                        <td className="p-3 font-mono font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[11px] ${
+                              row.type === 'PAYMENT'
+                                ? 'bg-[#34C759]/10 text-[#248A3D]'
+                                : 'bg-[#FF9500]/12 text-[#B25000]'
+                            }`}
+                          >
+                            {row.refNo}
+                          </span>
+                        </td>
+                        <td className="p-3 font-medium">{row.description}</td>
+                        <td className="p-3 font-bold text-[#B25000] tabular-nums">
+                          {row.creditIncrease > 0 ? `+${row.creditIncrease.toLocaleString()} د.ع` : '---'}
+                        </td>
+                        <td className="p-3 font-bold text-[#248A3D] tabular-nums">
+                          {row.debitPaid > 0 ? `-${row.debitPaid.toLocaleString()} د.ع` : '---'}
+                        </td>
+                        <td className="p-3 text-[#86868B] tabular-nums">
+                          {row.discount > 0 ? `${row.discount.toLocaleString()} د.ع` : '---'}
+                        </td>
+                        <td className="p-3 font-black text-[#FF3B30] tabular-nums">
+                          {row.balanceAfter.toLocaleString()} د.ع
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between items-center pt-3 text-xs border-t border-black/[0.06] gap-3">
+                <span className="text-[#86868B]">
+                  مۆری فەرمی کارگە: ______________ •{' '}
+                  <span dir="ltr" className="font-bold text-[#0071E3]">RAND SUITE</span>
+                </span>
+                <div className="flex gap-2 no-print">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const csvRows = [
+                        [factorySettings.factoryName, 'کەشف حسابی کێڵگە', selectedSupplier.name, `${startDate} تا ${endDate}`],
+                        ['بەروار', 'کات', 'ژ. وەسڵ / سەنەد', 'وردەکاری', 'کڕین (+)', 'پارەی دراو (-)', 'داشکاندن', 'باڵانسی ماوە'],
+                        [startDate, '---', '---', 'قەرزی سەرەتای ماوە', '0', '0', '0', String(openingBal)],
+                        ...periodRows.map(r => [
+                          r.date,
+                          r.time,
+                          r.refNo,
+                          r.description,
+                          String(r.creditIncrease),
+                          String(r.debitPaid),
+                          String(r.discount),
+                          String(r.balanceAfter),
+                        ]),
+                      ];
+                      const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Supplier-${selectedSupplier.name}-${endDate}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] rounded-full font-bold flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Excel / CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-5 py-2.5 bg-[#1D1D1F] hover:bg-[#2C2C2E] text-white rounded-full font-semibold flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Printer className="w-4 h-4" />
+                    چاپکردن
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSupplier(null)}
+                    className="px-5 py-2.5 bg-[#F5F5F7] text-[#515154] rounded-full font-semibold"
+                  >
+                    داخستن
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Enhanced Voucher Modal (Tracks Date, Time, Current Debt, and Remaining Debt Live!) */}
       {showVoucherModal && (

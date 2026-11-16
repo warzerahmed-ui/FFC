@@ -160,6 +160,14 @@ export const SettingsView: React.FC = () => {
     showToast('لۆگۆی تایبەت لابرا', 'success');
   };
 
+  const [lastBackupDate, setLastBackupDate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ffc_last_backup_at_v1') || '';
+    } catch {
+      return '';
+    }
+  });
+
   const handleDownloadBackup = () => {
     const json = exportSystemBackup();
     const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -170,6 +178,12 @@ export const SettingsView: React.FC = () => {
     a.download = `${factorySettings.shortCode || 'FFC-ERP'}-Backup-${dateStamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    try {
+      localStorage.setItem('ffc_last_backup_at_v1', dateStamp);
+    } catch {
+      // ignore
+    }
+    setLastBackupDate(dateStamp);
     showToast('فایلی باکئەپی تەواوی سیستەم دابەزێنرا', 'success');
   };
 
@@ -852,6 +866,34 @@ export const SettingsView: React.FC = () => {
               <p className="text-[11px] text-[#86868B] leading-relaxed">
                 بۆ پاراستنی هەموو وەسڵەکان، قەرزەکان و کۆگا، یان گواستنەوەی داتاکان بۆ کۆمپیوتەرێکی تر، فایلی باکئەپ دابەزێنە یان بیگەڕێنەوە.
               </p>
+
+              {(() => {
+                const daysAgo = lastBackupDate
+                  ? Math.floor(
+                      (new Date(`${toLocalISODate()}T00:00:00`).getTime() -
+                        new Date(`${lastBackupDate}T00:00:00`).getTime()) /
+                        86400000
+                    )
+                  : null;
+                const needsBackup = daysAgo === null || daysAgo >= 7;
+                return (
+                  <div
+                    className={`px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-between ${
+                      needsBackup
+                        ? 'bg-[#FF9500]/12 text-[#B25000] border border-[#FF9500]/25'
+                        : 'bg-[#34C759]/10 text-[#248A3D] border border-[#34C759]/20'
+                    }`}
+                  >
+                    <span>
+                      {daysAgo === null
+                        ? 'ئاگاداری: هێشتا باکئەپی هەفتانەت دانەبەزاندووە'
+                        : needsBackup
+                        ? `ئاگاداری: ${daysAgo} ڕۆژە باکئەپت نەکردووە!`
+                        : `دوایین باکئەپ: ${lastBackupDate}`}
+                    </span>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
                 <button

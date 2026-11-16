@@ -35,6 +35,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 }) => {
   const {
     intakes,
+    yields,
     dispatches,
     posSales,
     returns,
@@ -110,6 +111,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const storePosRevenue = filteredPosSales.reduce((sum, s) => sum + s.total, 0);
   const totalSalesRevenue = repSalesRevenue + storePosRevenue;
 
+  // Latest real slaughter batch cost per product (dressedCostPerKg from yields)
+  const batchCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const sorted = [...yields].sort((a, b) => b.date.localeCompare(a.date));
+    for (const y of sorted) {
+      if (!y.dressedCostPerKg || y.dressedCostPerKg <= 0) continue;
+      for (const c of y.cuts) {
+        if (!map.has(c.productId)) {
+          map.set(c.productId, y.dressedCostPerKg);
+        }
+      }
+    }
+    return map;
+  }, [yields]);
+
   // Real Cost of Goods Sold (COGS) across Rep Sales + Showroom POS Sales in selected period
   const repCogsAmount = filteredSalesDispatches.reduce((sum, d) => {
     return (
@@ -117,7 +133,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       d.items.reduce((s, item) => {
         if (item.factoryCostAmount !== undefined) return s + item.factoryCostAmount;
         const prod = products.find(p => p.id === item.productId);
-        return s + Math.round(item.weightKg * (prod ? prod.costPerKg : 2750));
+        const unitCost = batchCostMap.get(item.productId) ?? prod?.costPerKg ?? 2750;
+        return s + Math.round(item.weightKg * unitCost);
       }, 0)
     );
   }, 0);
@@ -128,7 +145,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       sale.items.reduce((s, item) => {
         const bItem = branchStock.find(b => b.productId === item.productId);
         const prod = products.find(p => p.id === item.productId);
-        const unitCost = bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
+        const unitCost = batchCostMap.get(item.productId) ?? bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
         return s + Math.round(item.weightKg * unitCost);
       }, 0)
     );
