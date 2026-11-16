@@ -32,7 +32,7 @@ import {
   CheckCircle,
   UserCheck,
 } from 'lucide-react';
-import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, roundTo250 } from '../../types';
+import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, PaymentVoucher, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
@@ -283,6 +283,9 @@ export const POSView: React.FC<POSViewProps> = ({
   const [collectDiscount, setCollectDiscount] = useState<string>('');
   const [collectMethod, setCollectMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
   const [collectNotes, setCollectNotes] = useState<string>('');
+  const [printDebtVoucher, setPrintDebtVoucher] = useState<PaymentVoucher | null>(null);
+  const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
+  const [editingCartWeight, setEditingCartWeight] = useState<string>('');
 
   // Inventory Audit / Spoilage & Return-to-Factory Modals
   const [stockAdjustItem, setStockAdjustItem] = useState<BranchStockItem | null>(null);
@@ -528,6 +531,41 @@ export const POSView: React.FC<POSViewProps> = ({
       };
       return updated;
     });
+  };
+
+  const setCartItemExactWeight = (index: number, rawWeight: number) => {
+    const targetItem = cart[index];
+    if (!targetItem) return;
+    const cleanWeight = Math.round(rawWeight * 1000) / 1000;
+    if (!Number.isFinite(cleanWeight) || cleanWeight <= 0) {
+      removeCartItem(index);
+      return;
+    }
+
+    const branchItem = branchStock.find(b => b.productId === targetItem.productId);
+    const avail = branchItem ? branchItem.inStockKg : 0;
+    const otherWeight = cart
+      .filter((i, idx) => idx !== index && i.productId === targetItem.productId)
+      .reduce((s, i) => s + i.weightKg, 0);
+
+    if (cleanWeight + otherWeight > avail + 0.001) {
+      playPosBeep('error');
+      showToast(`ناتوانیت لە کۆگای شۆرۆم (${avail.toFixed(3)} کگم) زیاتر دابنێیت`, 'warn');
+      return;
+    }
+
+    setCart(prev => {
+      const updated = [...prev];
+      const item = updated[index];
+      if (!item) return prev;
+      updated[index] = {
+        ...item,
+        weightKg: cleanWeight,
+        total: roundTo250(cleanWeight * item.pricePerKg),
+      };
+      return updated;
+    });
+    playPosBeep('scale');
   };
 
   const removeCartItem = (index: number) => {
@@ -1467,9 +1505,47 @@ export const POSView: React.FC<POSViewProps> = ({
                           >
                             -
                           </button>
-                          <span className="w-14 text-center font-bold text-xs tabular-nums text-[#1D1D1F]">
-                            {item.weightKg.toFixed(3)}
-                          </span>
+                          {editingCartIndex === idx ? (
+                            <input
+                              type="number"
+                              step="0.001"
+                              min="0.001"
+                              value={editingCartWeight}
+                              onChange={e => setEditingCartWeight(e.target.value)}
+                              onBlur={() => {
+                                const parsed = parseFloat(editingCartWeight);
+                                if (!isNaN(parsed)) {
+                                  setCartItemExactWeight(idx, parsed);
+                                }
+                                setEditingCartIndex(null);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const parsed = parseFloat(editingCartWeight);
+                                  if (!isNaN(parsed)) {
+                                    setCartItemExactWeight(idx, parsed);
+                                  }
+                                  setEditingCartIndex(null);
+                                } else if (e.key === 'Escape') {
+                                  setEditingCartIndex(null);
+                                }
+                              }}
+                              className="w-16 text-center font-bold text-xs tabular-nums text-[#0071E3] bg-white rounded-full px-1 py-0.5 border border-[#0071E3] outline-none"
+                              autoFocus
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCartIndex(idx);
+                                setEditingCartWeight(item.weightKg.toFixed(3));
+                              }}
+                              title="کلیک بکە بۆ نووسینی کێشی ورد (بۆ نموونە 1.324)"
+                              className="w-16 text-center font-bold text-xs tabular-nums text-[#1D1D1F] hover:text-[#0071E3] hover:bg-white rounded-full py-0.5 transition-colors"
+                            >
+                              {item.weightKg.toFixed(3)}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => updateCartItemWeight(idx, 0.25)}
@@ -2159,9 +2235,19 @@ export const POSView: React.FC<POSViewProps> = ({
                             {v.date} {v.time} • {v.paymentMethod === 'CASH' ? 'نەقد' : 'گواستنەوە'}
                           </span>
                         </div>
-                        <span className="font-extrabold text-[#248A3D] tabular-nums">
-                          +{v.amount.toLocaleString()} د.ع
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-[#248A3D] tabular-nums">
+                            +{v.amount.toLocaleString()} د.ع
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPrintDebtVoucher(v)}
+                            className="p-1.5 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white transition-colors"
+                            title="چاپکردنی وەسڵی 80mm"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -3722,12 +3808,12 @@ export const POSView: React.FC<POSViewProps> = ({
                   return Number.isFinite(n) && n > m ? n : m;
                 }, 0);
                 const voucherNo = `POS-V-${String(maxNo + 1).padStart(4, '0')}`;
-                addVoucher({
+                const voucherPayload = {
                   voucherNo,
                   date: toLocalISODate(),
                   time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                  type: 'RECEIPT',
-                  partyType: 'CUSTOMER',
+                  type: 'RECEIPT' as const,
+                  partyType: 'CUSTOMER' as const,
                   partyId: collectingCustomer.id,
                   partyName: collectingCustomer.name,
                   amount: amt,
@@ -3736,9 +3822,16 @@ export const POSView: React.FC<POSViewProps> = ({
                   collectedAtPos: true,
                   collectedByCashier: currentUser?.name || 'کاشێری شۆرۆم',
                   notes: collectNotes.trim() || `وەرگیراوە لە کاشێری شۆرۆم (${currentUser?.name || ''})`,
-                });
+                };
+                addVoucher(voucherPayload);
                 playPosBeep('success');
                 showToast(`بڕی ${amt.toLocaleString()} د.ع لە ${collectingCustomer.name} وەرگیرا`, 'success');
+                setPrintDebtVoucher({
+                  ...voucherPayload,
+                  id: `temp-${Date.now()}`,
+                  previousDebt: collectingCustomer.currentDebt,
+                  remainingDebt: collectingCustomer.currentDebt - (amt + disc),
+                });
                 setCollectingCustomer(null);
               }}
               className="space-y-3 text-xs"
@@ -4094,6 +4187,109 @@ export const POSView: React.FC<POSViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* 12. 80mm Debt Payment Receipt Modal */}
+      {printDebtVoucher && (() => {
+        const cust = customers.find(c => c.id === printDebtVoucher.partyId);
+        const rawPhone = (cust?.phone || '').replace(/\D/g, '');
+        const waPhone = rawPhone.startsWith('0') ? `964${rawPhone.slice(1)}` : rawPhone;
+        const msg = `سەنەدی وەرگرتنی قەرز (${factorySettings.showroomName || factorySettings.factoryName})\n\nژمارەی سەنەد: ${printDebtVoucher.voucherNo}\nبەروار: ${printDebtVoucher.date} ${printDebtVoucher.time}\nکڕیار: ${printDebtVoucher.partyName}\n\nقەرزی پێشوو: ${printDebtVoucher.previousDebt.toLocaleString()} د.ع\nبڕی وەرگیراو: ${printDebtVoucher.amount.toLocaleString()} د.ع${
+          printDebtVoucher.discount > 0 ? `\nداشکاندن: ${printDebtVoucher.discount.toLocaleString()} د.ع` : ''
+        }\nقەرزی ماوە: ${printDebtVoucher.remainingDebt.toLocaleString()} د.ع\n\nکاشێر: ${printDebtVoucher.collectedByCashier || currentUser?.name || '---'}`;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+            <div className="w-full max-w-sm bg-white rounded-[28px] p-5 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
+              <div className="flex items-center justify-between pb-2 border-b border-black/[0.06] no-print">
+                <span className="text-xs font-bold text-[#86868B]">سەنەدی وەرگرتنی قەرز (80mm)</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank')}
+                    className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    واتسئاپ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    چاپکردن
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintDebtVoucher(null)}
+                    className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-center text-xs text-[#1D1D1F]">
+                <div className="space-y-1">
+                  <div className="flex justify-center">
+                    <FactoryLogo size="sm" />
+                  </div>
+                  <h4 className="font-black text-base">{factorySettings.factoryName}</h4>
+                  <p className="text-[11px] font-bold text-[#0071E3]">
+                    {factorySettings.showroomName} • سەنەدی وەرگرتنی قەرز
+                  </p>
+                </div>
+
+                <div className="border-t border-b border-dashed border-black/20 py-2 space-y-1 text-[11px] text-right">
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">ژمارەی سەنەد:</span>
+                    <span className="font-mono font-bold">{printDebtVoucher.voucherNo}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">بەروار و کات:</span>
+                    <span>{printDebtVoucher.date} {printDebtVoucher.time}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">کڕیار:</span>
+                    <span className="font-bold">{printDebtVoucher.partyName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">کاشێر:</span>
+                    <span>{printDebtVoucher.collectedByCashier || currentUser?.name || '---'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-[11px] text-right">
+                  <div className="flex justify-between">
+                    <span className="text-[#86868B]">قەرزی پێشوو:</span>
+                    <span className="font-bold tabular-nums">{printDebtVoucher.previousDebt.toLocaleString()} د.ع</span>
+                  </div>
+                  <div className="flex justify-between text-[#248A3D]">
+                    <span className="font-bold">بڕی وەرگیراو ({printDebtVoucher.paymentMethod === 'CASH' ? 'نەقد' : 'گواستنەوە'}):</span>
+                    <span className="font-black tabular-nums">-{printDebtVoucher.amount.toLocaleString()} د.ع</span>
+                  </div>
+                  {printDebtVoucher.discount > 0 && (
+                    <div className="flex justify-between text-[#FF9500]">
+                      <span>داشکاندن:</span>
+                      <span className="font-bold tabular-nums">-{printDebtVoucher.discount.toLocaleString()} د.ع</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-black pt-1.5 border-t border-black/15">
+                    <span>قەرزی ماوە:</span>
+                    <span className={printDebtVoucher.remainingDebt > 0 ? 'text-[#D70015]' : 'text-[#248A3D]'}>
+                      {printDebtVoucher.remainingDebt.toLocaleString()} د.ع
+                    </span>
+                  </div>
+                </div>
+
+                <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
+                  Powered by RAND SUITE
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
