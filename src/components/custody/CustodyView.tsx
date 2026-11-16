@@ -14,8 +14,9 @@ import {
   Clock,
   Printer,
   Download,
+  Calendar,
 } from 'lucide-react';
-import { TabType } from '../../types';
+import { CustodyTransfer, TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
 
 interface CustodyViewProps {
@@ -60,6 +61,9 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const isRepUser = currentUser.role === 'REP';
 
   const [selectedFilterHolder, setSelectedFilterHolder] = useState<string>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedTransferForPrint, setSelectedTransferForPrint] = useState<CustodyTransfer | null>(null);
   const [reportHolder, setReportHolder] = useState<HolderSummary | null>(null);
   const [reportDate, setReportDate] = useState<string>(toLocalISODate());
 
@@ -196,7 +200,11 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const handleOpenLoadModal = (defaultHolder?: string) => {
     const holder = defaultHolder || repNames[0] || 'مەندوب';
     setLoadHolderKey(holder);
-    setLoadReceiptNo(`LD-${Math.floor(110 + Math.random() * 890)}`);
+    let nextNum = 110 + custodyTransfers.length + 1;
+    while (custodyTransfers.some(t => t.receiptNo.trim().toLowerCase() === `ld-${nextNum}`)) {
+      nextNum += 1;
+    }
+    setLoadReceiptNo(`LD-${nextNum}`);
     setLoadDate(toLocalISODate());
     setLoadTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setLoadNotes('');
@@ -240,8 +248,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
   const handleSubmitLoad = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loadReceiptNo.trim() || loadItems.length === 0) {
+    const cleanReceipt = loadReceiptNo.trim();
+    if (!cleanReceipt || loadItems.length === 0) {
       alert('تکایە ژمارەی وەسڵ و بەلایەنی کەم یەک بەرهەم زیاد بکە');
+      return;
+    }
+    if (custodyTransfers.some(t => t.receiptNo.trim().toLowerCase() === cleanReceipt.toLowerCase())) {
+      alert(`ڕێگری لە دووبارەبوونەوە:\nوەسڵی ژمارە "${cleanReceipt}" پێشتر تۆمارکراوە! تکایە ژمارەیەکی تر بنووسە.`);
       return;
     }
 
@@ -308,8 +321,14 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       }
     }
 
+    const cleanReturnReceipt = returnReceiptNo.trim() || `RET-${Date.now()}`;
+    if (custodyTransfers.some(t => t.receiptNo.trim().toLowerCase() === cleanReturnReceipt.toLowerCase())) {
+      alert(`ڕێگری لە دووبارەبوونەوە:\nوەسڵی ژمارە "${cleanReturnReceipt}" پێشتر تۆمارکراوە! تکایە ژمارەیەکی تر بنووسە.`);
+      return;
+    }
+
     returnUnsoldToReadyStock({
-      receiptNo: returnReceiptNo.trim() || `RET-${Date.now()}`,
+      receiptNo: cleanReturnReceipt,
       date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       holderType: returnTarget.holderType,
@@ -331,9 +350,36 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
   // Unified chronological ledger of Load & Return back to Ready Stock
   const filteredTransfers = custodyTransfers.filter(t => {
-    if (selectedFilterHolder === 'ALL') return true;
-    return t.holderName === selectedFilterHolder;
+    const matchesHolder = selectedFilterHolder === 'ALL' || t.holderName === selectedFilterHolder;
+    const matchesStart = !startDate || t.date.slice(0, 10) >= startDate;
+    const matchesEnd = !endDate || t.date.slice(0, 10) <= endDate;
+    return matchesHolder && matchesStart && matchesEnd;
   });
+
+  const handleExportTransfersCsv = () => {
+    const rows = [
+      ['ژ. وەسڵ', 'بەروار', 'کات', 'جۆری جوڵە', 'مەندوب', 'بەرهەمەکان', 'کۆی کێش (کگم)', 'دۆخ', 'تێبینی'],
+      ...filteredTransfers.map(t => [
+        t.receiptNo,
+        t.date,
+        t.time,
+        t.direction === 'LOAD' ? 'ناردن بۆ مەندوب' : 'گەڕانەوە بۆ کۆگای ئامادە',
+        t.holderName,
+        t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، '),
+        String(t.totalWeightKg),
+        t.status || 'ACCEPTED',
+        t.notes || '',
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Custody-Movements-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -720,10 +766,46 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
       {/* Custody Movement History */}
       <div className="apple-card overflow-hidden">
-        <div className="p-4 border-b border-black/[0.05] flex items-center justify-between">
+        <div className="p-4 border-b border-black/[0.05] flex flex-col md:flex-row md:items-center justify-between gap-3">
           <span className="font-bold text-xs text-[#1D1D1F]">
             تۆماری جوڵەی ناردن و گەڕانەوە لە نێوان کۆگای ئامادە و مەندوبەکان ({filteredTransfers.length})
           </span>
+          <div className="flex flex-wrap items-center gap-2 text-xs no-print">
+            <Calendar className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+            />
+            <span className="text-[#86868B]">بۆ</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-[#F5F5F7] text-[#515154] font-semibold"
+              >
+                پاککردنەوە
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleExportTransfersCsv}
+              className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold flex items-center gap-1"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Excel / CSV
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -738,12 +820,13 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 <th className="p-4">کۆی کێش</th>
                 <th className="p-4 text-center">دۆخی ئەکسیپت</th>
                 <th className="p-4">تێبینی</th>
+                <th className="p-4 text-center no-print">وەسڵ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
               {filteredTransfers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-[#86868B]">
+                  <td colSpan={9} className="p-6 text-center text-[#86868B]">
                     هیچ جوڵەیەکی کۆگای مەندوب تۆمار نەکراوە
                   </td>
                 </tr>
@@ -792,6 +875,16 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                         )}
                       </td>
                       <td className="p-4 text-[11px] text-[#86868B]">{t.notes}</td>
+                      <td className="p-4 text-center no-print">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTransferForPrint(t)}
+                          className="px-3 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] hover:text-white text-[#1D1D1F] font-semibold text-[11px] inline-flex items-center gap-1 transition-colors"
+                        >
+                          <Printer className="w-3 h-3" />
+                          چاپ
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -1273,6 +1366,96 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
         );
       })()}
+
+      {/* Modal 4: Printable Vehicle Loading / Return Slip */}
+      {selectedTransferForPrint && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-[28px] w-full max-w-md p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] no-print">
+              <span className="text-xs font-bold text-[#86868B]">
+                {selectedTransferForPrint.direction === 'LOAD'
+                  ? 'وەسڵی بارکردنی ئۆتۆمبێلی مەندوب'
+                  : 'وەسڵی گەڕاندنەوە بۆ کۆگای ئامادە'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-[#0071E3] text-white rounded-full text-xs font-bold flex items-center gap-1"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  چاپ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTransferForPrint(null)}
+                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="text-center space-y-1">
+                <h4 className="font-black text-base text-[#1D1D1F]">{factorySettings.factoryName}</h4>
+                <p className="text-[11px] font-bold text-[#0071E3]">
+                  {selectedTransferForPrint.direction === 'LOAD'
+                    ? 'وەسڵی بارکردنی مەندوب (Loading Slip)'
+                    : 'وەسڵی گەڕانەوەی نەفرۆشراو'}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">ژمارەی وەسڵ:</span>
+                  <span className="font-mono font-bold text-[#0071E3]">{selectedTransferForPrint.receiptNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">مەندوب:</span>
+                  <span className="font-bold text-[#1D1D1F]">{selectedTransferForPrint.holderName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">بەروار و کات:</span>
+                  <span className="tabular-nums">{selectedTransferForPrint.date} • {selectedTransferForPrint.time}</span>
+                </div>
+              </div>
+
+              <div className="border border-black/[0.06] rounded-2xl overflow-hidden">
+                <table className="w-full text-right text-[11px]">
+                  <thead className="bg-[#F5F5F7] text-[#515154] font-bold">
+                    <tr>
+                      <th className="p-2.5">بەرهەم</th>
+                      <th className="p-2.5 text-left">کێش (کگم)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.04]">
+                    {selectedTransferForPrint.items.map((it, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2.5 font-bold">{it.productName}</td>
+                        <td className="p-2.5 text-left font-black tabular-nums">{it.weightKg} کگم</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-black pt-2 border-t border-black/[0.06]">
+                <span>کۆی گشتی کێش:</span>
+                <span className="text-[#0071E3] tabular-nums">{selectedTransferForPrint.totalWeightKg} کگم</span>
+              </div>
+
+              <div className="pt-3 border-t border-dashed border-black/15 flex justify-between text-[10px] text-[#86868B]">
+                <span>واژۆی کۆگا: ___________</span>
+                <span>واژۆی مەندوب: ___________</span>
+              </div>
+              <p dir="ltr" className="text-center text-[9px] font-bold text-[#86868B] tracking-widest uppercase">
+                Powered by RAND SUITE
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

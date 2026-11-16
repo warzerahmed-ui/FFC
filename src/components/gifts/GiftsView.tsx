@@ -10,17 +10,23 @@ import {
   User,
   Heart,
   Scale,
+  Download,
+  Search,
+  Calendar,
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
 export const GiftsView: React.FC = () => {
-  const { dispatches, products, factorySettings, repNames, addDispatch, softDeleteRecord, hasAccess } = useApp();
+  const { dispatches, products, custodyTransfers, factorySettings, repNames, addDispatch, softDeleteRecord, hasAccess } = useApp();
 
   const [showModal, setShowModal] = useState(false);
   const [selectedReceiptForPrint, setSelectedReceiptForPrint] = useState<DispatchOrder | null>(null);
   const [showFactoryCostOnPrint, setShowFactoryCostOnPrint] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Form States
   const [manualReceiptNo, setManualReceiptNo] = useState('');
@@ -50,7 +56,11 @@ export const GiftsView: React.FC = () => {
 
   const handleOpenModal = () => {
     const firstProd = products[0];
-    setManualReceiptNo(`G-${Math.floor(100 + Math.random() * 90)}`);
+    let nextNum = 100 + dispatches.filter(d => d.destinationType === 'GIFT').length + 1;
+    while (dispatches.some(d => d.manualReceiptNo.trim().toLowerCase() === `g-${nextNum}`)) {
+      nextNum += 1;
+    }
+    setManualReceiptNo(`G-${nextNum}`);
     setSelectedProductId(firstProd?.id || '');
     setItemFactoryCostPerKg(firstProd?.costPerKg ?? 2750);
     setItemsList([]);
@@ -68,6 +78,58 @@ export const GiftsView: React.FC = () => {
     }
 
     const weight = Number(itemWeight);
+    const alreadyQueued = itemsList
+      .filter(i => i.productId === prod.id)
+      .reduce((s, i) => s + i.weightKg, 0);
+
+    let availableStock = prod.inStockKg;
+    if (sourceCustody === 'REP') {
+      const loaded = custodyTransfers
+        .filter(
+          t =>
+            t.holderType === 'REP' &&
+            t.holderName === repName &&
+            t.direction === 'LOAD' &&
+            (!t.status || t.status === 'ACCEPTED')
+        )
+        .reduce(
+          (s, t) => s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
+          0
+        );
+      const sold = dispatches
+        .filter(
+          d =>
+            (d.destinationType === 'REP' || (d.destinationType === 'GIFT' && d.sourceCustody === 'REP')) &&
+            (d.repName || '') === repName
+        )
+        .reduce(
+          (s, d) => s + d.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
+          0
+        );
+      const ret = custodyTransfers
+        .filter(
+          t =>
+            t.holderType === 'REP' &&
+            t.holderName === repName &&
+            t.direction === 'RETURN_TO_READY' &&
+            (!t.status || t.status === 'ACCEPTED')
+        )
+        .reduce(
+          (s, t) => s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
+          0
+        );
+      availableStock = Math.max(0, Number((loaded - sold - ret).toFixed(2)));
+    }
+
+    if (weight + alreadyQueued > availableStock + 0.001) {
+      alert(
+        `ڕێگری لە دەرکردنی دیاری:\nبڕی پێویست لە ${
+          sourceCustody === 'REP' ? `کۆگای مەندوب (${repName})` : 'کۆگای ئامادەی کارگە'
+        } بەردەست نییە!\n\nبەرهەم: ${prod.nameKu}\nبەردەست: ${availableStock.toLocaleString()} کگم\nداواکراو: ${(weight + alreadyQueued).toLocaleString()} کگم`
+      );
+      return;
+    }
+
     const costPerKg =
       itemFactoryCostPerKg !== '' && Number(itemFactoryCostPerKg) >= 0
         ? Number(itemFactoryCostPerKg)
@@ -110,8 +172,15 @@ export const GiftsView: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualReceiptNo || !recipientName.trim()) {
+    const cleanReceipt = manualReceiptNo.trim();
+    if (!cleanReceipt || !recipientName.trim()) {
       alert('تکایە ژمارەی وەسڵ و ناوی وەرگر بنووسە');
+      return;
+    }
+    if (
+      dispatches.some(d => d.manualReceiptNo.trim().toLowerCase() === cleanReceipt.toLowerCase())
+    ) {
+      alert(`ڕێگری لە دووبارەبوونەوە:\nوەسڵی ژمارە "${cleanReceipt}" پێشتر تۆمارکراوە! تکایە ژمارەیەکی تر بنووسە.`);
       return;
     }
 
@@ -141,10 +210,46 @@ export const GiftsView: React.FC = () => {
     setShowModal(false);
   };
 
-  // Only GIFT dispatches
+  // Only GIFT dispatches + Filters
   const giftsList = dispatches.filter(d => d.destinationType === 'GIFT');
-  const totalGiftsKg = giftsList.reduce((sum, d) => sum + d.totalWeightKg, 0);
-  const totalFactoryCost = giftsList.reduce((sum, d) => sum + getOrderFactoryCost(d), 0);
+  const filteredGifts = giftsList.filter(d => {
+    const q = searchTerm.trim().toLowerCase();
+    const matchesQ =
+      !q ||
+      d.manualReceiptNo.toLowerCase().includes(q) ||
+      (d.customerName && d.customerName.toLowerCase().includes(q)) ||
+      (d.destinationName && d.destinationName.toLowerCase().includes(q)) ||
+      (d.repName && d.repName.toLowerCase().includes(q));
+    const matchesStart = !startDate || d.date.slice(0, 10) >= startDate;
+    const matchesEnd = !endDate || d.date.slice(0, 10) <= endDate;
+    return matchesQ && matchesStart && matchesEnd;
+  });
+
+  const totalGiftsKg = filteredGifts.reduce((sum, d) => sum + d.totalWeightKg, 0);
+  const totalFactoryCost = filteredGifts.reduce((sum, d) => sum + getOrderFactoryCost(d), 0);
+
+  const handleExportCsv = () => {
+    const rows = [
+      ['ژ. وەسڵ', 'بەروار', 'وەرگر', 'مەندوب / بەخشەر', 'کێش (کگم)', 'تێچووی کارگە (د.ع)', 'تێبینی'],
+      ...filteredGifts.map(d => [
+        d.manualReceiptNo,
+        d.date,
+        d.customerName || d.destinationName,
+        d.repName || '',
+        String(d.totalWeightKg),
+        String(getOrderFactoryCost(d)),
+        d.notes || '',
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Gifts-Report-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -160,13 +265,32 @@ export const GiftsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenModal}
-          className="px-5 py-2.5 bg-[#AF52DE] hover:bg-[#9E45CC] text-white font-semibold text-xs rounded-full shadow-sm shadow-[#AF52DE]/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4" />
-          + تۆمارکردنی وەسڵی دیاری (هەدیە)
-        </button>
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel / CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            چاپکردن
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenModal}
+            className="px-5 py-2.5 bg-[#AF52DE] hover:bg-[#9E45CC] text-white font-semibold text-xs rounded-full shadow-sm shadow-[#AF52DE]/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            + تۆمارکردنی وەسڵی دیاری (هەدیە)
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -224,7 +348,7 @@ export const GiftsView: React.FC = () => {
             </div>
           </div>
           <div className="text-xl font-black text-[#1D1D1F]">
-            {giftsList.length} <span className="text-xs font-medium text-[#86868B]">وەسڵ</span>
+            {filteredGifts.length} <span className="text-xs font-medium text-[#86868B]">وەسڵ</span>
           </div>
           <div className="mt-2 text-[11px] text-[#86868B] font-medium">
             تۆمارکراوی سیستەم
@@ -232,11 +356,54 @@ export const GiftsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Search & Date Filter Bar */}
+      <div className="apple-card p-3.5 flex flex-col md:flex-row md:items-center gap-3 no-print">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className="w-4 h-4 text-[#86868B] mr-1 shrink-0" />
+          <input
+            type="text"
+            placeholder="گەڕان بە ژ. وەسڵ، ناوی وەرگر یان مەندوب..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="bg-transparent text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none w-full font-medium"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Calendar className="w-3.5 h-3.5 text-[#AF52DE] shrink-0" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+          />
+          <span className="text-[#86868B]">بۆ</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+          />
+          {(searchTerm || startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] font-semibold"
+            >
+              پاککردنەوە
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Table of Gifts */}
       <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
         <div className="p-4 border-b border-black/[0.05] flex items-center justify-between">
           <span className="font-bold text-xs text-[#1D1D1F]">
-            لیستی وەسڵەکانی دیاری و هەدیە ({giftsList.length})
+            لیستی وەسڵەکانی دیاری و هەدیە ({filteredGifts.length})
           </span>
           <span className="text-xs text-[#86868B]">بەروار و کاتژمێری دەرچوون</span>
         </div>
@@ -258,14 +425,14 @@ export const GiftsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
-              {giftsList.length === 0 ? (
+              {filteredGifts.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="p-8 text-center text-[#86868B]">
                     هیچ وەسڵێکی دیاری تۆمار نەکراوە
                   </td>
                 </tr>
               ) : (
-                giftsList.map((d) => {
+                filteredGifts.map((d) => {
                   const rowFactoryCost = getOrderFactoryCost(d);
                   return (
                   <tr key={d.id} className="hover:bg-[#FBFBFD] transition-colors">

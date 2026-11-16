@@ -19,6 +19,8 @@ import {
   ClipboardList,
   MessageCircle,
   AlertTriangle,
+  Download,
+  Calendar,
 } from 'lucide-react';
 import { DispatchItem, DispatchOrder, ReturnItem, ReturnOrder, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
@@ -33,11 +35,16 @@ const REASON_LABELS: Record<'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED', string> = 
 };
 
 export const RepSalesView: React.FC = () => {
-  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, addDispatch, addReturn, softDeleteRecord, hasAccess } =
+  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, addReturn, softDeleteRecord, hasAccess } =
     useApp();
 
+  const isRepRole = currentUser.role === 'REP';
   const [subTab, setSubTab] = useState<SubTabType>('sales');
   const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [filterRep, setFilterRep] = useState<string>(isRepRole ? currentUser.name : 'ALL');
+  const [filterPayment, setFilterPayment] = useState<'ALL' | 'CASH' | 'CREDIT' | 'ELECTRONIC'>('ALL');
 
   // Sale Modal States
   const [showSaleModal, setShowSaleModal] = useState(false);
@@ -46,7 +53,10 @@ export const RepSalesView: React.FC = () => {
   const [time, setTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
-  const [repName, setRepName] = useState(repNames[0] || '');
+  const [repName, setRepName] = useState(() =>
+    currentUser.role === 'REP' ? currentUser.name : repNames[0] || ''
+  );
+  const effectiveRepName = isRepRole ? currentUser.name : repName;
   const [customerName, setCustomerName] = useState(
     customers[0]?.name || 'سوپەرمارکێتی بەختەوەری (بەختیاری)'
   );
@@ -102,7 +112,7 @@ export const RepSalesView: React.FC = () => {
           .filter(
             t =>
               t.holderType === 'REP' &&
-              t.holderName === repName &&
+              t.holderName === effectiveRepName &&
               t.direction === 'LOAD' &&
               (!t.status || t.status === 'ACCEPTED')
           )
@@ -115,7 +125,7 @@ export const RepSalesView: React.FC = () => {
             d =>
               (d.destinationType === 'REP' ||
                 (d.destinationType === 'GIFT' && d.sourceCustody === 'REP')) &&
-              (d.repName || '') === repName
+              (d.repName || '') === effectiveRepName
           )
           .reduce(
             (s, d) => s + d.items.filter(i => i.productId === p.id).reduce((is, i) => is + i.weightKg, 0),
@@ -125,7 +135,7 @@ export const RepSalesView: React.FC = () => {
           .filter(
             t =>
               t.holderType === 'REP' &&
-              t.holderName === repName &&
+              t.holderName === effectiveRepName &&
               t.direction === 'RETURN_TO_READY' &&
               (!t.status || t.status === 'ACCEPTED')
           )
@@ -149,7 +159,7 @@ export const RepSalesView: React.FC = () => {
       items.reduce((s, i) => s + i.remainingKg, 0).toFixed(2)
     );
     return { items, totalRemainingKg };
-  }, [custodyTransfers, dispatches, products, repName]);
+  }, [custodyTransfers, dispatches, products, effectiveRepName]);
 
   const getLinkedReturns = (sale: DispatchOrder) =>
     returns.filter(
@@ -165,50 +175,82 @@ export const RepSalesView: React.FC = () => {
     [returns]
   );
 
-  const totalRepSalesKg = repSalesList.reduce((sum, d) => sum + d.totalWeightKg, 0);
-  const totalRepSalesIQD = repSalesList.reduce((sum, d) => sum + d.totalAmount, 0);
-  const creditSalesIQD = repSalesList
-    .filter(d => d.paymentType === 'CREDIT' || !d.paymentType)
-    .reduce((sum, d) => sum + d.totalAmount, 0);
-  const cashSalesIQD = repSalesList
-    .filter(d => d.paymentType === 'CASH')
-    .reduce((sum, d) => sum + d.totalAmount, 0);
-  const electronicSalesIQD = repSalesList
-    .filter(d => d.paymentType === 'ELECTRONIC')
-    .reduce((sum, d) => sum + d.totalAmount, 0);
-
-  const totalAllReturnsKg = repReturnsList.reduce((sum, r) => sum + r.totalWeightKg, 0);
-  const totalAllFactoryLoss = repReturnsList.reduce((sum, r) => sum + r.totalLossAmount, 0);
-  const totalAllDeductedFromCustomers = repReturnsList.reduce(
-    (sum, r) => sum + (r.totalCustomerDeduction ?? r.totalLossAmount),
-    0
-  );
-
   // Filtered Lists for Table
   const filteredRepSales = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return repSalesList;
-    return repSalesList.filter(
-      d =>
+    return repSalesList.filter(d => {
+      const matchesQ =
+        !q ||
         d.manualReceiptNo.toLowerCase().includes(q) ||
         (d.customerName && d.customerName.toLowerCase().includes(q)) ||
         (d.destinationName && d.destinationName.toLowerCase().includes(q)) ||
-        (d.repName && d.repName.toLowerCase().includes(q))
-    );
-  }, [repSalesList, searchQuery]);
+        (d.repName && d.repName.toLowerCase().includes(q));
+      const matchesStart = !startDate || d.date.slice(0, 10) >= startDate;
+      const matchesEnd = !endDate || d.date.slice(0, 10) <= endDate;
+      const matchesRep = filterRep === 'ALL' || d.repName === filterRep;
+      const matchesPay = filterPayment === 'ALL' || (d.paymentType || 'CREDIT') === filterPayment;
+      return matchesQ && matchesStart && matchesEnd && matchesRep && matchesPay;
+    });
+  }, [repSalesList, searchQuery, startDate, endDate, filterRep, filterPayment]);
 
   const filteredReturns = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return repReturnsList;
-    return repReturnsList.filter(
-      r =>
+    return repReturnsList.filter(r => {
+      const matchesQ =
+        !q ||
         r.manualReceiptNo.toLowerCase().includes(q) ||
         (r.salesReceiptNo && r.salesReceiptNo.toLowerCase().includes(q)) ||
         (r.customerName && r.customerName.toLowerCase().includes(q)) ||
         (r.sourceName && r.sourceName.toLowerCase().includes(q)) ||
-        (r.repName && r.repName.toLowerCase().includes(q))
-    );
-  }, [repReturnsList, searchQuery]);
+        (r.repName && r.repName.toLowerCase().includes(q));
+      const matchesStart = !startDate || r.date.slice(0, 10) >= startDate;
+      const matchesEnd = !endDate || r.date.slice(0, 10) <= endDate;
+      const matchesRep = filterRep === 'ALL' || r.repName === filterRep;
+      return matchesQ && matchesStart && matchesEnd && matchesRep;
+    });
+  }, [repReturnsList, searchQuery, startDate, endDate, filterRep]);
+
+  const totalRepSalesKg = filteredRepSales.reduce((sum, d) => sum + d.totalWeightKg, 0);
+  const totalRepSalesIQD = filteredRepSales.reduce((sum, d) => sum + d.totalAmount, 0);
+  const creditSalesIQD = filteredRepSales
+    .filter(d => d.paymentType === 'CREDIT' || !d.paymentType)
+    .reduce((sum, d) => sum + d.totalAmount, 0);
+  const cashSalesIQD = filteredRepSales
+    .filter(d => d.paymentType === 'CASH')
+    .reduce((sum, d) => sum + d.totalAmount, 0);
+  const electronicSalesIQD = filteredRepSales
+    .filter(d => d.paymentType === 'ELECTRONIC')
+    .reduce((sum, d) => sum + d.totalAmount, 0);
+
+  const totalAllReturnsKg = filteredReturns.reduce((sum, r) => sum + r.totalWeightKg, 0);
+  const totalAllFactoryLoss = filteredReturns.reduce((sum, r) => sum + r.totalLossAmount, 0);
+  const totalAllDeductedFromCustomers = filteredReturns.reduce(
+    (sum, r) => sum + (r.totalCustomerDeduction ?? r.totalLossAmount),
+    0
+  );
+
+  const handleExportSalesCsv = () => {
+    const rows = [
+      ['ژ. وەسڵ', 'بەروار', 'مەندوب', 'کڕیار / مارکێت', 'کێش (کگم)', 'شێوازی دان', 'کۆی پارە (د.ع)'],
+      ...filteredRepSales.map(d => [
+        d.manualReceiptNo,
+        d.date,
+        d.repName || '',
+        d.customerName || d.destinationName,
+        String(d.totalWeightKg),
+        d.paymentType || 'CREDIT',
+        String(d.totalAmount),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Rep-Sales-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const filteredReceiptOptions = useMemo(() => {
     const q = searchReceiptQuery.trim().toLowerCase();
@@ -224,7 +266,12 @@ export const RepSalesView: React.FC = () => {
 
   // --- Sale Modal Handlers ---
   const handleOpenSaleModal = () => {
-    setManualReceiptNo(`D-${Math.floor(800 + Math.random() * 200)}`);
+    let nextNum = 800 + dispatches.length + 1;
+    while (dispatches.some(d => d.manualReceiptNo.trim().toLowerCase() === `d-${nextNum}`)) {
+      nextNum += 1;
+    }
+    setManualReceiptNo(`D-${nextNum}`);
+    if (isRepRole) setRepName(currentUser.name);
     setDate(toLocalISODate());
     setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
     setItemsList([]);
@@ -331,6 +378,13 @@ export const RepSalesView: React.FC = () => {
       alert('تکایە ژمارەی وەسڵی دەستی بنووسە');
       return;
     }
+    const isDuplicateReceipt = dispatches.some(
+      d => d.manualReceiptNo.trim().toLowerCase() === cleanReceipt.toLowerCase()
+    );
+    if (isDuplicateReceipt) {
+      alert(`ڕێگری لە دووبارەبوونەوە:\nوەسڵی ژمارە "${cleanReceipt}" پێشتر تۆمارکراوە! تکایە ژمارەیەکی تر بنووسە.`);
+      return;
+    }
     if (itemsList.length === 0) {
       alert('تکایە بەلایەنی کەم یەک بەرهەمی فرۆشراو زیاد بکە');
       return;
@@ -377,7 +431,7 @@ export const RepSalesView: React.FC = () => {
       time,
       destinationType: 'REP',
       destinationName: finalCustomer,
-      repName,
+      repName: effectiveRepName,
       customerName: finalCustomer,
       paymentType,
       driverOrRepPhone: phone,
@@ -396,9 +450,9 @@ export const RepSalesView: React.FC = () => {
         date,
         time,
         sourceType: 'REP',
-        sourceName: `${repName} (${finalCustomer})`,
+        sourceName: `${effectiveRepName} (${finalCustomer})`,
         customerName: finalCustomer,
-        repName,
+        repName: effectiveRepName,
         items: inlineReturnItems,
         totalWeightKg: inlineReturnTotalWeight,
         totalLossAmount: inlineReturnTotalLoss,
@@ -548,7 +602,23 @@ export const RepSalesView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportSalesCsv}
+            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel / CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            چاپکردن
+          </button>
           <button
             type="button"
             onClick={handleOpenSaleModal}
@@ -639,44 +709,102 @@ export const RepSalesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Unified Segmented Control + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="inline-flex p-1 rounded-2xl bg-black/[0.05] w-fit">
-          <button
-            type="button"
-            onClick={() => setSubTab('sales')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              subTab === 'sales'
-                ? 'bg-white text-[#1D1D1F] shadow-sm'
-                : 'text-[#6E6E73] hover:text-[#1D1D1F]'
-            }`}
-          >
-            <Send className="w-3.5 h-3.5 text-[#0071E3]" />
-            وەسڵەکانی فرۆشتن ({filteredRepSales.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setSubTab('returns')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              subTab === 'returns'
-                ? 'bg-white text-[#1D1D1F] shadow-sm'
-                : 'text-[#6E6E73] hover:text-[#1D1D1F]'
-            }`}
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-[#FF3B30]" />
-            تۆماری گەڕاوەکان ({filteredReturns.length})
-          </button>
+      {/* Unified Segmented Control + Search + Date/Rep/Payment Filters */}
+      <div className="space-y-3 no-print">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="inline-flex p-1 rounded-2xl bg-black/[0.05] w-fit">
+            <button
+              type="button"
+              onClick={() => setSubTab('sales')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                subTab === 'sales'
+                  ? 'bg-white text-[#1D1D1F] shadow-sm'
+                  : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+              }`}
+            >
+              <Send className="w-3.5 h-3.5 text-[#0071E3]" />
+              وەسڵەکانی فرۆشتن ({filteredRepSales.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubTab('returns')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                subTab === 'returns'
+                  ? 'bg-white text-[#1D1D1F] shadow-sm'
+                  : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-[#FF3B30]" />
+              تۆماری گەڕاوەکان ({filteredReturns.length})
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-[#86868B] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="گەڕان بە ژ. وەسڵ، مارکێت، مەندوب..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="apple-input w-full pr-10 pl-3.5 py-2 text-xs bg-white"
+            />
+          </div>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-[#86868B] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="apple-card p-3 flex flex-wrap items-center gap-2.5 text-xs">
+          <Calendar className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
           <input
-            type="text"
-            placeholder="گەڕان بە ژ. وەسڵ، مارکێت، مەندوب..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="apple-input w-full pr-10 pl-3.5 py-2 text-xs bg-white"
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
           />
+          <span className="text-[#86868B]">بۆ</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+          />
+          {!isRepRole && (
+            <select
+              value={filterRep}
+              onChange={e => setFilterRep(e.target.value)}
+              className="apple-input px-3 py-1.5 text-xs font-bold"
+            >
+              <option value="ALL">هەموو مەندوبەکان</option>
+              {repNames.map(r => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            value={filterPayment}
+            onChange={e => setFilterPayment(e.target.value as 'ALL' | 'CASH' | 'CREDIT' | 'ELECTRONIC')}
+            className="apple-input px-3 py-1.5 text-xs font-bold"
+          >
+            <option value="ALL">هەموو شێوازەکان</option>
+            <option value="CASH">کاش (نەقد)</option>
+            <option value="CREDIT">قەرز</option>
+            <option value="ELECTRONIC">ئەلکترۆنی</option>
+          </select>
+          {(searchQuery || startDate || endDate || (!isRepRole && filterRep !== 'ALL') || filterPayment !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setStartDate('');
+                setEndDate('');
+                if (!isRepRole) setFilterRep('ALL');
+                setFilterPayment('ALL');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] font-semibold"
+            >
+              پاککردنەوە
+            </button>
+          )}
         </div>
       </div>
 
@@ -1035,13 +1163,14 @@ export const RepSalesView: React.FC = () => {
                     ناوی مەندوب (فرۆشیار) *
                   </label>
                   <select
-                    value={repName}
+                    value={effectiveRepName}
+                    disabled={isRepRole}
                     onChange={e => setRepName(e.target.value)}
-                    className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2.5 text-[#1D1D1F] outline-none focus:border-[#0071E3] font-semibold"
+                    className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2.5 text-[#1D1D1F] outline-none focus:border-[#0071E3] font-semibold disabled:opacity-75"
                   >
-                    {repNames.map((rep, idx) => (
+                    {(isRepRole && !repNames.includes(currentUser.name) ? [currentUser.name, ...repNames] : repNames).map((rep, idx) => (
                       <option key={idx} value={rep}>
-                        {rep}
+                        {rep}{isRepRole && rep === currentUser.name ? ' (ئەکاونتی خۆت)' : ''}
                       </option>
                     ))}
                   </select>

@@ -79,12 +79,19 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualReceiptNo || !farmName || netWeight <= 0) {
+    const cleanReceipt = manualReceiptNo.trim();
+    if (!cleanReceipt || !farmName || netWeight <= 0) {
+      return;
+    }
+    if (
+      intakes.some(i => i.manualReceiptNo.trim().toLowerCase() === cleanReceipt.toLowerCase())
+    ) {
+      alert(`ڕێگری لە دووبارەبوونەوە:\nوەسڵی ژمارە "${cleanReceipt}" پێشتر تۆمارکراوە! تکایە ژمارەیەکی تر بنووسە.`);
       return;
     }
 
     addIntake({
-      manualReceiptNo,
+      manualReceiptNo: cleanReceipt,
       date,
       farmName,
       driverName: '',
