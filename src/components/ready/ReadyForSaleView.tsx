@@ -14,12 +14,15 @@ import {
   Plus,
   Trash2,
   Search,
+  Download,
+  Store,
+  Clock,
 } from 'lucide-react';
 import { ProductItem, ReturnOrder, TabType, ProductCategory } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
-type SubTabType = 'inventory' | 'returns-conversion';
+type SubTabType = 'inventory' | 'fifo-batches' | 'returns-conversion';
 
 interface ReadyForSaleViewProps {
   onNavigate?: (tab: TabType) => void;
@@ -28,10 +31,12 @@ interface ReadyForSaleViewProps {
 export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }) => {
   const {
     products,
+    yields,
     custodyTransfers,
     returns,
     convertReturnOrder,
     updateProductPrice,
+    transferReadyToBranch,
     addProduct,
     deleteProduct,
     factorySettings,
@@ -53,10 +58,18 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
   const [convertedWeights, setConvertedWeights] = useState<Record<string, number>>({});
   const [conversionNotes, setConversionNotes] = useState('');
 
-  // Edit Price Modal States
+  // Edit Price & Alert Modal States
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
   const [editPricePerKg, setEditPricePerKg] = useState<number | ''>('');
   const [editCostPerKg, setEditCostPerKg] = useState<number | ''>('');
+  const [editMinAlertKg, setEditMinAlertKg] = useState<number | ''>(100);
+
+  // Send to Showroom (POS) Modal States
+  const [showBranchTransferModal, setShowBranchTransferModal] = useState(false);
+  const [branchWeights, setBranchWeights] = useState<Record<string, number>>({});
+  const [branchRepName, setBranchRepName] = useState('');
+  const [branchReceiptNo, setBranchReceiptNo] = useState('');
+  const [branchNotes, setBranchNotes] = useState('');
 
   // Barcode Sticker Label Modal States
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
@@ -92,6 +105,128 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     (s, r) => s + (r.convertedOutputs?.reduce((cs, o) => cs + o.weightKg, 0) || 0),
     0
   );
+
+  // FIFO Batch & Freshness Breakdown from Slaughter Yields
+  const freshWindowDays = factorySettings.returnWindowDays || 3;
+  const fifoBatches = useMemo(() => {
+    const todayMs = new Date(`${toLocalISODate()}T00:00:00`).getTime();
+    return products
+      .filter(p => p.inStockKg > 0)
+      .map(prod => {
+        let remaining = prod.inStockKg;
+        const allocated: {
+          receiptNo: string;
+          farmName: string;
+          date: string;
+          weightKg: number;
+          ageDays: number;
+          dressedCostPerKg?: number;
+        }[] = [];
+
+        const matchingYields = yields
+          .filter(y => y.cuts.some(c => c.productId === prod.id && c.weightKg > 0))
+          .sort((a, b) => b.date.localeCompare(a.date));
+
+        for (const y of matchingYields) {
+          if (remaining <= 0) break;
+          const cutKg = y.cuts
+            .filter(c => c.productId === prod.id)
+            .reduce((s, c) => s + c.weightKg, 0);
+          if (cutKg <= 0) continue;
+          const take = Math.min(remaining, cutKg);
+          const batchMs = new Date(`${y.date}T00:00:00`).getTime();
+          const ageDays = Math.max(0, Math.round((todayMs - batchMs) / 86400000));
+          allocated.push({
+            receiptNo: y.manualReceiptNo,
+            farmName: y.farmName,
+            date: y.date,
+            weightKg: Number(take.toFixed(2)),
+            ageDays,
+            dressedCostPerKg: y.dressedCostPerKg,
+          });
+          remaining = Number((remaining - take).toFixed(2));
+        }
+
+        if (remaining > 0.01) {
+          allocated.push({
+            receiptNo: 'سەرەتایی / گەڕاوە',
+            farmName: 'کۆگای کارگە',
+            date: toLocalISODate(),
+            weightKg: remaining,
+            ageDays: 0,
+          });
+        }
+
+        const maxAgeDays = allocated.reduce((m, b) => Math.max(m, b.ageDays), 0);
+        return {
+          product: prod,
+          batches: allocated,
+          maxAgeDays,
+        };
+      });
+  }, [products, yields]);
+
+  const handleOpenBranchTransfer = (preselectProductId?: string) => {
+    const init: Record<string, number> = {};
+    products.forEach(p => {
+      init[p.id] = preselectProductId && p.id === preselectProductId ? Math.min(p.inStockKg, 10) : 0;
+    });
+    setBranchWeights(init);
+    setBranchRepName('');
+    setBranchReceiptNo('');
+    setBranchNotes('');
+    setShowBranchTransferModal(true);
+  };
+
+  const handleSubmitBranchTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    const items = products
+      .map(p => ({ productId: p.id, weightKg: Number(branchWeights[p.id] || 0) }))
+      .filter(i => i.weightKg > 0);
+    if (items.length === 0) {
+      alert('تکایە کێشی لانیکەم یەک بەرهەم بنووسە بۆ ناردن بۆ شۆرۆم');
+      return;
+    }
+    for (const it of items) {
+      const prod = products.find(p => p.id === it.productId);
+      if (!prod || it.weightKg > prod.inStockKg) {
+        alert(`بڕی داواکراو بۆ "${prod?.nameKu}" لە کۆگای ئامادە زیاترە!`);
+        return;
+      }
+    }
+    const created = transferReadyToBranch({
+      items,
+      repName: branchRepName,
+      manualReceiptNo: branchReceiptNo,
+      notes: branchNotes,
+    });
+    if (created) {
+      setShowBranchTransferModal(false);
+    }
+  };
+
+  const handleExportInventoryCsv = () => {
+    const rows = [
+      ['کۆد', 'ناوی پارچە', 'کێشی ئامادە (کگم)', 'سنووری ئاگاداری (کگم)', 'نرخی فرۆش (د.ع)', 'تێچووی کیلۆ (د.ع)', 'بەهای کۆگا (د.ع)'],
+      ...products.map(p => [
+        p.code,
+        p.nameKu,
+        String(p.inStockKg),
+        String(p.minAlertKg ?? 100),
+        String(p.pricePerKg),
+        String(p.costPerKg),
+        String(Math.round(p.inStockKg * p.pricePerKg)),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Ready-Inventory-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // --- 3-Day Return Conversion Handlers ---
   const handleOpenConvertModal = (ret: ReturnOrder) => {
@@ -142,6 +277,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     setEditingProduct(prod);
     setEditPricePerKg(prod.pricePerKg);
     setEditCostPerKg(prod.costPerKg);
+    setEditMinAlertKg(prod.minAlertKg ?? 100);
   };
 
   const handleSavePrice = (e: React.FormEvent) => {
@@ -150,7 +286,8 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
     updateProductPrice(
       editingProduct.id,
       Number(editPricePerKg) || editingProduct.pricePerKg,
-      Number(editCostPerKg) || editingProduct.costPerKg
+      Number(editCostPerKg) || editingProduct.costPerKg,
+      editMinAlertKg === '' ? 100 : Math.max(0, Number(editMinAlertKg))
     );
     setEditingProduct(null);
   };
@@ -185,7 +322,10 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
 
   const handleDeleteProduct = (prod: ProductItem) => {
     if (confirm(`ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${prod.nameKu}"؟ ئەم بەشە لە تەواوی سیستمدا دەسڕدرێتەوە.`)) {
-      deleteProduct(prod.id);
+      const res = deleteProduct(prod.id);
+      if (!res.ok && res.error) {
+        alert(res.error);
+      }
     }
   };
 
@@ -207,7 +347,34 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportInventoryCsv}
+            className="px-3.5 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel / CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-3.5 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            چاپکردن
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenBranchTransfer()}
+            className="px-4 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <Store className="w-4 h-4" />
+            ناردن بۆ شۆرۆم (POS)
+          </button>
+
           <button
             type="button"
             onClick={() => setShowAddProductModal(true)}
@@ -223,7 +390,7 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
             className="px-4 py-2.5 bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
           >
             <Barcode className="w-4 h-4" />
-            چاپی ستیکەری بارکۆد
+            ستیکەری بارکۆد
           </button>
 
           <button
@@ -321,6 +488,19 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
 
         <button
           type="button"
+          onClick={() => setSubTab('fifo-batches')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            subTab === 'fifo-batches'
+              ? 'bg-white text-[#1D1D1F] shadow-sm'
+              : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5 text-[#5856D6]" />
+          شوێنپێی وەجبە و بەسەرچوون (FIFO)
+        </button>
+
+        <button
+          type="button"
           onClick={() => setSubTab('returns-conversion')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
             subTab === 'returns-conversion'
@@ -355,8 +535,9 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                   p.code.toLowerCase().includes(searchTerm.toLowerCase())
               )
               .map(prod => {
+            const alertThreshold = prod.minAlertKg ?? 100;
             const isOut = prod.inStockKg <= 0;
-            const isLow = prod.inStockKg > 0 && prod.inStockKg < 100;
+            const isLow = prod.inStockKg > 0 && prod.inStockKg < alertThreshold;
             return (
               <div
                 key={prod.id}
@@ -404,24 +585,35 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-black/[0.05] flex items-center gap-2">
+                <div className="pt-3 border-t border-black/[0.05] flex items-center gap-1.5 flex-wrap">
                   {onNavigate && (
                     <button
                       type="button"
                       disabled={isOut}
                       onClick={() => onNavigate('custody')}
-                      className="flex-1 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                      className="flex-1 py-2 px-3 rounded-full bg-[#0071E3] hover:bg-[#0077ED] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                     >
                       <ClipboardList className="w-3.5 h-3.5" />
-                      ناردن بۆ کۆگای مەندوب
+                      مەندوب
                     </button>
                   )}
 
                   <button
                     type="button"
+                    disabled={isOut}
+                    onClick={() => handleOpenBranchTransfer(prod.id)}
+                    className="px-3 py-2 rounded-full bg-[#5856D6]/12 hover:bg-[#5856D6] disabled:opacity-40 text-[#5856D6] hover:text-white text-xs font-bold flex items-center gap-1 transition-all"
+                    title="ناردن بۆ شۆرۆم (POS)"
+                  >
+                    <Store className="w-3.5 h-3.5" />
+                    شۆرۆم
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleOpenEditPrice(prod)}
-                    className="px-3.5 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] text-xs font-semibold flex items-center gap-1 transition-all"
-                    title="گۆڕینی نرخ"
+                    className="px-3 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] text-xs font-semibold flex items-center gap-1 transition-all"
+                    title="گۆڕینی نرخ و سنووری ئاگاداری"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     نرخ
@@ -443,7 +635,96 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
         </div>
       )}
 
-      {/* SubTab 2: 3-Day Returns Come Back Here -> Convert to Another Form */}
+      {/* SubTab 2: FIFO Batch & Freshness Tracker */}
+      {subTab === 'fifo-batches' && (
+        <div className="apple-card overflow-hidden">
+          <div className="p-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="font-bold text-xs text-[#1D1D1F] block">
+                شوێنپێی وەجبەکان و تەمەنی فرێشیی گۆشت (FIFO)
+              </span>
+              <span className="text-[11px] text-[#86868B]">
+                بەپێی بەرواری سەربڕین و ماوەی فرێشیی کارگە ({freshWindowDays} ڕۆژ) دۆخی هەر بەرهەمێک پیشان دەدات
+              </span>
+            </div>
+          </div>
+
+          {fifoBatches.length === 0 ? (
+            <div className="p-8 text-center text-xs text-[#86868B]">
+              هیچ بەرهەمێکی بەردەست لە کۆگادا نییە
+            </div>
+          ) : (
+            <div className="divide-y divide-black/[0.05]">
+              {fifoBatches.map(({ product, batches, maxAgeDays }) => {
+                const isExpired = maxAgeDays >= freshWindowDays;
+                const isNearExpiry = !isExpired && maxAgeDays >= Math.max(1, freshWindowDays - 1);
+                return (
+                  <div key={product.id} className="p-4 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-[#1D1D1F]">{product.nameKu}</span>
+                        <span className="text-[11px] font-mono bg-[#F5F5F7] px-2 py-0.5 rounded-full text-[#86868B]">
+                          #{product.code}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-[#0071E3] tabular-nums">
+                          کۆی بەردەست: {product.inStockKg.toLocaleString()} کگم
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            isExpired
+                              ? 'bg-[#FF3B30]/12 text-[#D70015]'
+                              : isNearExpiry
+                              ? 'bg-[#FF9500]/15 text-[#B25000]'
+                              : 'bg-[#34C759]/12 text-[#248A3D]'
+                          }`}
+                        >
+                          {isExpired
+                            ? `بەسەرچوون / پێویستی فرۆشتنی خێرا (${maxAgeDays} ڕۆژ)`
+                            : isNearExpiry
+                            ? `نزیکە لە کۆتایی ماوە (${maxAgeDays} ڕۆژ)`
+                            : `تازە و فرێش (${maxAgeDays} ڕۆژ)`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {batches.map((b, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-xl bg-[#F8FAFC] border border-slate-200/80 text-[11px] flex items-center justify-between gap-2"
+                        >
+                          <div>
+                            <div className="font-bold text-[#1D1D1F]">
+                              وەسڵ: <span className="font-mono text-[#5856D6]">{b.receiptNo}</span>
+                            </div>
+                            <div className="text-[10px] text-[#86868B]">
+                              {b.farmName} • {b.date} ({b.ageDays} ڕۆژ)
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div className="font-black text-[#1D1D1F] tabular-nums">
+                              {b.weightKg.toLocaleString()} کگم
+                            </div>
+                            {b.dressedCostPerKg && (
+                              <div className="text-[10px] text-[#5856D6] tabular-nums">
+                                تێچوو: {b.dressedCostPerKg.toLocaleString()} د.ع
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SubTab 3: 3-Day Returns Come Back Here -> Convert to Another Form */}
       {subTab === 'returns-conversion' && (
         <div className="apple-card overflow-hidden">
           <div className="p-4 border-b border-black/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -730,6 +1011,22 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                     setEditCostPerKg(e.target.value ? Number(e.target.value) : '')
                   }
                   className="apple-input w-full px-3.5 py-2.5 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">
+                  سنووری ئاگادارکردنەوەی کەمیی کۆگا (کگم)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="5"
+                  value={editMinAlertKg}
+                  onChange={e =>
+                    setEditMinAlertKg(e.target.value === '' ? '' : Number(e.target.value))
+                  }
+                  className="apple-input w-full px-3.5 py-2.5 font-bold tabular-nums"
                 />
               </div>
 
@@ -1033,6 +1330,129 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
                 >
                   <Plus className="w-3.5 h-3.5" />
                   تۆمارکردن و زیادکردن بۆ کۆگا
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Send Directly to Showroom (POS) Modal */}
+      {showBranchTransferModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-[28px] w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl border border-black/[0.08] apple-sheet">
+            <div className="p-5 bg-[#FBFBFD] border-b border-black/[0.06] flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#0071E3] text-white flex items-center justify-center">
+                  <Store className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#1D1D1F]">
+                    ناردنی بار لە کۆگای ئامادەوە بۆ شۆرۆم (POS)
+                  </h4>
+                  <p className="text-[11px] text-[#86868B]">
+                    لە کۆگای ئامادەی کارگە کەم دەبێتەوە و ڕاستەوخۆ دەچێتە ناو کۆگای فرۆشگای شۆرۆم
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBranchTransferModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitBranchTransfer} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    ژمارەی وەسڵ (ئارەزوومەندانە)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="بۆ نموونە: SH-0012"
+                    value={branchReceiptNo}
+                    onChange={e => setBranchReceiptNo(e.target.value)}
+                    className="apple-input w-full px-3.5 py-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">
+                    گەیەنەر / بەرپرس
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ناوی گەیەنەر..."
+                    value={branchRepName}
+                    onChange={e => setBranchRepName(e.target.value)}
+                    className="apple-input w-full px-3.5 py-2 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto p-3 rounded-2xl bg-[#FBFBFD] border border-black/[0.06]">
+                {products.filter(p => p.inStockKg > 0).length === 0 ? (
+                  <div className="py-6 text-center text-[#86868B]">
+                    هیچ بەرهەمێک لە کۆگای ئامادەدا بەردەست نییە
+                  </div>
+                ) : (
+                  products
+                    .filter(p => p.inStockKg > 0)
+                    .map(p => (
+                      <div
+                        key={p.id}
+                        className="p-2.5 rounded-xl bg-white border border-black/[0.06] flex items-center justify-between gap-2"
+                      >
+                        <div>
+                          <div className="font-bold text-[#1D1D1F]">{p.nameKu}</div>
+                          <div className="text-[10px] text-[#86868B] tabular-nums">
+                            بەردەست: {p.inStockKg.toLocaleString()} کگم
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max={p.inStockKg}
+                          placeholder="0 کگم"
+                          value={branchWeights[p.id] === 0 ? '' : branchWeights[p.id] || ''}
+                          onChange={e =>
+                            setBranchWeights(prev => ({
+                              ...prev,
+                              [p.id]: e.target.value === '' ? 0 : Number(e.target.value),
+                            }))
+                          }
+                          className="w-28 bg-[#F5F5F7] rounded-xl px-3 py-1.5 font-black text-center outline-none focus:ring-2 focus:ring-[#0071E3]/25 tabular-nums"
+                        />
+                      </div>
+                    ))
+                )}
+              </div>
+
+              <input
+                type="text"
+                placeholder="تێبینی..."
+                value={branchNotes}
+                onChange={e => setBranchNotes(e.target.value)}
+                className="apple-input w-full px-3.5 py-2"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-black/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowBranchTransferModal(false)}
+                  className="px-4 py-2 rounded-full bg-[#F5F5F7] text-[#515154] font-semibold"
+                >
+                  پاشگەزبوونەوە
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold flex items-center gap-1.5"
+                >
+                  <Store className="w-3.5 h-3.5" />
+                  ناردن بۆ شۆرۆم
                 </button>
               </div>
             </form>

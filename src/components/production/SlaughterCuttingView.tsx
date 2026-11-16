@@ -11,6 +11,11 @@ import {
   AlertCircle,
   X,
   Truck,
+  Trash2,
+  Download,
+  Printer,
+  Calendar,
+  Search,
 } from 'lucide-react';
 import { LiveIntake, TabType, ProductCategory } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -38,7 +43,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   preselectedIntakeId,
   onClearPreselect,
 }) => {
-  const { intakes, yields, products, addYieldRecord, addProduct } = useApp();
+  const { intakes, yields, products, addYieldRecord, deleteYieldRecord, addProduct } = useApp();
 
   const [showModal, setShowModal] = useState(false);
   const [selectedIntakeId, setSelectedIntakeId] = useState('');
@@ -47,6 +52,9 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   const [cutWeights, setCutWeights] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
   const [justCompletedReceipt, setJustCompletedReceipt] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // New part creation modal state
   const [showAddPartModal, setShowAddPartModal] = useState(false);
@@ -97,15 +105,57 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
     liveKgNum > 0 ? Number(((dressedWeightKg / liveKgNum) * 100).toFixed(1)) : 0;
   const wastePercentage =
     liveKgNum > 0 ? Number(((wasteWeightKg / liveKgNum) * 100).toFixed(1)) : 0;
+  const liveBatchCost =
+    selectedIntake && liveKgNum > 0 ? Math.round(liveKgNum * selectedIntake.pricePerKg) : 0;
+  const dressedCostPerKg =
+    dressedWeightKg > 0 && liveBatchCost > 0 ? Math.round(liveBatchCost / dressedWeightKg) : 0;
 
-  // Overall KPIs
-  const totalProcessedLiveKg = yields.reduce((s, y) => s + y.batchLiveWeightKg, 0);
-  const totalDressedKg = yields.reduce((s, y) => s + y.dressedWeightKg, 0);
+  const filteredYields = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return yields.filter(y => {
+      const matchesQ =
+        !q ||
+        y.manualReceiptNo.toLowerCase().includes(q) ||
+        y.farmName.toLowerCase().includes(q);
+      const matchesStart = !startDate || y.date >= startDate;
+      const matchesEnd = !endDate || y.date <= endDate;
+      return matchesQ && matchesStart && matchesEnd;
+    });
+  }, [yields, searchTerm, startDate, endDate]);
+
+  // Overall KPIs (respecting active date/search filters)
+  const totalProcessedLiveKg = filteredYields.reduce((s, y) => s + y.batchLiveWeightKg, 0);
+  const totalDressedKg = filteredYields.reduce((s, y) => s + y.dressedWeightKg, 0);
   const totalWaitingLiveKg = pendingIntakes.reduce((s, i) => s + i.remainingLiveWeightKg, 0);
   const avgYieldPct =
     totalProcessedLiveKg > 0
       ? Number(((totalDressedKg / totalProcessedLiveKg) * 100).toFixed(1))
       : 0;
+
+  const handleExportCsv = () => {
+    const rows = [
+      ['وەسڵی کێڵگە', 'بەروار', 'کێڵگە', 'کێشی زیندوو (کگم)', 'کۆی پارچەکراو (کگم)', 'پەڕ و فەوتان (کگم)', 'ڕێژەی سافی %', 'تێچووی کیلۆی گۆشت (د.ع)', 'بەرهەمە ئامادەکراوەکان'],
+      ...filteredYields.map(y => [
+        y.manualReceiptNo,
+        y.date,
+        y.farmName,
+        String(y.batchLiveWeightKg),
+        String(y.dressedWeightKg),
+        String(y.wasteWeightKg),
+        String(y.yieldPercentage),
+        String(y.dressedCostPerKg || 0),
+        y.cuts.map(c => `${c.productName} (${c.weightKg} کگم)`).join('، '),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Slaughter-Production-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +198,8 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
       wasteWeightKg,
       yieldPercentage,
       wastePercentage,
+      liveBatchCost,
+      dressedCostPerKg,
       cuts,
       notes: notes.trim() || 'سەربڕین و پارچەکردن بۆ کۆگای ئامادە بۆ فرۆشتن',
     });
@@ -207,7 +259,23 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel / CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            چاپکردن
+          </button>
           <button
             type="button"
             onClick={() => openSlaughterModal()}
@@ -355,11 +423,54 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
         )}
       </div>
 
+      {/* Search & Date Filter Bar */}
+      <div className="apple-card p-3.5 flex flex-col md:flex-row md:items-center gap-3 no-print">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className="w-4 h-4 text-[#86868B] mr-1 shrink-0" />
+          <input
+            type="text"
+            placeholder="گەڕان لە تۆماری سەربڕین بە ژ. وەسڵ یان کێڵگە..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="bg-transparent text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none w-full font-medium"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Calendar className="w-3.5 h-3.5 text-[#5856D6] shrink-0" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+          />
+          <span className="text-[#86868B]">بۆ</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+          />
+          {(searchTerm || startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] font-semibold"
+            >
+              پاککردنەوە
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Slaughtering & Cutting History Table */}
       <div className="apple-card overflow-hidden">
         <div className="p-4 border-b border-black/[0.05] flex items-center justify-between">
           <span className="font-bold text-xs text-[#1D1D1F]">
-            تۆماری سەربڕین و پارچەکردن ({yields.length})
+            تۆماری سەربڕین و پارچەکردن ({filteredYields.length})
           </span>
           <span className="text-[11px] text-[#86868B]">
             هەموو پارچەکان ڕاستەوخۆ چوونەتە قۆناغی ئامادە بۆ فرۆشتن
@@ -377,18 +488,20 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                 <th className="p-4">کۆی پارچەکراو</th>
                 <th className="p-4">پەڕ و فەوتان</th>
                 <th className="p-4">ڕێژەی سافی</th>
+                <th className="p-4">تێچووی کیلۆ</th>
                 <th className="p-4">بەرهەمە ئامادەکراوەکان</th>
+                <th className="p-4 text-center no-print">کردار</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04] text-[#1D1D1F]">
-              {yields.length === 0 ? (
+              {filteredYields.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-[#86868B]">
+                  <td colSpan={10} className="p-8 text-center text-[#86868B]">
                     هیچ تۆمارێکی سەربڕین نییە
                   </td>
                 </tr>
               ) : (
-                yields.map(y => (
+                filteredYields.map(y => (
                   <tr key={y.id} className="hover:bg-[#FBFBFD] transition-colors">
                     <td className="p-4">
                       <span className="bg-[#5856D6]/10 text-[#5856D6] px-2.5 py-1 rounded-full font-mono text-[11px] font-bold">
@@ -409,8 +522,29 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                     <td className="p-4 font-bold text-[#0071E3] tabular-nums">
                       {y.yieldPercentage}%
                     </td>
+                    <td className="p-4 font-bold text-[#5856D6] tabular-nums">
+                      {y.dressedCostPerKg ? `${y.dressedCostPerKg.toLocaleString()} د.ع` : '---'}
+                    </td>
                     <td className="p-4 text-[11px] text-[#515154]">
                       {y.cuts.map(c => `${c.productName} (${c.weightKg} کگم)`).join('، ')}
+                    </td>
+                    <td className="p-4 text-center no-print">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `ئایا دڵنیایت لە سڕینەوەی سەربڕینی وەسڵی #${y.manualReceiptNo}؟ کێشی زیندوو دەگەڕێتەوە بۆ قۆناغی ١ و پارچەکان لە کۆگای ئامادە کەم دەبنەوە.`
+                            )
+                          ) {
+                            deleteYieldRecord(y.id);
+                          }
+                        }}
+                        className="p-2 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-all"
+                        title="سڕینەوە و گەڕاندنەوەی کێش"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -546,7 +680,7 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
               </div>
 
               <div
-                className={`p-4 rounded-2xl border grid grid-cols-3 gap-3 text-center transition-colors ${
+                className={`p-4 rounded-2xl border grid grid-cols-2 sm:grid-cols-4 gap-3 text-center transition-colors ${
                   isOverLiveWeight
                     ? 'bg-[#FF3B30]/10 border-[#FF3B30]/35'
                     : 'bg-[#5856D6]/8 border-[#5856D6]/20'
@@ -576,6 +710,12 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
                     }`}
                   >
                     {yieldPercentage}%
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#86868B] block">تێچووی حەقیقی / کگم</span>
+                  <span className="text-base font-black text-[#0071E3] tabular-nums">
+                    {dressedCostPerKg > 0 ? `${dressedCostPerKg.toLocaleString()} د.ع` : '---'}
                   </span>
                 </div>
               </div>

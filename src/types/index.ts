@@ -126,6 +126,7 @@ export interface ProductItem {
   costPerKg: number;
   unit: 'KG' | 'PIECE';
   inStockKg: number;
+  minAlertKg?: number;
 }
 
 export interface LiveIntake {
@@ -163,6 +164,8 @@ export interface YieldRecord {
   yieldPercentage: number;
   wastePercentage: number;
   remainingAfterBatchKg: number;
+  liveBatchCost?: number;
+  dressedCostPerKg?: number;
   cuts: {
     productId: string;
     productName: string;

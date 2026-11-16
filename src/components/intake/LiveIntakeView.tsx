@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2 } from 'lucide-react';
+import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2, Download, Printer, Calendar } from 'lucide-react';
 import { TabType, roundTo250 } from '../../types';
 import { toLocalISODate } from '../../utils/date';
 
@@ -16,6 +16,8 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   const { intakes, suppliers, addIntake, addSupplier, softDeleteRecord, hasAccess } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Form states
   const [manualReceiptNo, setManualReceiptNo] = useState('');
@@ -111,15 +113,44 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
     setNotes('');
   };
 
-  const filteredIntakes = intakes.filter(
-    i =>
-      i.manualReceiptNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.farmName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.driverName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredIntakes = intakes.filter(i => {
+    const q = searchTerm.trim().toLowerCase();
+    const matchesQ =
+      !q ||
+      i.manualReceiptNo.toLowerCase().includes(q) ||
+      i.farmName.toLowerCase().includes(q);
+    const matchesStart = !startDate || i.date >= startDate;
+    const matchesEnd = !endDate || i.date <= endDate;
+    return matchesQ && matchesStart && matchesEnd;
+  });
 
-  const totalNetKg = intakes.reduce((sum, i) => sum + i.netWeightKg, 0);
-  const totalPurchaseCost = intakes.reduce((sum, i) => sum + i.totalAmount, 0);
+  const totalNetKg = filteredIntakes.reduce((sum, i) => sum + i.netWeightKg, 0);
+  const totalPurchaseCost = filteredIntakes.reduce((sum, i) => sum + i.totalAmount, 0);
+
+  const handleExportCsv = () => {
+    const rows = [
+      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان', 'ماوە بۆ سەربڕین (کگم)'],
+      ...filteredIntakes.map(i => [
+        i.manualReceiptNo,
+        i.date,
+        i.farmName,
+        String(i.birdCount),
+        String(i.netWeightKg),
+        String(i.pricePerKg),
+        String(i.totalAmount),
+        i.paymentStatus === 'PAID' ? 'نەقد دراوە' : i.paymentStatus === 'PARTIAL' ? 'بەشێکی دراوە' : 'قەرزی سەر کارگە',
+        String(i.remainingLiveWeightKg),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Live-Intake-${toLocalISODate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-5">
@@ -139,7 +170,23 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel / CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            چاپکردن
+          </button>
           <button
             type="button"
             onClick={() => setShowModal(true)}
@@ -168,21 +215,54 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
         <div className="apple-card p-4">
           <span className="text-[11px] font-semibold text-[#86868B]">ژمارەی وەجبە تۆمارکراوەکان</span>
           <div className="text-2xl font-black text-[#FF9500] tabular-nums mt-1">
-            {intakes.length} <span className="text-xs font-medium text-[#86868B]">وەسڵ</span>
+            {filteredIntakes.length} <span className="text-xs font-medium text-[#86868B]">وەسڵ</span>
           </div>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="apple-card p-3 flex items-center gap-2.5">
-        <Search className="w-4 h-4 text-[#86868B] mr-1" />
-        <input
-          type="text"
-          placeholder="گەڕان بەپێی ژمارەی وەسڵی دەستی، ناوی کێڵگە یان شۆفێر..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          className="bg-transparent text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none w-full font-medium"
-        />
+      {/* Search & Date Filter Bar */}
+      <div className="apple-card p-3.5 flex flex-col md:flex-row md:items-center gap-3 no-print">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className="w-4 h-4 text-[#86868B] mr-1 shrink-0" />
+          <input
+            type="text"
+            placeholder="گەڕان بەپێی ژمارەی وەسڵی دەستی یان ناوی کێڵگە..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="bg-transparent text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none w-full font-medium"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Calendar className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+            title="لە بەروار"
+          />
+          <span className="text-[#86868B]">بۆ</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="apple-input px-2.5 py-1.5 text-xs font-semibold"
+            title="بۆ بەروار"
+          />
+          {(searchTerm || startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] font-semibold"
+            >
+              پاککردنەوە
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Clean Apple Table */}

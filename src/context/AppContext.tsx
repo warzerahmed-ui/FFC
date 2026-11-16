@@ -13,6 +13,7 @@ import {
   POSSale,
   BranchStockItem,
   BranchDelivery,
+  BranchDeliveryItem,
   BranchExpense,
   CustodyTransfer,
   DailySettlement,
@@ -99,6 +100,7 @@ interface AppContextType {
   // Actions
   addIntake: (intake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => void;
   addYieldRecord: (record: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => void;
+  deleteYieldRecord: (id: string) => boolean;
   addDispatch: (dispatch: Omit<DispatchOrder, 'id'>) => void;
   addReturn: (returnOrder: Omit<ReturnOrder, 'id'>) => void;
   convertReturnOrder: (
@@ -120,8 +122,14 @@ interface AppContextType {
     initialStockKg?: number;
   }) => ProductItem;
   updateProduct: (product: ProductItem) => void;
-  deleteProduct: (id: string) => void;
-  updateProductPrice: (id: string, newPrice: number, newCost: number) => void;
+  deleteProduct: (id: string) => { ok: boolean; error?: string };
+  updateProductPrice: (id: string, newPrice: number, newCost: number, minAlertKg?: number) => void;
+  transferReadyToBranch: (payload: {
+    items: { productId: string; weightKg: number }[];
+    repName?: string;
+    manualReceiptNo?: string;
+    notes?: string;
+  }) => BranchDelivery | null;
   
   // Dedicated Store Actions
   addBranchDelivery: (delivery: Omit<BranchDelivery, 'id'>) => void;
@@ -865,8 +873,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (intake.paymentStatus === 'DEBT' || intake.paymentStatus === 'PARTIAL') {
       const remainingDebt = intake.totalAmount - (intake.paidAmount || 0);
+      const targetFarm = normalizeName(intake.farmName);
       setSuppliers(prev => prev.map(s => {
-        if (s.name.includes(intake.farmName) || intake.farmName.includes(s.name)) {
+        if (normalizeName(s.name) === targetFarm) {
           return { ...s, currentBalance: s.currentBalance + remainingDebt };
         }
         return s;
@@ -917,6 +926,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return p;
     }));
+  };
+
+  const deleteYieldRecord = (id: string): boolean => {
+    if (!hasAccess('production')) return false;
+    const target = yields.find(y => y.id === id);
+    if (!target) return false;
+
+    setYields(prev => prev.filter(y => y.id !== id));
+
+    setIntakes(prev => prev.map(i => {
+      if (i.id === target.intakeId) {
+        const updatedProcessed = Math.max(0, Number((i.processedLiveWeightKg - target.batchLiveWeightKg).toFixed(3)));
+        const updatedRemaining = Math.min(i.netWeightKg, Number((i.netWeightKg - updatedProcessed).toFixed(3)));
+        return {
+          ...i,
+          processedLiveWeightKg: updatedProcessed,
+          remainingLiveWeightKg: updatedRemaining,
+          yieldProcessed: updatedRemaining <= 0,
+        };
+      }
+      return i;
+    }));
+
+    setProducts(prev => prev.map(p => {
+      const cut = target.cuts.find(c => c.productId === p.id);
+      if (cut) {
+        return {
+          ...p,
+          inStockKg: Math.max(0, Number((p.inStockKg - cut.weightKg).toFixed(3))),
+        };
+      }
+      return p;
+    }));
+
+    recordActivity(
+      'PRODUCTION',
+      'DELETE',
+      'گەڕاندنەوە و سڕینەوەی تۆماری سەربڕین',
+      `وەسڵی #${target.manualReceiptNo} (${target.farmName}) • ${target.batchLiveWeightKg} کگم زیندوو گەڕایەوە`,
+      target.manualReceiptNo
+    );
+
+    return true;
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
@@ -1259,16 +1311,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchStock(prev => prev.map(item => item.productId === productId ? { ...item, ...updates } : item));
   };
 
-  const updateProductPrice = (id: string, newPrice: number, newCost: number) => {
+  const updateProductPrice = (id: string, newPrice: number, newCost: number, minAlertKg?: number) => {
     const prod = products.find(p => p.id === id);
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, pricePerKg: newPrice, costPerKg: newCost } : p));
-    setBranchStock(prev => prev.map(b => b.productId === id ? { ...b, retailPricePerKg: newPrice, factoryCostPerKg: newCost } : b));
+    setProducts(prev =>
+      prev.map(p =>
+        p.id === id
+          ? {
+              ...p,
+              pricePerKg: newPrice,
+              costPerKg: newCost,
+              ...(minAlertKg !== undefined ? { minAlertKg } : {}),
+            }
+          : p
+      )
+    );
+    setBranchStock(prev =>
+      prev.map(b =>
+        b.productId === id
+          ? {
+              ...b,
+              retailPricePerKg: newPrice,
+              factoryCostPerKg: newCost,
+              ...(minAlertKg !== undefined ? { minAlertKg } : {}),
+            }
+          : b
+      )
+    );
     recordActivity(
       'PRODUCTION',
       'UPDATE',
       'گۆڕینی نرخی بەرهەم',
       `${prod?.nameKu || id}: فرۆشتن ${newPrice.toLocaleString()} د.ع • تێچوو ${newCost.toLocaleString()} د.ع`
     );
+  };
+
+  const transferReadyToBranch = (payload: {
+    items: { productId: string; weightKg: number }[];
+    repName?: string;
+    manualReceiptNo?: string;
+    notes?: string;
+  }): BranchDelivery | null => {
+    if (!hasAccess('ready-for-sale')) return null;
+
+    const validItems = payload.items
+      .filter(i => i.weightKg > 0)
+      .map(i => {
+        const prod = products.find(p => p.id === i.productId);
+        if (!prod || prod.inStockKg + 0.0001 < i.weightKg) return null;
+        return {
+          productId: prod.id,
+          productName: prod.nameKu,
+          weightKg: Number(i.weightKg.toFixed(3)),
+          factoryPricePerKg: prod.costPerKg,
+          totalCost: Math.round(i.weightKg * prod.costPerKg),
+        };
+      })
+      .filter((x): x is BranchDeliveryItem => x !== null);
+
+    if (validItems.length === 0) return null;
+
+    const totalWeightKg = Number(validItems.reduce((s, i) => s + i.weightKg, 0).toFixed(3));
+    const totalCost = validItems.reduce((s, i) => s + i.totalCost, 0);
+    const receiptNo =
+      payload.manualReceiptNo?.trim() ||
+      `SH-${String(branchDeliveries.length + 1).padStart(4, '0')}`;
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    const delivery: BranchDelivery = {
+      id: `bdel-${genId()}`,
+      manualReceiptNo: receiptNo,
+      date: toLocalISODate(),
+      time: nowTime,
+      repName: payload.repName?.trim() || currentUser.name,
+      items: validItems,
+      totalWeightKg,
+      totalCost,
+      notes: payload.notes?.trim() || 'ناردنی ڕاستەوخۆ لە کۆگای ئامادەی کارگەوە بۆ شۆرۆم (POS)',
+    };
+
+    const byProd = new Map<string, number>();
+    validItems.forEach(it => byProd.set(it.productId, (byProd.get(it.productId) || 0) + it.weightKg));
+
+    setProducts(prev =>
+      prev.map(p => {
+        const w = byProd.get(p.id);
+        return w ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - w).toFixed(3))) } : p;
+      })
+    );
+
+    setBranchStock(prev =>
+      prev.map(bs => {
+        const w = byProd.get(bs.productId);
+        return w ? { ...bs, inStockKg: Math.round((bs.inStockKg + w) * 1000) / 1000 } : bs;
+      })
+    );
+
+    setBranchDeliveries(prev => [delivery, ...prev]);
+
+    recordActivity(
+      'SALES',
+      'CREATE',
+      'ناردن لە کارگەوە بۆ شۆرۆم (POS)',
+      `${totalWeightKg.toLocaleString()} کگم • ${delivery.repName}`,
+      receiptNo
+    );
+
+    return delivery;
   };
 
   const addProduct = (newProd: {
@@ -1345,9 +1493,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = (id: string): { ok: boolean; error?: string } => {
     const target = products.find(p => p.id === id);
-    if (!target) return;
+    if (!target) return { ok: false, error: 'بەرهەم نەدۆزرایەوە' };
+    if (target.inStockKg > 0) {
+      return {
+        ok: false,
+        error: `ناتوانرێت "${target.nameKu}" بسڕدرێتەوە چونکە هێشتا ${target.inStockKg.toLocaleString()} کگم لە کۆگادا ماوە!`,
+      };
+    }
     setProducts(prev => prev.filter(p => p.id !== id));
     setBranchStock(prev => prev.filter(b => b.productId !== id));
     recordActivity(
@@ -1357,6 +1511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `${target.nameKu} (${target.code})`,
       target.code
     );
+    return { ok: true };
   };
 
   const loadToRepCustody = (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => {
@@ -2222,6 +2377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isHydratedFromCloud,
         addIntake,
         addYieldRecord,
+        deleteYieldRecord,
         addDispatch,
         addReturn,
         convertReturnOrder,
@@ -2237,6 +2393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBranchExpense,
         updateBranchStockItem,
         updateProductPrice,
+        transferReadyToBranch,
         loadToRepCustody,
         returnUnsoldToReadyStock,
         acceptCustodyTransfer,
