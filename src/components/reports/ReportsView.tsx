@@ -11,9 +11,7 @@ import {
   Package,
   Wrench,
   Users,
-  Printer,
   Calendar,
-  Download,
   Boxes,
   X,
   Trash2,
@@ -254,36 +252,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     };
   }, [intakes, products, branchStock, custodyTransfers, dispatches]);
 
-  const handleExportPnLCsv = () => {
-    const periodLabel =
-      datePreset === 'ALL'
-        ? 'کۆی گشتی'
-        : `${dateBounds.start || '...'} تا ${dateBounds.end || '...'}`;
-    const rows = [
-      ['ڕاپۆرتی قازانج و زەرەر (P&L)', factorySettings.factoryName, periodLabel],
-      ['بڕگە', 'وردەکاری', 'بڕ (د.ع)'],
-      ['داهاتی فرۆشتنی مەندوب', `${filteredSalesDispatches.length} وەسڵ`, String(repSalesRevenue)],
-      ['داهاتی فرۆشگای POS', `${filteredPosRegularSales.length} وەسڵ`, String(storePosRevenue)],
-      ['کۆی داهاتی فرۆشتن', '', String(totalSalesRevenue)],
-      ['تێچووی کاڵای فرۆشراو (COGS)', `مەندوب: ${repCogsAmount} | شۆرۆم: ${posCogsAmount}`, String(-totalCogsAmount)],
-      ['زیانی گەڕاوەی ٣ ڕۆژ (تەلەف)', `${filteredReturns.length} تۆمار`, String(-totalReturnsLoss)],
-      ['تێچووی دیاری و هەدیە', `کارگە/مەندوب: ${dispatchGiftCost} | شۆرۆم: ${posGiftCost}`, String(-totalGiftCost)],
-      ['خەرجی کارگە و شۆرۆم', `کارگە: ${totalFactoryExpenses} | شۆرۆم: ${totalStoreExpenses}`, String(-totalOperatingExpenses)],
-      ['پوختەی قازانجی خاوێن (Net Operating Profit)', '', String(netProfit)],
-      ['---', '---', '---'],
-      ['بڕی کڕینی کێڵگە لەم ماوەیەدا', `${filteredIntakes.length} وەسڵ`, String(totalLiveBirdPurchases)],
-      ['بەهای مەخزەنی ماوەی ئێستا', 'زیندوو + ئامادە + کۆگای مەندوب + شۆرۆم', String(currentInventoryValuation.total)],
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `PnL-${factorySettings.shortCode}-${todayISO}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!expenseTitle.trim() || !expenseAmount || Number(expenseAmount) <= 0) {
@@ -367,25 +335,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </p>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 no-print">
-            <button
-              type="button"
-              onClick={handleExportPnLCsv}
-              className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Excel / CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
-              چاپکردن
-            </button>
-          </div>
         </div>
       )}
 
@@ -411,42 +360,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 no-print">
-            <button
-              type="button"
-              onClick={() => {
-                const rows = [
-                  ['پۆلێن', 'بەروار', 'ناوی خەرجی', 'وەرگر', 'ژ. وەسڵ', 'بڕی پارە (د.ع)'],
-                  ...filteredExpenses.map(e => [
-                    getCategoryNameKu(e.category),
-                    e.date,
-                    e.title,
-                    e.recipient,
-                    e.receiptNo || '',
-                    String(e.amount),
-                  ]),
-                ];
-                const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `factory-expenses-${todayISO}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Excel / CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs rounded-full flex items-center gap-1.5 transition-all"
-            >
-              <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
-              چاپکردن
-            </button>
             <button
               type="button"
               onClick={() => setShowExpenseModal(true)}

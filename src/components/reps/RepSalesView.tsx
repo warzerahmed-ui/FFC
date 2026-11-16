@@ -19,7 +19,6 @@ import {
   ClipboardList,
   MessageCircle,
   AlertTriangle,
-  Download,
   Calendar,
   Barcode,
 } from 'lucide-react';
@@ -236,29 +235,6 @@ export const RepSalesView: React.FC = () => {
     (sum, r) => sum + (r.totalCustomerDeduction ?? r.totalLossAmount),
     0
   );
-
-  const handleExportSalesCsv = () => {
-    const rows = [
-      ['ژ. وەسڵ', 'بەروار', 'مەندوب', 'کڕیار / مارکێت', 'کێش (کگم)', 'شێوازی دان', 'کۆی پارە (د.ع)'],
-      ...filteredRepSales.map(d => [
-        d.manualReceiptNo,
-        d.date,
-        d.repName || '',
-        d.customerName || d.destinationName,
-        String(d.totalWeightKg),
-        d.paymentType || 'CREDIT',
-        String(d.totalAmount),
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Rep-Sales-${toLocalISODate()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const filteredReceiptOptions = useMemo(() => {
     const q = searchReceiptQuery.trim().toLowerCase();
@@ -664,22 +640,6 @@ export const RepSalesView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
-          <button
-            type="button"
-            onClick={handleExportSalesCsv}
-            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel / CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            چاپکردن
-          </button>
           <button
             type="button"
             onClick={handleOpenSaleModal}

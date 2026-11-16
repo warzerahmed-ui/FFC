@@ -16,7 +16,6 @@ import {
   X,
   ArrowLeftRight,
   Clock,
-  Download,
   MessageCircle,
   Truck,
 } from 'lucide-react';
@@ -1211,44 +1210,6 @@ export const DailySettlementView: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const rows = [
-                      [factorySettings.factoryName, 'کەشفی حسابی فرۆشی ڕۆژانە', statementAccount.accountName, selectedDate],
-                      ['ژ. وەسڵ', 'کات', 'کڕیار / وردەکاری', 'شێواز', 'کێش (کگم)', 'بڕی پارە (د.ع)'],
-                      ...statementAccount.receipts.map(r => [
-                        r.receiptNo,
-                        r.time,
-                        r.partyLabel,
-                        r.paymentKind,
-                        String(r.weightKg),
-                        String(r.amount),
-                      ]),
-                      ['---', '---', '---', '---', '---', '---'],
-                      ['کۆی فرۆشتن', '', '', '', String(statementAccount.totalWeightKg), String(statementAccount.totalSalesAmount)],
-                      ['فرۆشی کاش', '', '', '', '', String(statementAccount.cashSalesAmount)],
-                      ['فرۆشی قەرز', '', '', '', '', String(statementAccount.creditSalesAmount)],
-                      ['فرۆشی کارت / FIB', '', '', '', '', String(statementAccount.cardSalesAmount)],
-                      ['گەڕاوەی ٣ ڕۆژ', '', `${statementAccount.returnsCount} وەسڵ`, '', String(statementAccount.returnsWeightKg), String(statementAccount.returnsAmount)],
-                      ['پێویست بوو بگەڕێتەوە', '', '', '', '', String(statementAccount.expectedTotalToday)],
-                      ['پارەی گەڕاوە', '', '', '', '', String(statementAccount.returnedTotalToday)],
-                      ['جیاوازی', '', '', '', '', String(statementAccount.varianceToday)],
-                    ];
-                    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `DailySettlement-${selectedDate}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="px-3.5 py-2 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Excel / CSV
-                </button>
                 <button
                   type="button"
                   onClick={() => {

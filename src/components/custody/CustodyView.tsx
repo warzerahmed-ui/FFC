@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Clock,
   Printer,
-  Download,
   Calendar,
   Barcode,
 } from 'lucide-react';
@@ -392,31 +391,6 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     const matchesEnd = !endDate || t.date.slice(0, 10) <= endDate;
     return matchesHolder && matchesStart && matchesEnd;
   });
-
-  const handleExportTransfersCsv = () => {
-    const rows = [
-      ['ژ. وەسڵ', 'بەروار', 'کات', 'جۆری جوڵە', 'مەندوب', 'بەرهەمەکان', 'کۆی کێش (کگم)', 'دۆخ', 'تێبینی'],
-      ...filteredTransfers.map(t => [
-        t.receiptNo,
-        t.date,
-        t.time,
-        t.direction === 'LOAD' ? 'ناردن بۆ مەندوب' : 'گەڕانەوە بۆ کۆگای ئامادە',
-        t.holderName,
-        t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، '),
-        String(t.totalWeightKg),
-        t.status || 'ACCEPTED',
-        t.notes || '',
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Custody-Movements-${toLocalISODate()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <div className="space-y-6">
@@ -865,14 +839,6 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 پاککردنەوە
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleExportTransfersCsv}
-              className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold flex items-center gap-1"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Excel / CSV
-            </button>
           </div>
         </div>
 
@@ -1436,34 +1402,6 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               <div className="flex items-center justify-between pt-3 border-t border-black/[0.06] text-xs no-print">
                 <span className="text-[#86868B]">واژۆی مەندوب: _______________</span>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const csvRows = [
-                        ['ڕاپۆرتی مەندوب', reportHolder.holderName, reportDate],
-                        ['وەسڵ', 'کڕیار', 'کێش (کگم)', 'شێواز', 'بڕ (د.ع)'],
-                        ...repDispatches.map(d => [
-                          d.manualReceiptNo,
-                          d.customerName || d.destinationName,
-                          String(d.totalWeightKg),
-                          d.paymentType,
-                          String(d.totalAmount),
-                        ]),
-                      ];
-                      const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `Rep-EOD-${reportHolder.holderName}-${reportDate}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="px-4 py-2 rounded-full bg-[#34C759]/12 text-[#248A3D] font-bold flex items-center gap-1"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Excel / CSV
-                  </button>
                   <button
                     type="button"
                     onClick={() => window.print()}

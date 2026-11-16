@@ -10,7 +10,6 @@ import {
   User,
   Heart,
   Scale,
-  Download,
   Search,
   Calendar,
 } from 'lucide-react';
@@ -237,29 +236,6 @@ export const GiftsView: React.FC = () => {
   const totalGiftsKg = filteredGifts.reduce((sum, d) => sum + d.totalWeightKg, 0);
   const totalFactoryCost = filteredGifts.reduce((sum, d) => sum + getOrderFactoryCost(d), 0);
 
-  const handleExportCsv = () => {
-    const rows = [
-      ['ژ. وەسڵ', 'بەروار', 'وەرگر', 'مەندوب / بەخشەر', 'کێش (کگم)', 'تێچووی کارگە (د.ع)', 'تێبینی'],
-      ...filteredGifts.map(d => [
-        d.manualReceiptNo,
-        d.date,
-        d.customerName || d.destinationName,
-        d.repName || '',
-        String(d.totalWeightKg),
-        String(getOrderFactoryCost(d)),
-        d.notes || '',
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Gifts-Report-${toLocalISODate()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -275,22 +251,6 @@ export const GiftsView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel / CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            چاپکردن
-          </button>
           <button
             type="button"
             onClick={handleOpenModal}

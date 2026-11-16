@@ -25,7 +25,6 @@ import {
   FileText,
   Truck,
   RotateCcw,
-  Download,
   Gift,
   Calendar,
   ArrowLeftRight,
@@ -1038,30 +1037,6 @@ export const POSView: React.FC<POSViewProps> = ({
       (s.cashierName || '').toLowerCase().includes(q)
     );
   });
-
-  const handleExportPosSalesCsv = () => {
-    const rows = [
-      ['ژ. وەسڵ', 'بەروار', 'کات', 'کڕیار', 'کاشێر', 'شێواز', 'داشکاندن', 'کۆی گشتی (د.ع)'],
-      ...filteredPosSales.map(s => [
-        s.saleNo,
-        s.date,
-        s.time || '',
-        s.customerName || 'کڕیاری ئاسایی',
-        s.cashierName || '',
-        s.paymentType,
-        String(s.discount || 0),
-        String(s.total),
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Showroom-POS-Sales-${todayISO}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleOpenReturnModal = (sale: POSSale) => {
     setReturningSale(sale);
@@ -2293,31 +2268,6 @@ export const POSView: React.FC<POSViewProps> = ({
         });
         const recipientSummary = Array.from(byRecipientMap.values()).sort((a, b) => b.weightKg - a.weightKg);
 
-        const handleExportGiftsCsv = () => {
-          const rows = [
-            ['ژ. وەسڵ', 'بەروار', 'وەرگری هەدیە', 'ژ. مۆبایل', 'کێش (کگم)', 'بەهای فرۆش', 'تێچوو', 'تێبینی', 'کاشێر'],
-            ...filteredGifts.map(g => [
-              g.saleNo,
-              g.date,
-              g.customerName || '',
-              g.customerPhone || '',
-              g.items.reduce((s, i) => s + i.weightKg, 0).toFixed(2),
-              String(g.subtotal || 0),
-              String(g.giftCost || 0),
-              g.giftNote || '',
-              g.cashierName || '',
-            ]),
-          ];
-          const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `showroom-gifts-${toLocalISODate()}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-
         return (
           <div className="space-y-5">
             <div className="apple-card p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -2356,14 +2306,6 @@ export const POSView: React.FC<POSViewProps> = ({
                     هەموو
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={handleExportGiftsCsv}
-                  className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  CSV
-                </button>
               </div>
             </div>
 
@@ -2562,14 +2504,6 @@ export const POSView: React.FC<POSViewProps> = ({
                   </button>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleExportPosSalesCsv}
-                className="px-4 py-2 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                <Download className="w-4 h-4" />
-                Excel / CSV
-              </button>
               <button
                 type="button"
                 onClick={() => setShowZReportModal(true)}

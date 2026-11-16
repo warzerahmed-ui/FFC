@@ -12,8 +12,6 @@ import {
   X,
   Truck,
   Trash2,
-  Download,
-  Printer,
   Calendar,
   Search,
 } from 'lucide-react';
@@ -120,31 +118,6 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
       ? Number(((totalDressedKg / totalProcessedLiveKg) * 100).toFixed(1))
       : 0;
 
-  const handleExportCsv = () => {
-    const rows = [
-      ['وەسڵی کێڵگە', 'بەروار', 'کێڵگە', 'کێشی زیندوو (کگم)', 'کۆی پارچەکراو (کگم)', 'پەڕ و فەوتان (کگم)', 'ڕێژەی سافی %', 'تێچووی کیلۆی گۆشت (د.ع)', 'بەرهەمە ئامادەکراوەکان'],
-      ...filteredYields.map(y => [
-        y.manualReceiptNo,
-        y.date,
-        y.farmName,
-        String(y.batchLiveWeightKg),
-        String(y.dressedWeightKg),
-        String(y.wasteWeightKg),
-        String(y.yieldPercentage),
-        String(y.dressedCostPerKg || 0),
-        y.cuts.map(c => `${c.productName} (${c.weightKg} کگم)`).join('، '),
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Slaughter-Production-${toLocalISODate()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedIntake) {
@@ -248,22 +221,6 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel / CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            چاپکردن
-          </button>
           <button
             type="button"
             onClick={() => openSlaughterModal()}

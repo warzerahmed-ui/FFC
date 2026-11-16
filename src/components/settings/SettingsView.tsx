@@ -16,7 +16,6 @@ import {
   Phone,
   MapPin,
   FileText,
-  Printer,
   AlertTriangle,
   X,
   UserCheck,
@@ -1359,45 +1358,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  const rows = [
-                    ['بەروار', 'کات', 'بەکارهێنەر', 'بەش', 'کردار', 'سەردێڕ', 'وردەکاری', 'سەرچاوە'],
-                    ...filteredLogs.map(l => [
-                      l.date,
-                      l.time,
-                      l.userName,
-                      l.category,
-                      l.action,
-                      l.title,
-                      l.details || '',
-                      l.refNo || '',
-                    ]),
-                  ];
-                  const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
-                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `activity-log-${todayStr}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="px-3.5 py-2 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Excel / CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-3.5 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#0071E3]" />
-                چاپکردن
-              </button>
-
               {!confirmClearLogs ? (
                 <button
                   type="button"

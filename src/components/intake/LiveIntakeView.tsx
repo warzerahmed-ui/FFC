@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2, Download, Printer, Calendar } from 'lucide-react';
+import { Truck, Plus, FileText, Search, X, Check, Scissors, Trash2, Calendar } from 'lucide-react';
 import { TabType, roundTo250 } from '../../types';
 import { toLocalISODate } from '../../utils/date';
 
@@ -134,31 +134,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
   const totalNetKg = filteredIntakes.reduce((sum, i) => sum + i.netWeightKg, 0);
   const totalPurchaseCost = filteredIntakes.reduce((sum, i) => sum + i.totalAmount, 0);
 
-  const handleExportCsv = () => {
-    const rows = [
-      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان', 'ماوە بۆ سەربڕین (کگم)'],
-      ...filteredIntakes.map(i => [
-        i.manualReceiptNo,
-        i.date,
-        i.farmName,
-        String(i.birdCount),
-        String(i.netWeightKg),
-        String(i.pricePerKg),
-        String(i.totalAmount),
-        i.paymentStatus === 'PAID' ? 'نەقد دراوە' : i.paymentStatus === 'PARTIAL' ? 'بەشێکی دراوە' : 'قەرزی سەر کارگە',
-        String(i.remainingLiveWeightKg),
-      ]),
-    ];
-    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Live-Intake-${toLocalISODate()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -178,22 +153,6 @@ export const LiveIntakeView: React.FC<LiveIntakeViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel / CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2.5 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            چاپکردن
-          </button>
           <button
             type="button"
             onClick={() => setShowModal(true)}

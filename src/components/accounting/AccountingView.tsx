@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Search,
   Filter,
-  Download,
   Trash2,
   MessageCircle,
 } from 'lucide-react';
@@ -351,33 +350,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         const totalReceiptsAmt = filteredVouchers.filter(v => v.type === 'RECEIPT').reduce((s, v) => s + v.amount, 0);
         const totalPaymentsAmt = filteredVouchers.filter(v => v.type === 'PAYMENT').reduce((s, v) => s + v.amount, 0);
 
-        const handleExportVouchersCsv = () => {
-          const rows = [
-            ['ژ. سەنەد', 'بەروار', 'کات', 'جۆر', 'لایەن', 'قەرزی پێشوو', 'بڕی دراو/وەرگیراو', 'داشکاندن', 'قەرزی ماوە', 'شێواز', 'تێبینی'],
-            ...filteredVouchers.map(v => [
-              v.voucherNo,
-              v.date,
-              v.time || '',
-              v.type === 'RECEIPT' ? 'سند قبض' : 'سند صرف',
-              v.partyName,
-              String(v.previousDebt || 0),
-              String(v.amount),
-              String(v.discount || 0),
-              String(v.remainingDebt || 0),
-              v.paymentMethod === 'CASH' ? 'کاش' : 'حەواڵە/کارت',
-              v.notes || '',
-            ]),
-          ];
-          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `vouchers-${toLocalISODate()}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-
         return (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -451,14 +423,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 onChange={e => setVoucherEndDate(e.target.value)}
                 className="apple-input px-2.5 py-1.5 text-xs"
               />
-              <button
-                type="button"
-                onClick={handleExportVouchersCsv}
-                className="px-3 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                CSV
-              </button>
               <span className="text-xs text-[#86868B]">
                 کۆ: <strong>{filteredVouchers.length}</strong>
               </span>
@@ -582,27 +546,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
       {activeSubTab === 'CUSTOMERS' && (() => {
         const totalCustomersDebt = customers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
         const debtorCount = customers.filter(c => c.currentDebt > 0).length;
-        const handleExportCustomersCsv = () => {
-          const rows = [
-            ['ناوی کڕیار', 'جۆر', 'مۆبایل', 'ناونیشان', 'سنووری قەرز', 'قەرزی ئێستا (د.ع)'],
-            ...filteredCustomers.map(c => [
-              c.name,
-              c.type,
-              c.phone || '',
-              c.address || '',
-              String(c.creditLimit),
-              String(c.currentDebt),
-            ]),
-          ];
-          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `customers-debt-${toLocalISODate()}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
 
         return (
         <div className="space-y-4">
@@ -634,22 +577,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={handleExportCustomersCsv}
-                className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                CSV
-              </button>
-              <button
-                onClick={() => setShowAddCustomerModal(true)}
-                className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
-              >
-                + زیادکردنی کڕیاری نوێ
-              </button>
-            </div>
+            <button
+              onClick={() => setShowAddCustomerModal(true)}
+              className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1 self-start sm:self-auto"
+            >
+              + زیادکردنی کڕیاری نوێ
+            </button>
           </div>
 
           <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
@@ -706,20 +639,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           s => !sq || s.name.toLowerCase().includes(sq) || (s.phone || '').includes(sq) || (s.farmLocation || '').toLowerCase().includes(sq)
         );
         const totalSupplierDebt = suppliers.reduce((s, sup) => s + Math.max(0, sup.currentBalance), 0);
-        const handleExportSuppliersCsv = () => {
-          const rows = [
-            ['ناوی کێڵگە', 'مۆبایل', 'ناونیشان', 'قەرزی سەر کارگە (د.ع)'],
-            ...filteredSuppliers.map(s => [s.name, s.phone || '', s.farmLocation || '', String(s.currentBalance)]),
-          ];
-          const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `suppliers-balance-${toLocalISODate()}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
 
         return (
         <div className="space-y-4">
@@ -741,22 +660,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 className="w-full bg-white border border-black/[0.08] rounded-full pr-9 pl-4 py-2 text-xs text-[#1D1D1F] placeholder-[#86868B] outline-none focus:border-[#0071E3]"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportSuppliersCsv}
-                className="px-3.5 py-1.5 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] font-bold text-xs flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                CSV
-              </button>
-              <button
-                onClick={() => setShowAddSupplierModal(true)}
-                className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
-              >
-                + زیادکردنی کێڵگەی نوێ
-              </button>
-            </div>
+            <button
+              onClick={() => setShowAddSupplierModal(true)}
+              className="text-xs text-[#0071E3] font-semibold hover:underline flex items-center gap-1"
+            >
+              + زیادکردنی کێڵگەی نوێ
+            </button>
           </div>
 
           <div className="rounded-3xl bg-white border border-black/[0.06] shadow-sm overflow-hidden">
@@ -975,38 +884,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 </span>
                 
                 <div className="flex items-center gap-2.5 no-print">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const csvRows = [
-                        [factorySettings.factoryName, 'کەشف حسابی کڕیار', selectedCustomer.name, `${startDate} تا ${endDate}`],
-                        ['بەروار', 'کات', 'ژ. وەسڵ / سەنەد', 'وردەکاری', 'کڕین (+)', 'پارەی دراو (-)', 'داشکاندن', 'باڵانسی ماوە'],
-                        [startDate, '---', '---', 'قەرزی سەرەتای ماوە', '0', '0', '0', String(ledger.openingBalance)],
-                        ...ledger.rows.map(r => [
-                          r.date,
-                          r.time,
-                          r.refNo,
-                          r.description,
-                          String(r.debit),
-                          String(r.credit),
-                          String(r.discount),
-                          String(r.balanceAfter),
-                        ]),
-                      ];
-                      const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `Statement-${selectedCustomer.name}-${endDate}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] rounded-full font-bold flex items-center gap-1.5"
-                  >
-                    <Download className="w-4 h-4" />
-                    Excel / CSV
-                  </button>
                   <button
                     onClick={() => {
                       const cleanPhone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '');
@@ -1281,38 +1158,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   <span dir="ltr" className="font-bold text-[#0071E3]">RAND SUITE</span>
                 </span>
                 <div className="flex gap-2 no-print">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const csvRows = [
-                        [factorySettings.factoryName, 'کەشف حسابی کێڵگە', selectedSupplier.name, `${startDate} تا ${endDate}`],
-                        ['بەروار', 'کات', 'ژ. وەسڵ / سەنەد', 'وردەکاری', 'کڕین (+)', 'پارەی دراو (-)', 'داشکاندن', 'باڵانسی ماوە'],
-                        [startDate, '---', '---', 'قەرزی سەرەتای ماوە', '0', '0', '0', String(openingBal)],
-                        ...periodRows.map(r => [
-                          r.date,
-                          r.time,
-                          r.refNo,
-                          r.description,
-                          String(r.creditIncrease),
-                          String(r.debitPaid),
-                          String(r.discount),
-                          String(r.balanceAfter),
-                        ]),
-                      ];
-                      const csv = '\uFEFF' + csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `Supplier-${selectedSupplier.name}-${endDate}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="px-4 py-2.5 bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] rounded-full font-bold flex items-center gap-1.5"
-                  >
-                    <Download className="w-4 h-4" />
-                    Excel / CSV
-                  </button>
                   <button
                     type="button"
                     onClick={() => window.print()}
