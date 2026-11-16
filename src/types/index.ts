@@ -296,6 +296,7 @@ export interface PaymentVoucher {
   remainingDebt: number;         // بڕی قەرزی ماوە دوای ئەم سەنەدە
   paymentMethod: 'CASH' | 'TRANSFER';
   collectedByRep?: string;       // ناوی مەندوب ئەگەر قەرزەکە لەلایەن مەندوبەوە وەرگیرابێت
+  collectedAtPos?: boolean;      // ئەگەر قەرزەکە لە کاشێری شۆرۆم وەرگیرابێت
   notes?: string;
 }
 
@@ -319,7 +320,11 @@ export interface POSSale {
   total: number;
   paidAmount?: number;
   changeAmount?: number;
-  paymentType: 'CASH' | 'FIB_OR_CARD' | 'DEBT';
+  paymentType: 'CASH' | 'FIB_OR_CARD' | 'DEBT' | 'SPLIT' | 'GIFT';
+  cashAmount?: number;
+  cardAmount?: number;
+  giftNote?: string;
+  giftCost?: number;
   customerId?: string;
   customerName?: string;
   cashierName: string;

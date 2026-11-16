@@ -135,6 +135,16 @@ interface AppContextType {
   addBranchDelivery: (delivery: Omit<BranchDelivery, 'id'>) => void;
   addBranchExpense: (expense: Omit<BranchExpense, 'id'>) => void;
   updateBranchStockItem: (productId: string, updates: Partial<BranchStockItem>) => void;
+  adjustBranchStock: (payload: {
+    productId: string;
+    newWeightKg: number;
+    reason: 'AUDIT' | 'SPOILAGE';
+    note?: string;
+  }) => void;
+  returnBranchToReady: (payload: {
+    items: { productId: string; weightKg: number }[];
+    note?: string;
+  }) => boolean;
 
   // Custody Actions (Rep & Branch Stock Reconciliation)
   loadToRepCustody: (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => void;
@@ -1158,7 +1168,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Enhanced addVoucher: tracks previousDebt, amount, discount, remainingDebt, and time!
   const addVoucher = (newVoucher: Omit<PaymentVoucher, 'id' | 'previousDebt' | 'remainingDebt'>) => {
-    if (!hasAccess('accounting')) return;
+    const canRecordPosCustomerReceipt = newVoucher.partyType === 'CUSTOMER' && hasAccess('pos');
+    if (!hasAccess('accounting') && !canRecordPosCustomerReceipt) return;
     const id = `vouch-${genId()}`;
     const totalSettled = newVoucher.amount + (newVoucher.discount || 0);
 
@@ -1309,6 +1320,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateBranchStockItem = (productId: string, updates: Partial<BranchStockItem>) => {
     setBranchStock(prev => prev.map(item => item.productId === productId ? { ...item, ...updates } : item));
+  };
+
+  const adjustBranchStock = (payload: {
+    productId: string;
+    newWeightKg: number;
+    reason: 'AUDIT' | 'SPOILAGE';
+    note?: string;
+  }) => {
+    const target = branchStock.find(b => b.productId === payload.productId);
+    if (!target) return;
+    const safeNewKg = Math.max(0, Number(payload.newWeightKg.toFixed(3)));
+    const diff = Number((safeNewKg - target.inStockKg).toFixed(3));
+    setBranchStock(prev =>
+      prev.map(item => (item.productId === payload.productId ? { ...item, inStockKg: safeNewKg } : item))
+    );
+    const label = payload.reason === 'SPOILAGE' ? 'تەلەف / فەوتانی ساردکەرەوەی شۆرۆم' : 'جەرد و ڕێکخستنی کۆگای شۆرۆم';
+    const noteText = payload.note ? ` (${payload.note})` : '';
+    recordActivity(
+      'SALES',
+      'UPDATE',
+      label,
+      `${target.productName}: ${target.inStockKg} ← ${safeNewKg} کگم (${diff >= 0 ? '+' : ''}${diff} کگم)${noteText}`
+    );
+  };
+
+  const returnBranchToReady = (payload: {
+    items: { productId: string; weightKg: number }[];
+    note?: string;
+  }): boolean => {
+    const validItems = payload.items.filter(i => i.weightKg > 0);
+    if (validItems.length === 0) return false;
+
+    for (const item of validItems) {
+      const bs = branchStock.find(b => b.productId === item.productId);
+      if (!bs || bs.inStockKg < item.weightKg) return false;
+    }
+
+    const byProd = new Map<string, number>();
+    validItems.forEach(i => byProd.set(i.productId, (byProd.get(i.productId) || 0) + i.weightKg));
+
+    setBranchStock(prev =>
+      prev.map(bs => {
+        const retKg = byProd.get(bs.productId);
+        return retKg ? { ...bs, inStockKg: Math.max(0, Number((bs.inStockKg - retKg).toFixed(3))) } : bs;
+      })
+    );
+
+    setProducts(prev =>
+      prev.map(p => {
+        const retKg = byProd.get(p.id);
+        return retKg ? { ...p, inStockKg: Number((p.inStockKg + retKg).toFixed(3)) } : p;
+      })
+    );
+
+    const totalKg = validItems.reduce((s, i) => s + i.weightKg, 0);
+    const noteText = payload.note ? ` • ${payload.note}` : '';
+    recordActivity(
+      'SALES',
+      'UPDATE',
+      'گەڕاندنەوەی کاڵای شۆرۆم بۆ کارگە',
+      `کۆی کێش: ${totalKg.toLocaleString()} کگم${noteText}`
+    );
+    return true;
   };
 
   const updateProductPrice = (id: string, newPrice: number, newCost: number, minAlertKg?: number) => {
@@ -2392,6 +2466,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBranchDelivery,
         addBranchExpense,
         updateBranchStockItem,
+        adjustBranchStock,
+        returnBranchToReady,
         updateProductPrice,
         transferReadyToBranch,
         loadToRepCustody,

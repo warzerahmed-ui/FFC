@@ -167,6 +167,22 @@ const MENU_GROUPS: MenuGroup[] = [
         badge: 'سەندوق',
         icon: Receipt,
       },
+      {
+        id: 'pos',
+        posSubTab: 'CUSTOMERS_DEBT',
+        label: '٤. قەرزی کڕیاران (شۆرۆم)',
+        description: 'بینین و وەرگرتنەوەی قەرزی کڕیاران ڕاستەوخۆ لە کاشێر',
+        badge: 'قەرز',
+        icon: Users,
+      },
+      {
+        id: 'pos',
+        posSubTab: 'GIFTS',
+        label: '٥. هەدیە و بەخشینی شۆرۆم',
+        description: 'ڕاپۆرتی هەدیەکان: کێ وەریگرتووە، کێش و تێچوو',
+        badge: 'هەدیە',
+        icon: Gift,
+      },
     ],
   },
   {
