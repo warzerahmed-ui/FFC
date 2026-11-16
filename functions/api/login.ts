@@ -1,6 +1,7 @@
 import {
   Env,
   SESSION_TTL_SECONDS,
+  hashPassword,
   jsonResponse,
   signToken,
   timingSafeEqual,
@@ -44,6 +45,9 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
           ip TEXT NOT NULL,
           ts INTEGER NOT NULL
         )`
+      ),
+      db.prepare(
+        `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_ts ON login_attempts(ip, ts)`
       ),
     ]);
 
@@ -102,13 +106,48 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
       } catch {
         users = [];
       }
+      let needsMigration = false;
       for (const u of users) {
-        if (!u || u.isSuperAdmin || u.role === 'SUPER_ADMIN' || u.isActive === false) continue;
-        if (u.phone !== phone) continue;
-        if (await verifyPassword(password, u.password)) {
-          matched = u;
-          break;
+        if (!u) continue;
+        if (u.isSuperAdmin || u.role === 'SUPER_ADMIN') {
+          needsMigration = true;
+          continue;
         }
+        if (typeof u.password === 'string' && u.password.length > 0 && !u.password.startsWith('pbkdf2$')) {
+          needsMigration = true;
+        }
+        if (u.isActive === false) continue;
+        if ((u.phone || '').trim().toLowerCase() !== phone) continue;
+
+        const isLegacyPlain = typeof u.password === 'string' && !u.password.startsWith('pbkdf2$');
+        const passwordValid = isLegacyPlain
+          ? timingSafeEqual(password, u.password as string)
+          : await verifyPassword(password, u.password);
+        if (passwordValid && !matched) {
+          matched = u;
+        }
+      }
+
+      if (needsMigration) {
+        const migratedUsers: StoredUser[] = [];
+        for (const u of users) {
+          if (!u || u.isSuperAdmin || u.role === 'SUPER_ADMIN') continue;
+          if (typeof u.password === 'string' && u.password.length > 0 && !u.password.startsWith('pbkdf2$')) {
+            migratedUsers.push({ ...u, password: await hashPassword(u.password.trim()) });
+          } else {
+            migratedUsers.push(u);
+          }
+        }
+        await db
+          .prepare(
+            `INSERT INTO app_state (state_key, payload, updated_at)
+             VALUES ('users', ?, ?)
+             ON CONFLICT(state_key) DO UPDATE SET
+               payload = excluded.payload,
+               updated_at = excluded.updated_at`
+          )
+          .bind(JSON.stringify(migratedUsers), new Date().toISOString())
+          .run();
       }
     }
 

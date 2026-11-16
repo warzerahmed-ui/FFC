@@ -70,7 +70,7 @@ const WRITE_KEY_TABS: Record<string, string[]> = {
   intakes: ['intake', 'production', 'accounting'],
   suppliers: ['intake', 'production', 'accounting'],
   yields: ['production'],
-  products: ['production', 'ready-for-sale', 'custody', 'rep-sales', 'gifts'],
+  products: ['production', 'ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
   custodyTransfers: ['ready-for-sale', 'custody', 'rep-sales', 'gifts'],
   dispatches: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
   returns: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
@@ -81,7 +81,7 @@ const WRITE_KEY_TABS: Record<string, string[]> = {
   branchExpenses: ['pos', 'ready-for-sale'],
   expenses: ['reports', 'accounting'],
   settlements: ['reports', 'accounting'],
-  vouchers: ['accounting'],
+  vouchers: ['pos', 'accounting'],
 };
 
 // State key -> tabs permitted to read it for non-admin staff
@@ -99,7 +99,7 @@ const READ_KEY_TABS: Record<string, string[]> = {
   branchDeliveries: ['ready-for-sale', 'pos', 'accounting', 'reports'],
   branchExpenses: ['ready-for-sale', 'pos', 'accounting', 'reports'],
   expenses: ['accounting', 'reports'],
-  vouchers: ['accounting', 'reports'],
+  vouchers: ['custody', 'pos', 'accounting', 'reports'],
   settlements: ['accounting', 'reports'],
 };
 
@@ -258,6 +258,43 @@ export const onRequestGet = async (context: { request: Request; env: Env }) => {
       try {
         let value: unknown = JSON.parse(row.payload);
         if (row.state_key === 'users' && Array.isArray(value)) {
+          const rawUsers = value as UserRecord[];
+          const needsUsersMigration = rawUsers.some(
+            u =>
+              u &&
+              (isSuper(u) ||
+                (typeof u.password === 'string' &&
+                  u.password.length > 0 &&
+                  !u.password.startsWith('pbkdf2$')))
+          );
+          if (needsUsersMigration) {
+            const migratedUsers: UserRecord[] = [];
+            for (const u of rawUsers) {
+              if (!u || isSuper(u)) continue;
+              if (
+                typeof u.password === 'string' &&
+                u.password.length > 0 &&
+                !u.password.startsWith('pbkdf2$')
+              ) {
+                migratedUsers.push({ ...u, password: await hashPassword(u.password.trim()) });
+              } else {
+                migratedUsers.push(u);
+              }
+            }
+            const migratedAt = new Date().toISOString();
+            await db
+              .prepare(
+                `INSERT INTO app_state (state_key, payload, updated_at)
+                 VALUES ('users', ?, ?)
+                 ON CONFLICT(state_key) DO UPDATE SET
+                   payload = excluded.payload,
+                   updated_at = excluded.updated_at`
+              )
+              .bind(JSON.stringify(migratedUsers), migratedAt)
+              .run();
+            value = migratedUsers;
+            row.updated_at = migratedAt;
+          }
           // Strip super admin + never send password hashes; staff only see minimal directory fields for others.
           value = (value as UserRecord[])
             .filter(u => u && !isSuper(u))
@@ -353,6 +390,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
       const existingRow = existingByKey.get(key);
       const clientBaseVersion = baseVersions[key];
       if (
+        key !== 'activityLogs' &&
         existingRow &&
         typeof clientBaseVersion === 'string' &&
         clientBaseVersion.length > 0 &&
@@ -405,7 +443,11 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
           void _hp;
           const plain = typeof password === 'string' ? password.trim() : '';
           let stored: unknown = prev?.password;
-          if (plain) stored = await hashPassword(plain);
+          if (plain) {
+            stored = plain.startsWith('pbkdf2$') ? plain : await hashPassword(plain);
+          } else if (typeof stored === 'string' && stored.length > 0 && !stored.startsWith('pbkdf2$')) {
+            stored = await hashPassword(stored);
+          }
           next.push(stored ? { ...rest, password: stored } : { ...rest });
         }
         value = next;
@@ -413,7 +455,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
 
       if (key === 'activityLogs') {
         if (!Array.isArray(rawValue)) continue;
-        if (!isAdmin && existingRow) {
+        if (!(isAdmin && rawValue.length === 0) && existingRow) {
           let existingLogs: { id?: string }[] = [];
           try {
             const parsed = JSON.parse(existingRow.payload);
