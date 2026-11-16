@@ -821,6 +821,7 @@ export const Menubar: React.FC<MenubarProps> = ({
       {(() => {
         interface BottomNavItem {
           key: string;
+          tab?: TabType;
           label: string;
           icon: React.ComponentType<{ className?: string }>;
           active: boolean;
@@ -833,6 +834,7 @@ export const Menubar: React.FC<MenubarProps> = ({
           items = [
             {
               key: 'pos-reg',
+              tab: 'pos',
               label: 'کاشێر',
               icon: Barcode,
               active: activeTab === 'pos' && activePosSubTab === 'REGISTER',
@@ -843,6 +845,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'pos-inv',
+              tab: 'pos',
               label: 'کۆگا',
               icon: Boxes,
               active: activeTab === 'pos' && activePosSubTab === 'INVENTORY',
@@ -853,6 +856,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'pos-debt',
+              tab: 'pos',
               label: 'قەرز',
               icon: Users,
               active: activeTab === 'pos' && activePosSubTab === 'CUSTOMERS_DEBT',
@@ -863,6 +867,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'pos-gift',
+              tab: 'pos',
               label: 'هەدیە',
               icon: Gift,
               active: activeTab === 'pos' && activePosSubTab === 'GIFTS',
@@ -873,6 +878,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'pos-rep',
+              tab: 'pos',
               label: 'سەندوق',
               icon: Receipt,
               active: activeTab === 'pos' && activePosSubTab === 'REGISTER_REPORT',
@@ -886,6 +892,7 @@ export const Menubar: React.FC<MenubarProps> = ({
           items = [
             {
               key: 'dash',
+              tab: 'dashboard',
               label: 'سەرەکی',
               icon: LayoutDashboard,
               active: activeTab === 'dashboard',
@@ -893,6 +900,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'custody',
+              tab: 'custody',
               label: 'عەهدە',
               icon: PackageCheck,
               active: activeTab === 'custody',
@@ -900,6 +908,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'rep-sales',
+              tab: 'rep-sales',
               label: 'فرۆشتن',
               icon: Send,
               active: activeTab === 'rep-sales',
@@ -907,6 +916,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'gifts',
+              tab: 'gifts',
               label: 'هەدیە',
               icon: Gift,
               active: activeTab === 'gifts',
@@ -924,6 +934,7 @@ export const Menubar: React.FC<MenubarProps> = ({
           items = [
             {
               key: 'dash',
+              tab: 'dashboard',
               label: 'سەرەکی',
               icon: LayoutDashboard,
               active: activeTab === 'dashboard',
@@ -931,6 +942,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'acc-vouch',
+              tab: 'accounting',
               label: 'سەنەد',
               icon: Receipt,
               active: activeTab === 'accounting' && activeAccountingSubTab === 'VOUCHERS',
@@ -941,6 +953,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'acc-cust',
+              tab: 'accounting',
               label: 'کڕیاران',
               icon: Users,
               active: activeTab === 'accounting' && activeAccountingSubTab === 'CUSTOMERS',
@@ -951,6 +964,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'rep-pnl',
+              tab: 'reports',
               label: 'قازانج',
               icon: TrendingUp,
               active: activeTab === 'reports' && activeReportSubTab === 'PNL',
@@ -971,6 +985,7 @@ export const Menubar: React.FC<MenubarProps> = ({
           items = [
             {
               key: 'dash',
+              tab: 'dashboard',
               label: 'سەرەکی',
               icon: LayoutDashboard,
               active: activeTab === 'dashboard',
@@ -978,6 +993,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'ready',
+              tab: 'ready-for-sale',
               label: 'ئامادە',
               icon: PackageCheck,
               active: activeTab === 'ready-for-sale',
@@ -985,6 +1001,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'rep-sales',
+              tab: 'rep-sales',
               label: 'فرۆشتن',
               icon: Send,
               active: activeTab === 'rep-sales',
@@ -992,6 +1009,7 @@ export const Menubar: React.FC<MenubarProps> = ({
             },
             {
               key: 'pos',
+              tab: 'pos',
               label: 'شۆرۆم',
               icon: ShoppingBag,
               active: activeTab === 'pos',
@@ -1010,13 +1028,20 @@ export const Menubar: React.FC<MenubarProps> = ({
           ];
         }
 
+        const visibleItems = items.filter(
+          item => item.key === 'more' || !item.tab || hasAccess(item.tab)
+        );
+
         return (
           <nav
             aria-label="مینیوی خوارەوەی مۆبایل"
             className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-black/[0.08] pb-safe no-print shadow-[0_-4px_20px_rgba(0,0,0,0.05)]"
           >
-            <div className="grid grid-cols-5 items-center h-16 px-1">
-              {items.map(navItem => {
+            <div
+              className="grid items-center h-16 px-1"
+              style={{ gridTemplateColumns: `repeat(${Math.max(1, visibleItems.length)}, minmax(0, 1fr))` }}
+            >
+              {visibleItems.map(navItem => {
                 const NavIcon = navItem.icon;
                 return (
                   <button

@@ -521,7 +521,11 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {pendingList.map(t => {
-                const canAcceptLoad = t.direction === 'LOAD' && isRepUser;
+                const canAcceptLoad =
+                  t.direction === 'LOAD' &&
+                  ((isRepUser &&
+                    t.holderName.trim() === (currentUser?.name || '').trim()) ||
+                    isWarehouseAdmin);
                 const canAcceptReturn = t.direction === 'RETURN_TO_READY' && isWarehouseAdmin;
                 const canRespond = canAcceptLoad || canAcceptReturn;
                 return (
@@ -650,20 +654,33 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           const hasRemaining = holder.remainingKg > 0;
           const freshWindowDays = factorySettings.returnWindowDays || 3;
           const todayMs = new Date(`${toLocalISODate()}T00:00:00`).getTime();
-          const maxAgeDays = hasRemaining
-            ? custodyTransfers
-                .filter(
-                  t =>
-                    t.holderName === holder.holderName &&
-                    t.direction === 'LOAD' &&
-                    (!t.status || t.status === 'ACCEPTED')
+          const maxAgeDays = (() => {
+            if (!hasRemaining) return 0;
+            const acceptedLoads = custodyTransfers
+              .filter(
+                t =>
+                  t.holderName === holder.holderName &&
+                  t.direction === 'LOAD' &&
+                  (!t.status || t.status === 'ACCEPTED')
+              )
+              .sort((a, b) =>
+                `${b.date.slice(0, 10)} ${b.time || ''}`.localeCompare(
+                  `${a.date.slice(0, 10)} ${a.time || ''}`
                 )
-                .reduce((maxD, t) => {
-                  const dMs = new Date(`${t.date.slice(0, 10)}T00:00:00`).getTime();
-                  const age = Number.isFinite(dMs) ? Math.max(0, Math.floor((todayMs - dMs) / 86400000)) : 0;
-                  return Math.max(maxD, age);
-                }, 0)
-            : 0;
+              );
+            let coveredKg = 0;
+            let oldestCoveringAge = 0;
+            for (const t of acceptedLoads) {
+              const dMs = new Date(`${t.date.slice(0, 10)}T00:00:00`).getTime();
+              const age = Number.isFinite(dMs)
+                ? Math.max(0, Math.floor((todayMs - dMs) / 86400000))
+                : 0;
+              oldestCoveringAge = Math.max(oldestCoveringAge, age);
+              coveredKg += t.totalWeightKg;
+              if (coveredKg >= holder.remainingKg - 0.001) break;
+            }
+            return oldestCoveringAge;
+          })();
           const showFreshAlert = hasRemaining && maxAgeDays >= Math.max(2, freshWindowDays - 1);
           return (
             <div key={holder.holderName} className="apple-card p-5 flex flex-col justify-between gap-4">

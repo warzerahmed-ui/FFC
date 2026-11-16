@@ -400,7 +400,7 @@ export const POSView: React.FC<POSViewProps> = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  });
+  }, [activeSubTab, cart.length, printReceipt, weightModalProduct, showZReportModal, showReceiveModal, posSales]);
 
   const showToast = (text: string, type: 'success' | 'warn' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -2548,10 +2548,16 @@ export const POSView: React.FC<POSViewProps> = ({
                 <UserCheck className="w-3.5 h-3.5 text-[#0071E3]" />
                 <select
                   value={reportCashierFilter}
+                  disabled={!canViewAllCashiers}
                   onChange={e => setReportCashierFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold outline-none"
+                  className="bg-transparent text-xs font-bold outline-none disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <option value="ALL">هەموو کاشێرەکان</option>
+                  {canViewAllCashiers && <option value="ALL">هەموو کاشێرەکان</option>}
+                  {!canViewAllCashiers &&
+                    currentUser?.name &&
+                    !cashierOptions.includes(currentUser.name) && (
+                      <option value={currentUser.name}>{currentUser.name}</option>
+                    )}
                   {cashierOptions.map(cName => (
                     <option key={cName} value={cName}>
                       {cName}

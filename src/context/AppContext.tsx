@@ -932,9 +932,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     setProducts(prev => prev.map(p => {
-      const cut = newYield.cuts.find(c => c.productId === p.id);
-      if (cut) {
-        return { ...p, inStockKg: p.inStockKg + cut.weightKg };
+      const addedKg = newYield.cuts
+        .filter(c => c.productId === p.id)
+        .reduce((s, c) => s + c.weightKg, 0);
+      if (addedKg > 0) {
+        return { ...p, inStockKg: p.inStockKg + addedKg };
       }
       return p;
     }));
@@ -962,11 +964,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     setProducts(prev => prev.map(p => {
-      const cut = target.cuts.find(c => c.productId === p.id);
-      if (cut) {
+      const removedKg = target.cuts
+        .filter(c => c.productId === p.id)
+        .reduce((s, c) => s + c.weightKg, 0);
+      if (removedKg > 0) {
         return {
           ...p,
-          inStockKg: Math.max(0, Number((p.inStockKg - cut.weightKg).toFixed(3))),
+          inStockKg: Math.max(0, Number((p.inStockKg - removedKg).toFixed(3))),
         };
       }
       return p;
@@ -1029,9 +1033,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (dispatch.destinationType === 'GIFT' && dispatch.sourceCustody !== 'REP')
     ) {
       setProducts(prev => prev.map(p => {
-        const item = dispatch.items.find(i => i.productId === p.id);
-        if (item) {
-          return { ...p, inStockKg: Math.max(0, Number((p.inStockKg - item.weightKg).toFixed(2))) };
+        const dispatchedKg = dispatch.items
+          .filter(i => i.productId === p.id)
+          .reduce((s, i) => s + i.weightKg, 0);
+        if (dispatchedKg > 0) {
+          return { ...p, inStockKg: Math.max(0, Number((p.inStockKg - dispatchedKg).toFixed(2))) };
         }
         return p;
       }));
@@ -1043,7 +1049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addReturn = (newReturn: Omit<ReturnOrder, 'id'>) => {
-    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('pos')) return;
     const id = `ret-${genId()}`;
     const deduction = newReturn.totalCustomerDeduction !== undefined 
       ? newReturn.totalCustomerDeduction 
@@ -1067,15 +1073,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Real-time deduction from customer's debt
     const targetCust = newReturn.customerName;
     if (targetCust && deduction > 0) {
-      setCustomers(prev => prev.map(c => {
-        if (c.name.includes(targetCust) || targetCust.includes(c.name)) {
-          return {
-            ...c,
-            currentDebt: Math.max(0, c.currentDebt - deduction),
-          };
-        }
-        return c;
-      }));
+      const normTarget = normalizeName(targetCust);
+      setCustomers(prev => {
+        const exactMatch = prev.find(c => normalizeName(c.name) === normTarget);
+        const match =
+          exactMatch ||
+          prev.find(c => c.name.includes(targetCust) || targetCust.includes(c.name));
+        if (!match) return prev;
+        return prev.map(c =>
+          c.id === match.id
+            ? { ...c, currentDebt: Math.max(0, c.currentDebt - deduction) }
+            : c
+        );
+      });
     }
 
     // If 3-day return originates from Showroom (BRANCH), deduct expired weight from branchStock
@@ -1099,6 +1109,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notes?: string
   ) => {
     if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale')) return;
+    const existing = returns.find(r => r.id === returnId);
+    if (!existing || existing.conversionStatus === 'CONVERTED') return;
     const today = toLocalISODate();
 
     setReturns(prev =>

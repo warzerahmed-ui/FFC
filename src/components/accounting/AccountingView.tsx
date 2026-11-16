@@ -204,7 +204,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         refNo: s.saleNo,
         type: 'PURCHASE' as const,
         description: `فرۆشی قەرزی شۆرۆم (${s.items.map(i => `${i.productName} ${i.weightKg} کگم`).join('، ')})`,
-        debit: s.total,
+        debit: s.subtotal && s.subtotal > 0 ? s.subtotal : s.total + (s.discount || 0),
         credit: 0,
         discount: s.discount || 0,
       }));

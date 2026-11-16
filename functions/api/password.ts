@@ -6,6 +6,9 @@ import {
   verifyPassword,
 } from '../_lib/auth';
 
+const MAX_ATTEMPTS = 8;
+const WINDOW_SECONDS = 10 * 60;
+
 interface StoredUser {
   id?: string;
   role?: string;
@@ -31,6 +34,28 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
   if (!db) return jsonResponse({ ok: false, error: 'D1 binding missing' }, 503);
 
   try {
+    await db.batch([
+      db.prepare(
+        `CREATE TABLE IF NOT EXISTS login_attempts (
+          ip TEXT NOT NULL,
+          ts INTEGER NOT NULL
+        )`
+      ),
+      db.prepare(
+        `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_ts ON login_attempts(ip, ts)`
+      ),
+    ]);
+
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const now = Math.floor(Date.now() / 1000);
+    const recent = await db
+      .prepare('SELECT COUNT(*) AS c FROM login_attempts WHERE ip = ? AND ts > ?')
+      .bind(ip, now - WINDOW_SECONDS)
+      .all<{ c: number }>();
+    if ((recent.results?.[0]?.c || 0) >= MAX_ATTEMPTS) {
+      return jsonResponse({ ok: false, error: 'TOO_MANY_ATTEMPTS' }, 429);
+    }
+
     let body: { currentPassword?: unknown; newPassword?: unknown } = {};
     try {
       body = (await request.json()) as typeof body;
@@ -65,6 +90,8 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
     const target = users[targetIndex];
     const valid = await verifyPassword(currentPassword, target.password);
     if (!valid) {
+      await db.prepare('INSERT INTO login_attempts (ip, ts) VALUES (?, ?)').bind(ip, now).run();
+      await db.prepare('DELETE FROM login_attempts WHERE ts < ?').bind(now - WINDOW_SECONDS * 6).run();
       return jsonResponse({ ok: false, error: 'وشەی نهێنی ئێستا هەڵەیە' }, 401);
     }
 

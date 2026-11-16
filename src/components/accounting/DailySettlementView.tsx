@@ -235,7 +235,6 @@ export const DailySettlementView: React.FC = () => {
       const totalWeightKg = Number(
         receipts.reduce((s, r) => s + r.weightKg, 0).toFixed(2)
       );
-      const expensesAmount = expensesList.reduce((s, e) => s + e.amount, 0);
 
       const settlementsToday = settlements.filter(
         s =>
@@ -244,10 +243,22 @@ export const DailySettlementView: React.FC = () => {
           s.date.slice(0, 10) === selectedDate
       );
 
-      const collectedDebtToday = settlementsToday.reduce(
-        (s, st) => s + (st.collectedDebtAmount || 0),
-        0
-      );
+      if (accountType === 'REP') {
+        expensesList = settlementsToday
+          .filter(st => (st.repExpensesAmount || 0) > 0)
+          .map(st => ({
+            id: st.id,
+            title: st.repExpensesNotes || 'خەرجی سەر ڕێگای مەندوب',
+            amount: st.repExpensesAmount || 0,
+            time: st.settledAtTime,
+          }));
+      }
+
+      const expensesAmount = expensesList.reduce((s, e) => s + e.amount, 0);
+
+      const collectedDebtToday =
+        settlementsToday.reduce((s, st) => s + (st.collectedDebtAmount || 0), 0) +
+        posCashDebtCollected;
       const returnedCashToday = settlementsToday.reduce(
         (s, st) => s + st.returnedCashAmount,
         0
@@ -258,7 +269,7 @@ export const DailySettlementView: React.FC = () => {
       );
 
       const expectedCashToday =
-        Math.max(0, cashSalesAmount - expensesAmount) + collectedDebtToday + posCashDebtCollected;
+        Math.max(0, cashSalesAmount - expensesAmount) + collectedDebtToday;
       const expectedTotalToday = expectedCashToday + cardSalesAmount;
       const returnedTotalToday = returnedCashToday + returnedCardToday;
       const varianceToday = returnedTotalToday - expectedTotalToday;
@@ -426,7 +437,7 @@ export const DailySettlementView: React.FC = () => {
       : 0;
 
     const cumulativeExpectedAll =
-      settlingAccount.expectedTotalToday + newDebtCollected;
+      Math.max(0, settlingAccount.expectedTotalToday - repExp) + newDebtCollected;
     const cumulativeReturnedAll =
       settlingAccount.returnedTotalToday + newReturnedCash + newReturnedCard;
     const postVariance = cumulativeReturnedAll - cumulativeExpectedAll;
@@ -524,16 +535,21 @@ export const DailySettlementView: React.FC = () => {
   const modalPreview = useMemo(() => {
     if (!settlingAccount) return null;
     const newDebt = Math.max(0, Number(collectedDebtInput) || 0);
+    const repExp =
+      settlingAccount.accountType === 'REP'
+        ? Math.max(0, Number(repExpenseInput) || 0)
+        : 0;
     const newCash = Math.max(0, Number(returnedCashInput) || 0);
     const newCard =
       settlingAccount.accountType === 'BRANCH' || settlingAccount.cardSalesAmount > 0
         ? Math.max(0, Number(returnedCardInput) || 0)
         : 0;
-    const totalExpected = settlingAccount.expectedTotalToday + newDebt;
+    const totalExpected =
+      Math.max(0, settlingAccount.expectedTotalToday - repExp) + newDebt;
     const totalReturned = settlingAccount.returnedTotalToday + newCash + newCard;
     const variance = totalReturned - totalExpected;
     return { newDebt, newCash, newCard, totalExpected, totalReturned, variance };
-  }, [settlingAccount, collectedDebtInput, returnedCashInput, returnedCardInput]);
+  }, [settlingAccount, collectedDebtInput, repExpenseInput, returnedCashInput, returnedCardInput]);
 
   return (
     <div className="space-y-6 pb-10">

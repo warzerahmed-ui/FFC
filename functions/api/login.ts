@@ -84,7 +84,7 @@ export const onRequestPost = async (context: { request: Request; env: Env }) => 
       env.SUPER_ADMIN_PHONE &&
       env.SUPER_ADMIN_PASSWORD &&
       timingSafeEqual(phone, env.SUPER_ADMIN_PHONE.trim().toLowerCase()) &&
-      timingSafeEqual(password, env.SUPER_ADMIN_PASSWORD)
+      timingSafeEqual(password, env.SUPER_ADMIN_PASSWORD.trim())
     ) {
       matched = {
         id: 'user-super-admin',
