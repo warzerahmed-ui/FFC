@@ -328,6 +328,7 @@ export interface POSSale {
   giftCost?: number;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
   cashierName: string;
 }
 

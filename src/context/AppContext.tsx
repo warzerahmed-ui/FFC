@@ -1264,14 +1264,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
         if (matchIndex >= 0) {
           return prev.map((c, i) =>
-            i === matchIndex ? { ...c, currentDebt: c.currentDebt + sale.total } : c
+            i === matchIndex
+              ? {
+                  ...c,
+                  currentDebt: c.currentDebt + sale.total,
+                  ...(sale.customerPhone && !c.phone ? { phone: sale.customerPhone } : {}),
+                }
+              : c
           );
         }
         if (targetName) {
           const newCust: Customer = {
             id: `cust-${genId()}`,
             name: targetName,
-            phone: '',
+            phone: sale.customerPhone || '',
             type: 'SUPERMARKET',
             address: 'کڕیاری شۆرۆم',
             currentDebt: sale.total,

@@ -162,6 +162,7 @@ export const POSView: React.FC<POSViewProps> = ({
     logout,
     addPOSSale,
     addReturn,
+    addCustomer,
     addVoucher,
     addBranchDelivery,
     acceptBranchDelivery,
@@ -201,7 +202,12 @@ export const POSView: React.FC<POSViewProps> = ({
   const [splitCashAmount, setSplitCashAmount] = useState<string>('');
   const [giftNote, setGiftNote] = useState<string>('');
   const [customerNameInput, setCustomerNameInput] = useState<string>('کڕیاری ئاسایی نەقد');
+  const [customerPhoneInput, setCustomerPhoneInput] = useState<string>('');
   const [selectedDebtCustomerId, setSelectedDebtCustomerId] = useState<string>('');
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustAddress, setNewCustAddress] = useState('');
   const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(() => {
     try {
       return localStorage.getItem('ffc_pos_autoprint_v1') === 'true';
@@ -540,6 +546,7 @@ export const POSView: React.FC<POSViewProps> = ({
     setGiftNote('');
     setSelectedDebtCustomerId('');
     setCustomerNameInput('کڕیاری ئاسایی نەقد');
+    setCustomerPhoneInput('');
   };
 
   // Hold / Resume
@@ -677,6 +684,7 @@ export const POSView: React.FC<POSViewProps> = ({
       giftCost,
       customerId: selectedCust ? selectedCust.id : undefined,
       customerName: resolvedCustomerName,
+      customerPhone: customerPhoneInput.trim() || selectedCust?.phone || undefined,
       cashierName: currentUser?.name || 'کاشێری شۆرۆم',
     });
 
@@ -1537,6 +1545,19 @@ export const POSView: React.FC<POSViewProps> = ({
                           : 'هەڵبژاردنی کڕیار (ئارەزوومەندانە):'}
                       </span>
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewCustName('');
+                        setNewCustPhone('');
+                        setNewCustAddress('');
+                        setShowNewCustomerModal(true);
+                      }}
+                      className="px-2 py-0.5 rounded-full bg-white hover:bg-[#0071E3] text-[#0071E3] hover:text-white border border-[#0071E3]/25 text-[10px] font-extrabold flex items-center gap-1 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      کڕیاری نوێ
+                    </button>
                   </div>
                   <select
                     value={selectedDebtCustomerId}
@@ -1544,7 +1565,10 @@ export const POSView: React.FC<POSViewProps> = ({
                       const cid = e.target.value;
                       setSelectedDebtCustomerId(cid);
                       const found = customers.find(c => c.id === cid);
-                      if (found) setCustomerNameInput(found.name);
+                      if (found) {
+                        setCustomerNameInput(found.name);
+                        setCustomerPhoneInput(found.phone || '');
+                      }
                     }}
                     className="apple-input bg-white w-full px-3 py-1.5 text-xs font-bold"
                   >
@@ -1555,7 +1579,7 @@ export const POSView: React.FC<POSViewProps> = ({
                     </option>
                     {customers.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.currentDebt > 0 ? `(قەرز: ${c.currentDebt.toLocaleString()} د.ع)` : ''}
+                        {c.name} {c.phone ? `• ${c.phone}` : ''} {c.currentDebt > 0 ? `(قەرز: ${c.currentDebt.toLocaleString()} د.ع)` : ''}
                       </option>
                     ))}
                   </select>
@@ -1578,6 +1602,17 @@ export const POSView: React.FC<POSViewProps> = ({
                     }
                     className="apple-input px-3 py-1.5 text-xs font-medium"
                   />
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    value={customerPhoneInput}
+                    onChange={e => setCustomerPhoneInput(e.target.value)}
+                    placeholder="ژمارە مۆبایل (0750...)"
+                    className="apple-input px-3 py-1.5 text-xs font-mono text-right"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 text-xs">
                   {paymentType === 'GIFT' ? (
                     <input
                       type="text"
@@ -2053,15 +2088,30 @@ export const POSView: React.FC<POSViewProps> = ({
                   هەر کڕیارێک لە شۆرۆم پارەی قەرزەکەی بداتەوە، ڕاستەوخۆ لێرە وەریبگرە و دەچێتە سەر سەندوقی ئەمڕۆ
                 </p>
               </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={debtSearch}
-                  onChange={e => setDebtSearch(e.target.value)}
-                  placeholder="گەڕان بە ناو یان مۆبایلی کڕیار..."
-                  className="apple-input w-full pr-8 pl-3 py-2 text-xs"
-                />
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-[#86868B] absolute right-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={debtSearch}
+                    onChange={e => setDebtSearch(e.target.value)}
+                    placeholder="گەڕان بە ناو یان مۆبایلی کڕیار..."
+                    className="apple-input w-full pr-8 pl-3 py-2 text-xs"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCustName('');
+                    setNewCustPhone('');
+                    setNewCustAddress('');
+                    setShowNewCustomerModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  کڕیاری نوێ
+                </button>
               </div>
             </div>
 
@@ -2179,6 +2229,7 @@ export const POSView: React.FC<POSViewProps> = ({
           return (
             g.saleNo.toLowerCase().includes(gq) ||
             (g.customerName || '').toLowerCase().includes(gq) ||
+            (g.customerPhone || '').includes(gq) ||
             (g.giftNote || '').toLowerCase().includes(gq)
           );
         });
@@ -2203,11 +2254,12 @@ export const POSView: React.FC<POSViewProps> = ({
 
         const handleExportGiftsCsv = () => {
           const rows = [
-            ['ژ. وەسڵ', 'بەروار', 'وەرگری هەدیە', 'کێش (کگم)', 'بەهای فرۆش', 'تێچوو', 'تێبینی', 'کاشێر'],
+            ['ژ. وەسڵ', 'بەروار', 'وەرگری هەدیە', 'ژ. مۆبایل', 'کێش (کگم)', 'بەهای فرۆش', 'تێچوو', 'تێبینی', 'کاشێر'],
             ...filteredGifts.map(g => [
               g.saleNo,
               g.date,
               g.customerName || '',
+              g.customerPhone || '',
               g.items.reduce((s, i) => s + i.weightKg, 0).toFixed(2),
               String(g.subtotal || 0),
               String(g.giftCost || 0),
@@ -2326,6 +2378,11 @@ export const POSView: React.FC<POSViewProps> = ({
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-[#8944AB]">{g.saleNo}</span>
                               <span className="font-extrabold text-[#1D1D1F]">{g.customerName || 'نەناسراو'}</span>
+                              {g.customerPhone && (
+                                <span className="text-[10px] font-mono text-[#515154]" dir="ltr">
+                                  ({g.customerPhone})
+                                </span>
+                              )}
                               <span className="px-2 py-0.5 rounded-full bg-[#AF52DE]/12 text-[#8944AB] font-bold text-[10px]">
                                 {kg.toFixed(2)} کگم
                               </span>
@@ -2943,7 +3000,9 @@ export const POSView: React.FC<POSViewProps> = ({
                               ? 'هەدیە (بێبەرامبەر)'
                               : 'قەرز';
                           const msg = `وەسڵی فرۆشتنی ${factorySettings.showroomName || factorySettings.factoryName}\n\nوەسڵ: ${s.saleNo}\nبەروار: ${s.date}\nکاشێر: ${s.cashierName || '---'}\n\nبڕگەکان:\n${itemsText}\n\nکۆی گشتی: ${s.total.toLocaleString()} د.ع (${payLabel})\n\nتەلەفۆن: ${factorySettings.phone1}\n${factorySettings.receiptFooter || 'سوپاس بۆ کڕینەکەتان 🍗'}`;
-                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                          const rawPhone = (s.customerPhone || '').replace(/\D/g, '');
+                          const waPhone = rawPhone.startsWith('0') ? `964${rawPhone.slice(1)}` : rawPhone;
+                          window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
                         }}
                         className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full text-xs font-bold flex items-center gap-1 transition-all"
                       >
@@ -2994,8 +3053,11 @@ export const POSView: React.FC<POSViewProps> = ({
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[#86868B]">کڕیار:</span>
-                        <span>{printReceipt.customerName}</span>
+                        <span className="text-[#86868B]">{printReceipt.paymentType === 'GIFT' ? 'وەرگر:' : 'کڕیار:'}</span>
+                        <span>
+                          {printReceipt.customerName}
+                          {printReceipt.customerPhone ? ` (${printReceipt.customerPhone})` : ''}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#86868B]">کاشێر:</span>
@@ -3986,6 +4048,92 @@ export const POSView: React.FC<POSViewProps> = ({
                 className="w-full py-3 rounded-2xl bg-[#FF9500] hover:bg-[#E08600] text-white font-bold text-sm transition-all"
               >
                 پشتڕاستکردنەوەی گەڕاندنەوە بۆ کارگە
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 11. Quick Add Customer Modal (Name + Phone + Address) */}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <div>
+                <h4 className="font-extrabold text-sm text-[#1D1D1F]">زیادکردنی کڕیار / وەرگری نوێ</h4>
+                <p className="text-xs text-[#86868B] mt-0.5">ناو و ژمارە مۆبایل تۆمار بکە بۆ قەرز، هەدیە و وەسڵ</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewCustomerModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                if (!newCustName.trim()) {
+                  showToast('تکایە ناوی کڕیار بنووسە', 'warn');
+                  return;
+                }
+                addCustomer({
+                  name: newCustName.trim(),
+                  phone: newCustPhone.trim(),
+                  type: 'SUPERMARKET',
+                  address: newCustAddress.trim() || 'شۆرۆم',
+                  currentDebt: 0,
+                  creditLimit: 3000000,
+                });
+                setCustomerNameInput(newCustName.trim());
+                setCustomerPhoneInput(newCustPhone.trim());
+                setSelectedDebtCustomerId('');
+                playPosBeep('success');
+                showToast(`کڕیار "${newCustName.trim()}" زیادکرا`, 'success');
+                setShowNewCustomerModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="font-bold text-[#515154] block mb-1">ناوی تەواو *</label>
+                <input
+                  type="text"
+                  value={newCustName}
+                  onChange={e => setNewCustName(e.target.value)}
+                  placeholder="ناوی کڕیار یان شوێن..."
+                  className="apple-input w-full px-3 py-2 font-bold"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="font-bold text-[#515154] block mb-1">ژمارەی مۆبایل</label>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={newCustPhone}
+                  onChange={e => setNewCustPhone(e.target.value)}
+                  placeholder="0750 123 4567"
+                  className="apple-input w-full px-3 py-2 font-mono text-right"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-[#515154] block mb-1">ناونیشان (ئارەزوومەندانە)</label>
+                <input
+                  type="text"
+                  value={newCustAddress}
+                  onChange={e => setNewCustAddress(e.target.value)}
+                  placeholder="گەڕەک / شار..."
+                  className="apple-input w-full px-3 py-2"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-sm transition-all"
+              >
+                پاشەکەوتکردن و هەڵبژاردن
               </button>
             </form>
           </div>
