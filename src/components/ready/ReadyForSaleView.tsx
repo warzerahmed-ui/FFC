@@ -1194,44 +1194,6 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
               </button>
             </div>
 
-            {/* Quick preset suggestions */}
-            <div>
-              <span className="text-[11px] text-[#86868B] font-semibold block mb-1.5">
-                پارچە باوەکانی مریشک (کرتە بکە بۆ هەڵبژاردنی خێرا):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { name: 'فیلێی سنگی مریشک', price: 7000, cost: 5500, category: 'BREAST' as ProductCategory },
-                  { name: 'دەسکە ڕان (چەقەڵی ڕان)', price: 4500, cost: 3500, category: 'THIGH' as ProductCategory },
-                  { name: 'پانکەی ڕان (ڕانی بێ دەسک)', price: 4200, cost: 3300, category: 'THIGH' as ProductCategory },
-                  { name: 'باڵۆکەی باڵ (نیوەباڵ)', price: 4500, cost: 3400, category: 'WINGS' as ProductCategory },
-                  { name: 'ملی مریشک و گەردەن', price: 1500, cost: 1000, category: 'BONES_SCRAP' as ProductCategory },
-                  { name: 'سنگ بە ئێسکەوە', price: 5500, cost: 4200, category: 'BREAST' as ProductCategory },
-                  { name: 'چەوری و پێست', price: 800, cost: 400, category: 'BONES_SCRAP' as ProductCategory },
-                  { name: 'قاچ و پەلی مریشک', price: 1000, cost: 500, category: 'BONES_SCRAP' as ProductCategory },
-                  { name: 'مریشکی چوار پارچە (تێکەڵ)', price: 3800, cost: 3000, category: 'WHOLE_CHICKEN' as ProductCategory },
-                ].map((p, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setNewProdName(p.name);
-                      setNewProdPrice(p.price);
-                      setNewProdCost(p.cost);
-                      setNewProdCategory(p.category);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
-                      newProdName === p.name
-                        ? 'bg-[#34C759] text-white border-[#34C759]'
-                        : 'bg-[#F5F5F7] text-[#1D1D1F] border-transparent hover:border-[#34C759]/30'
-                    }`}
-                  >
-                    + {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <form onSubmit={handleCreateProduct} className="space-y-3 pt-2 text-xs">
               <div>
                 <label className="block text-[#515154] font-semibold mb-1">

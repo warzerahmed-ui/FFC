@@ -26,18 +26,6 @@ interface SlaughterCuttingViewProps {
   onClearPreselect?: () => void;
 }
 
-const COMMON_PARTS_PRESETS: { name: string; price: number; cost: number; category: ProductCategory }[] = [
-  { name: 'فیلێی سنگی مریشک', price: 7000, cost: 5500, category: 'BREAST' },
-  { name: 'دەسکە ڕان (چەقەڵی ڕان)', price: 4500, cost: 3500, category: 'THIGH' },
-  { name: 'پانکەی ڕان (ڕانی بێ دەسک)', price: 4200, cost: 3300, category: 'THIGH' },
-  { name: 'باڵۆکەی باڵ (نیوەباڵ)', price: 4500, cost: 3400, category: 'WINGS' },
-  { name: 'ملی مریشک و گەردەن', price: 1500, cost: 1000, category: 'BONES_SCRAP' },
-  { name: 'سنگ بە ئێسکەوە', price: 5500, cost: 4200, category: 'BREAST' },
-  { name: 'چەوری و پێست', price: 800, cost: 400, category: 'BONES_SCRAP' },
-  { name: 'قاچ و پەلی مریشک', price: 1000, cost: 500, category: 'BONES_SCRAP' },
-  { name: 'مریشکی چوار پارچە (تێکەڵ)', price: 3800, cost: 3000, category: 'WHOLE_CHICKEN' },
-];
-
 export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
   onNavigate,
   preselectedIntakeId,
@@ -780,34 +768,6 @@ export const SlaughterCuttingView: React.FC<SlaughterCuttingViewProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
-            </div>
-
-            {/* Quick preset suggestions */}
-            <div>
-              <span className="text-[11px] text-[#86868B] font-semibold block mb-1.5">
-                پارچە باوەکانی تری کارگە (کرتە بکە بۆ پڕکردنەوەی خێرا):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {COMMON_PARTS_PRESETS.map((preset, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setNewPartName(preset.name);
-                      setNewPartPrice(preset.price);
-                      setNewPartCost(preset.cost);
-                      setNewPartCategory(preset.category);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
-                      newPartName === preset.name
-                        ? 'bg-[#5856D6] text-white border-[#5856D6]'
-                        : 'bg-[#F5F5F7] text-[#1D1D1F] border-transparent hover:border-[#5856D6]/30'
-                    }`}
-                  >
-                    + {preset.name}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <form onSubmit={handleCreatePart} className="space-y-3 pt-2 text-xs">
