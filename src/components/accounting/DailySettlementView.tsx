@@ -66,6 +66,7 @@ export const DailySettlementView: React.FC = () => {
     dispatches,
     posSales,
     returns,
+    vouchers,
     branchExpenses,
     custodyTransfers,
     settlements,
@@ -205,15 +206,31 @@ export const DailySettlementView: React.FC = () => {
         );
       }
 
-      const cashSalesAmount = receipts
+      let cashSalesAmount = receipts
         .filter(r => r.paymentKind === 'CASH')
         .reduce((s, r) => s + r.amount, 0);
-      const cardSalesAmount = receipts
+      let cardSalesAmount = receipts
         .filter(r => r.paymentKind === 'CARD')
         .reduce((s, r) => s + r.amount, 0);
       const creditSalesAmount = receipts
         .filter(r => r.paymentKind === 'CREDIT')
         .reduce((s, r) => s + r.amount, 0);
+
+      let posCashDebtCollected = 0;
+      if (accountType === 'BRANCH') {
+        const dayPos = posSales.filter(s => s.date.slice(0, 10) === selectedDate);
+        cashSalesAmount = dayPos.reduce(
+          (sum, s) => sum + (s.paymentType === 'CASH' ? s.total : s.paymentType === 'SPLIT' ? s.cashAmount || 0 : 0),
+          0
+        );
+        cardSalesAmount = dayPos.reduce(
+          (sum, s) => sum + (s.paymentType === 'FIB_OR_CARD' ? s.total : s.paymentType === 'SPLIT' ? s.cardAmount || 0 : 0),
+          0
+        );
+        posCashDebtCollected = vouchers
+          .filter(v => v.collectedAtPos && v.paymentMethod === 'CASH' && v.date.slice(0, 10) === selectedDate)
+          .reduce((sum, v) => sum + v.amount, 0);
+      }
       const totalSalesAmount = cashSalesAmount + cardSalesAmount + creditSalesAmount;
       const totalWeightKg = Number(
         receipts.reduce((s, r) => s + r.weightKg, 0).toFixed(2)
@@ -241,7 +258,7 @@ export const DailySettlementView: React.FC = () => {
       );
 
       const expectedCashToday =
-        Math.max(0, cashSalesAmount - expensesAmount) + collectedDebtToday;
+        Math.max(0, cashSalesAmount - expensesAmount) + collectedDebtToday + posCashDebtCollected;
       const expectedTotalToday = expectedCashToday + cardSalesAmount;
       const returnedTotalToday = returnedCashToday + returnedCardToday;
       const varianceToday = returnedTotalToday - expectedTotalToday;
@@ -299,6 +316,7 @@ export const DailySettlementView: React.FC = () => {
     posSales,
     dispatches,
     returns,
+    vouchers,
     branchExpenses,
     custodyTransfers,
     settlements,
