@@ -892,11 +892,11 @@ export const POSView: React.FC<POSViewProps> = ({
     v => v.collectedAtPos && (!reportDate || v.date === reportDate)
   );
 
+  const nonCashierNames = new Set(users.filter(u => u.role !== 'CASHIER').map(u => u.name));
   const cashierOptions = Array.from(
     new Set([
-      ...(currentUser?.name ? [currentUser.name] : []),
-      ...users.filter(u => u.allowedTabs?.includes('pos') || u.role === 'CASHIER' || u.role === 'ADMIN').map(u => u.name),
-      ...posSales.map(s => s.cashierName).filter(Boolean),
+      ...users.filter(u => u.role === 'CASHIER').map(u => u.name),
+      ...posSales.map(s => s.cashierName).filter(name => Boolean(name) && !nonCashierNames.has(name)),
     ])
   );
 
@@ -2462,7 +2462,7 @@ export const POSView: React.FC<POSViewProps> = ({
                     </option>
                   ))}
                 </select>
-                {currentUser?.name && (
+                {currentUser?.role === 'CASHIER' && currentUser?.name && (
                   <button
                     type="button"
                     onClick={() => setReportCashierFilter(currentUser.name)}
