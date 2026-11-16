@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   FileSpreadsheet,
@@ -70,7 +70,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (datePreset === 'ALL') return { start: '', end: '' };
     if (datePreset === 'TODAY') return { start: todayISO, end: todayISO };
     if (datePreset === 'WEEK') {
-      const d = new Date();
+      const d = new Date(`${todayISO}T00:00:00`);
       d.setDate(d.getDate() - 6);
       return { start: toLocalISODate(d), end: todayISO };
     }
@@ -80,31 +80,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return { start: fromDate, end: toDate };
   }, [datePreset, fromDate, toDate, todayISO]);
 
-  const inPeriod = (dateStr: string) => {
-    const clean = dateStr.slice(0, 10);
-    if (dateBounds.start && clean < dateBounds.start) return false;
-    if (dateBounds.end && clean > dateBounds.end) return false;
-    return true;
-  };
+  const inPeriod = useCallback(
+    (dateStr: string) => {
+      const clean = dateStr.slice(0, 10);
+      if (dateBounds.start && clean < dateBounds.start) return false;
+      if (dateBounds.end && clean > dateBounds.end) return false;
+      return true;
+    },
+    [dateBounds]
+  );
 
-  const filteredIntakes = useMemo(() => intakes.filter(i => inPeriod(i.date)), [intakes, dateBounds]);
+  const filteredIntakes = useMemo(() => intakes.filter(i => inPeriod(i.date)), [intakes, inPeriod]);
   const filteredSalesDispatches = useMemo(
     () =>
       dispatches.filter(
         d => (d.destinationType === 'REP' || d.destinationType === 'DIRECT') && inPeriod(d.date)
       ),
-    [dispatches, dateBounds]
+    [dispatches, inPeriod]
   );
   const filteredGiftDispatches = useMemo(
     () => dispatches.filter(d => d.destinationType === 'GIFT' && inPeriod(d.date)),
-    [dispatches, dateBounds]
+    [dispatches, inPeriod]
   );
-  const filteredPosSales = useMemo(() => posSales.filter(s => inPeriod(s.date)), [posSales, dateBounds]);
-  const filteredReturns = useMemo(() => returns.filter(r => inPeriod(r.date)), [returns, dateBounds]);
-  const filteredExpenses = useMemo(() => expenses.filter(e => inPeriod(e.date)), [expenses, dateBounds]);
+  const filteredPosSales = useMemo(() => posSales.filter(s => inPeriod(s.date)), [posSales, inPeriod]);
+  const filteredReturns = useMemo(() => returns.filter(r => inPeriod(r.date)), [returns, inPeriod]);
+  const filteredExpenses = useMemo(() => expenses.filter(e => inPeriod(e.date)), [expenses, inPeriod]);
   const filteredBranchExpenses = useMemo(
     () => branchExpenses.filter(e => inPeriod(e.date)),
-    [branchExpenses, dateBounds]
+    [branchExpenses, inPeriod]
   );
 
   const repSalesRevenue = filteredSalesDispatches.reduce((sum, d) => sum + d.totalAmount, 0);

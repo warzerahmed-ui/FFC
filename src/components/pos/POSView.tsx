@@ -280,6 +280,7 @@ export const POSView: React.FC<POSViewProps> = ({
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
+  const completeSaleRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (activeSubTab === 'REGISTER' && scannerInputRef.current) {
@@ -287,7 +288,7 @@ export const POSView: React.FC<POSViewProps> = ({
     }
   }, [activeSubTab]);
 
-  // Keyboard Shortcuts: F2 (Focus Scanner), F4 (Checkout), Esc (Close Modals)
+  // Keyboard Shortcuts: F2 (Focus Scanner), F4 (Checkout), F8 (Reprint Last), Esc (Close Modals)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -304,7 +305,7 @@ export const POSView: React.FC<POSViewProps> = ({
           !showZReportModal &&
           !showReceiveModal
         ) {
-          handleCompleteSale();
+          completeSaleRef.current();
         }
       } else if (e.key === 'F8') {
         e.preventDefault();
@@ -575,6 +576,10 @@ export const POSView: React.FC<POSViewProps> = ({
     clearCart();
     showToast(`وەسڵی ${sale.saleNo} تەواو کرا`, 'success');
   };
+
+  useEffect(() => {
+    completeSaleRef.current = handleCompleteSale;
+  });
 
   // ==========================================
   // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)

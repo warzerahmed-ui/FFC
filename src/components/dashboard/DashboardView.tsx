@@ -84,7 +84,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
 
   // Automatic 3-Day Freshness Expiry Alert (only when stock actually remains!)
   const freshWindowDays = factorySettings.returnWindowDays || 3;
-  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const todayMs = new Date(`${todayISO}T00:00:00`).getTime();
   const expiryWarnings = [
     ...(hasAccess('custody')
       ? custodyTransfers

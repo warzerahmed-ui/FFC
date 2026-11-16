@@ -25,7 +25,7 @@ export const GiftsView: React.FC = () => {
   // Form States
   const [manualReceiptNo, setManualReceiptNo] = useState('');
   const [date, setDate] = useState(toLocalISODate());
-  const [time, setTime] = useState(
+  const [time, setTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
   const [sourceCustody, setSourceCustody] = useState<'READY' | 'REP'>('READY');

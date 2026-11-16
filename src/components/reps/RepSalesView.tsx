@@ -43,7 +43,7 @@ export const RepSalesView: React.FC = () => {
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [manualReceiptNo, setManualReceiptNo] = useState('');
   const [date, setDate] = useState(toLocalISODate());
-  const [time, setTime] = useState(
+  const [time, setTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
   const [repName, setRepName] = useState(repNames[0] || '');
@@ -74,7 +74,7 @@ export const RepSalesView: React.FC = () => {
   // Standalone Return Modal States (uses SAME sales receipt #)
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnDate, setReturnDate] = useState(toLocalISODate());
-  const [returnTime, setReturnTime] = useState(
+  const [returnTime, setReturnTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
   const [returnReason, setReturnReason] = useState<'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED'>(
@@ -470,7 +470,7 @@ export const RepSalesView: React.FC = () => {
         factoryLoss: Math.round(retWeight * costPerKg),
       };
     });
-  }, [selectedSalesReceipt, returnItemWeights, products, returns]);
+  }, [selectedSalesReceipt, returnItemWeights, products, getLinkedReturns]);
 
   const totalReturnKg = returnRows.reduce((sum, r) => sum + r.returnWeightKg, 0);
   const totalCustomerDeduction = returnRows.reduce((sum, r) => sum + r.customerDeduction, 0);

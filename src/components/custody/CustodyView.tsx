@@ -68,7 +68,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const [loadHolderKey, setLoadHolderKey] = useState<string>(repNames[0] || '');
   const [loadReceiptNo, setLoadReceiptNo] = useState('');
   const [loadDate, setLoadDate] = useState(toLocalISODate());
-  const [loadTime, setLoadTime] = useState(
+  const [loadTime, setLoadTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   );
   const [loadNotes, setLoadNotes] = useState('');
@@ -176,7 +176,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     });
 
     return repSummaries;
-  }, [products, custodyTransfers, dispatches]);
+  }, [products, custodyTransfers, dispatches, repNames]);
 
   // Overall Totals
   const totalLoadedAll = Number(

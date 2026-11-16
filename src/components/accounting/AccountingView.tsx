@@ -53,7 +53,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [voucherType, setVoucherType] = useState<'RECEIPT' | 'PAYMENT'>('RECEIPT');
   const [selectedPartyId, setSelectedPartyId] = useState('');
   const [voucherDate, setVoucherDate] = useState(toLocalISODate());
-  const [voucherTime, setVoucherTime] = useState(
+  const [voucherTime, setVoucherTime] = useState(() =>
     new Date().toLocaleTimeString('ckb-IQ', { hour: '2-digit', minute: '2-digit' })
   );
   const [voucherAmount, setVoucherAmount] = useState<number | ''>('');
