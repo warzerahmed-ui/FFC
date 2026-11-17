@@ -143,6 +143,16 @@ interface AppContextType {
     unit?: 'KG' | 'PIECE';
     barcodePrefix?: string;
   }) => BranchStockItem;
+  deleteBranchProduct: (productId: string) => { ok: boolean; error?: string };
+  recordPosReturn: (payload: {
+    saleNo: string;
+    customerId?: string;
+    customerName?: string;
+    paymentType: POSSale['paymentType'];
+    items: { productId: string; productName: string; weightKg: number; refundAmount: number }[];
+    restockToBranch: boolean;
+    note?: string;
+  }) => void;
   updateBranchStockItem: (productId: string, updates: Partial<BranchStockItem>) => void;
   adjustBranchStock: (payload: {
     productId: string;
@@ -1295,6 +1305,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchStock(prev => [...prev, newItem]);
     recordActivity('SALES', 'CREATE', 'زیادکردنی بەرهەمی نوێ بۆ شۆرۆم', `${newItem.productName} (${newItem.retailPricePerKg.toLocaleString()} د.ع)`);
     return newItem;
+  };
+
+  const deleteBranchProduct = (productId: string): { ok: boolean; error?: string } => {
+    const target = branchStock.find(b => b.productId === productId);
+    if (!target) return { ok: false, error: 'بەرهەم نەدۆزرایەوە' };
+    if (target.inStockKg > 0) {
+      return {
+        ok: false,
+        error: `ناتوانیت "${target.productName}" بسڕیتەوە چونکە ${target.inStockKg} کگم لە کۆگای شۆرۆمدا ماوە`,
+      };
+    }
+    setBranchStock(prev => prev.filter(b => b.productId !== productId));
+    recordActivity('SALES', 'DELETE', 'سڕینەوەی بەرهەم لە کۆگای شۆرۆم', `${target.productName} (${target.code})`);
+    return { ok: true };
+  };
+
+  const recordPosReturn = (payload: {
+    saleNo: string;
+    customerId?: string;
+    customerName?: string;
+    paymentType: POSSale['paymentType'];
+    items: { productId: string; productName: string; weightKg: number; refundAmount: number }[];
+    restockToBranch: boolean;
+    note?: string;
+  }) => {
+    const totalWeightKg = Number(payload.items.reduce((s, i) => s + i.weightKg, 0).toFixed(3));
+    const totalRefund = Math.round(payload.items.reduce((s, i) => s + i.refundAmount, 0) / 250) * 250;
+
+    if (payload.restockToBranch) {
+      const addMap = new Map<string, number>();
+      payload.items.forEach(i => addMap.set(i.productId, (addMap.get(i.productId) || 0) + i.weightKg));
+      setBranchStock(prev =>
+        prev.map(bs => {
+          const added = addMap.get(bs.productId);
+          return added ? { ...bs, inStockKg: Math.round((bs.inStockKg + added) * 1000) / 1000 } : bs;
+        })
+      );
+    }
+
+    if (payload.paymentType === 'DEBT' && totalRefund > 0) {
+      const targetNorm = normalizeName(payload.customerName || '');
+      setCustomers(prev =>
+        prev.map(c => {
+          const isMatch =
+            (payload.customerId && c.id === payload.customerId) ||
+            (!payload.customerId && targetNorm && normalizeName(c.name) === targetNorm);
+          return isMatch
+            ? { ...c, currentDebt: Math.max(0, c.currentDebt - totalRefund) }
+            : c;
+        })
+      );
+    } else if (payload.paymentType === 'CASH' && totalRefund > 0) {
+      const expId = `bexp-${genId()}`;
+      setBranchExpenses(prev => [
+        {
+          id: expId,
+          date: toLocalISODate(),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          title: `گەڕانەوەی پارە (وەسڵی #${payload.saleNo})`,
+          category: 'OTHER',
+          amount: totalRefund,
+          cashierName: currentUser?.name || 'کاشێر',
+          notes: payload.note || 'گەڕانەوەی کاڵای کڕیار لە شۆرۆم',
+        },
+        ...prev,
+      ]);
+    }
+
+    recordActivity(
+      'RETURN',
+      'CREATE',
+      payload.restockToBranch ? 'گەڕانەوەی کاڵا بۆ کۆگای شۆرۆم' : 'تەلەفی گەڕاوەی شۆرۆم',
+      `وەسڵی #${payload.saleNo} • ${totalWeightKg} کگم • ${totalRefund.toLocaleString()} د.ع`,
+      payload.saleNo
+    );
   };
 
   const updateBranchStockItem = (productId: string, updates: Partial<BranchStockItem>) => {
@@ -2528,6 +2613,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBranchDelivery,
         addBranchExpense,
         addBranchProduct,
+        deleteBranchProduct,
+        recordPosReturn,
         updateBranchStockItem,
         adjustBranchStock,
         returnBranchToReady,

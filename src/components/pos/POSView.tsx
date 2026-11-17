@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  ShoppingBag,
   Barcode,
   Printer,
   Trash2,
   CreditCard,
   Banknote,
-  Boxes,
   Users,
   Plus,
   Search,
-  TrendingUp,
   X,
   Scale,
   Receipt,
@@ -150,20 +147,21 @@ export const POSView: React.FC<POSViewProps> = ({
     posSales,
     branchStock,
     branchDeliveries,
-    dispatches,
     customers,
     vouchers,
     branchExpenses,
     users,
     currentUser,
     factorySettings,
+    updateFactorySettings,
     addPOSSale,
-    addReturn,
     addCustomer,
     addVoucher,
     addBranchDelivery,
     addBranchExpense,
     addBranchProduct,
+    deleteBranchProduct,
+    recordPosReturn,
     updateBranchStockItem,
     adjustBranchStock,
     parseWeightBarcode,
@@ -308,7 +306,12 @@ export const POSView: React.FC<POSViewProps> = ({
   // Customer Return / Refund Modal
   const [returningSale, setReturningSale] = useState<POSSale | null>(null);
   const [returnWeights, setReturnWeights] = useState<Record<string, number>>({});
+  const [returnRestockToBranch, setReturnRestockToBranch] = useState<boolean>(true);
   const [returnNotes, setReturnNotes] = useState('');
+
+  // Showroom Barcode Sticker & Customer Ledger Modals
+  const [barcodeStockItem, setBarcodeStockItem] = useState<BranchStockItem | null>(null);
+  const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null);
 
   // Inbound Delivery Receipt Print Modal
   const [selectedInboundReceipt, setSelectedInboundReceipt] = useState<{
@@ -351,7 +354,11 @@ export const POSView: React.FC<POSViewProps> = ({
   // Expenses Modal
   const [expTitle, setExpTitle] = useState('');
   const [expAmount, setExpAmount] = useState<string>('');
-  const [expCategory, setExpCategory] = useState<'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER'>('PACKAGING');
+  const [expCategory, setExpCategory] = useState<string>('PACKAGING');
+  const [showNewExpCatBox, setShowNewExpCatBox] = useState(false);
+  const [newExpCatName, setNewExpCatName] = useState('');
+  const [expApprover, setExpApprover] = useState<string>(currentUser?.name || 'CUSTOM');
+  const [customExpApprover, setCustomExpApprover] = useState('');
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
@@ -761,25 +768,7 @@ export const POSView: React.FC<POSViewProps> = ({
   // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)
   // ==========================================
   const showroomInboundReceipts = useMemo(() => {
-    const showroomNameNorm = (factorySettings.showroomName || '').trim().replace(/\s+/g, ' ').toLowerCase();
-    const repDeliveries = dispatches
-      .filter(d => {
-        const t = (d.customerName || d.destinationName || '').trim().replace(/\s+/g, ' ').toLowerCase();
-        return t === 'شۆرۆم' || t === 'فرۆشگای شۆرۆم' || (!!showroomNameNorm && t === showroomNameNorm);
-      })
-      .map(d => ({
-        id: d.id,
-        receiptNo: d.manualReceiptNo,
-        date: d.date,
-        time: d.time,
-        repName: d.repName || d.destinationName,
-        totalWeightKg: d.totalWeightKg,
-        itemsCount: d.items.length,
-        items: d.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
-        source: 'REP_RECEIPT' as const,
-      }));
-
-    const manualDeliveries = branchDeliveries
+    return branchDeliveries
       .filter(b => !b.status || b.status === 'ACCEPTED')
       .map(b => ({
         id: b.id,
@@ -791,10 +780,9 @@ export const POSView: React.FC<POSViewProps> = ({
         itemsCount: b.items.length,
         items: b.items.map(i => ({ productName: i.productName, weightKg: i.weightKg })),
         source: 'DIRECT_INBOUND' as const,
-      }));
-
-    return [...repDeliveries, ...manualDeliveries].sort((a, b) => b.date.localeCompare(a.date));
-  }, [dispatches, branchDeliveries, factorySettings.showroomName]);
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [branchDeliveries]);
 
   const appendReceiveProduct = (prod: ProductItem, weightKg: number, isTrayScan = false) => {
     const cost = prod.costPerKg || 3000;
@@ -952,6 +940,8 @@ export const POSView: React.FC<POSViewProps> = ({
       showToast('تکایە ناو و بڕی خەرجی بنووسە', 'warn');
       return;
     }
+    const finalApprover =
+      expApprover === 'CUSTOM' ? customExpApprover.trim() : expApprover.trim();
     addBranchExpense({
       date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -959,11 +949,14 @@ export const POSView: React.FC<POSViewProps> = ({
       amount: roundTo250(amount),
       category: expCategory,
       cashierName: currentUser?.name || 'کاشێری شۆرۆم',
+      approvedBy: finalApprover || currentUser?.name || '',
     });
     playPosBeep('success');
     showToast('خەرجی شۆرۆم تۆمارکرا', 'success');
     setExpTitle('');
     setExpAmount('');
+    setExpApprover(currentUser?.name || 'CUSTOM');
+    setCustomExpApprover('');
     setShowAddExpenseModal(false);
   };
 
@@ -1092,7 +1085,6 @@ export const POSView: React.FC<POSViewProps> = ({
   const actualCashNum = actualCashCount === '' ? null : Number(actualCashCount) || 0;
   const cashDrawerDiff = actualCashNum !== null ? actualCashNum - netCashInDrawer : null;
   const totalShowroomStockKg = branchStock.reduce((sum, b) => sum + b.inStockKg, 0);
-  const lowStockCount = branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 5)).length;
 
   const allPosGifts = posSales.filter(s => s.paymentType === 'GIFT');
   const showroomCustomers = useMemo(
@@ -1153,20 +1145,11 @@ export const POSView: React.FC<POSViewProps> = ({
       .map(it => {
         const w = Math.min(it.weightKg, Number(returnWeights[it.productId] || 0));
         if (w <= 0) return null;
-        const bItem = branchStock.find(b => b.productId === it.productId);
-        const prod = products.find(p => p.id === it.productId);
-        const unitCost = bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
         return {
           productId: it.productId,
           productName: it.productName,
-          barcode: it.barcode || prod?.barcodePrefix || '',
           weightKg: Number(w.toFixed(3)),
-          unitCost,
-          costPerKg: unitCost,
-          totalLoss: Math.round(w * unitCost),
-          salePricePerKg: it.pricePerKg,
-          customerDeductionAmount: roundTo250(w * it.pricePerKg),
-          reason: 'DAMAGED' as const,
+          refundAmount: roundTo250(w * it.pricePerKg),
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -1176,29 +1159,23 @@ export const POSView: React.FC<POSViewProps> = ({
       return;
     }
 
-    const totalWeightKg = Number(retItems.reduce((s, i) => s + i.weightKg, 0).toFixed(3));
-    const totalLossAmount = retItems.reduce((s, i) => s + i.totalLoss, 0);
-    const totalCustomerDeduction = retItems.reduce((s, i) => s + (i.customerDeductionAmount || 0), 0);
-
-    addReturn({
-      manualReceiptNo: `POS-RET-${returningSale.saleNo}`,
-      salesReceiptNo: returningSale.saleNo,
-      date: todayISO,
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      sourceType: 'BRANCH',
-      sourceName: factorySettings.showroomName || 'فرۆشگای شۆرۆم',
+    recordPosReturn({
+      saleNo: returningSale.saleNo,
+      customerId: returningSale.customerId,
       customerName: returningSale.customerName,
+      paymentType: returningSale.paymentType,
       items: retItems,
-      totalWeightKg,
-      totalLossAmount,
-      totalCustomerDeduction,
-      disposalMethod: 'CONVERTED' as const,
-      conversionStatus: 'PENDING' as const,
-      notes: returnNotes.trim() || 'گەڕانەوە لە فرۆشگای شۆرۆم (POS)',
+      restockToBranch: returnRestockToBranch,
+      note: returnNotes.trim() || 'گەڕانەوە لە فرۆشگای شۆرۆم (POS)',
     });
 
     playPosBeep('success');
-    showToast(`گەڕاوە بۆ وەسڵی #${returningSale.saleNo} تۆمارکرا و نێردرا بۆ قۆناغی ٣`, 'success');
+    showToast(
+      returnRestockToBranch
+        ? `گەڕاوە بۆ وەسڵی #${returningSale.saleNo} گەڕێنرایەوە کۆگای شۆرۆم`
+        : `تەلەفی گەڕاوە بۆ وەسڵی #${returningSale.saleNo} لە شۆرۆم تۆمارکرا`,
+      'success'
+    );
     setReturningSale(null);
   };
 
@@ -1228,74 +1205,6 @@ export const POSView: React.FC<POSViewProps> = ({
         </div>
       )}
 
-      {/* STANDALONE SHOWROOM HEADER & SEGMENTED NAVIGATION */}
-      <div className="apple-card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0071E3] to-[#005BB5] text-white flex items-center justify-center shadow-sm shrink-0">
-            <ShoppingBag className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-                {factorySettings.showroomName || 'فرۆشگای تایبەت (شۆرۆم - POS)'}
-              </h2>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#248A3D] bg-[#34C759]/12 px-2.5 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-                دووکانی سەربەخۆ
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-2.5 py-0.5 rounded-full">
-                <UserCheck className="w-3 h-3" />
-                کاشێری ئێستا: {currentUser?.name || '---'}
-              </span>
-              {lowStockCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D70015] bg-[#FF3B30]/12 px-2.5 py-0.5 rounded-full">
-                  <AlertCircle className="w-3 h-3" />
-                  {lowStockCount} بەرهەم کەمبووە
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[#86868B] mt-0.5">
-              کاشێری بارکۆد و تەرازوو • وەرگرتنی باری مەندوب • کۆگا و ژمێریاریی سەندوق
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setAutoPrintReceipt(prev => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${
-              autoPrintReceipt
-                ? 'bg-[#34C759]/12 border-[#34C759]/30 text-[#248A3D]'
-                : 'bg-[#F5F5F7] border-transparent text-[#86868B] hover:text-[#1D1D1F]'
-            }`}
-            title="چاپکردنی خۆکار دوای تەواوکردنی وەسڵ"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>چاپی خۆکار: {autoPrintReceipt ? 'چالاکە' : 'ناچالاک'}</span>
-          </button>
-          {posSales.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setPrintReceipt(posSales[0])}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0071E3]/10 hover:bg-[#0071E3] text-[#0071E3] hover:text-white font-bold transition-all"
-              title="چاپکردنەوەی دوایین وەسڵ (F8)"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>دوا وەسڵ (F8)</span>
-            </button>
-          )}
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] font-bold">
-            <Boxes className="w-3.5 h-3.5 text-[#34C759]" />
-            <span>کۆگای ئێستا: {totalShowroomStockKg.toFixed(0)} کگم</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] font-bold">
-            <TrendingUp className="w-3.5 h-3.5 text-[#FF9500]" />
-            <span>وەسڵی تۆمارکراو: {posSales.length}</span>
-          </span>
-        </div>
-      </div>
-
       {/* ===================================================================== */}
       {/* TAB 1: POS REGISTER (کاشێر و فرۆشتن) */}
       {/* ===================================================================== */}
@@ -1305,14 +1214,38 @@ export const POSView: React.FC<POSViewProps> = ({
           <div className="lg:col-span-7 space-y-4">
             {/* Clean Barcode Scanner Bar */}
             <div className="apple-card p-4 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 font-bold text-[#1D1D1F]">
                   <span className="w-2 h-2 rounded-full bg-[#34C759]" />
                   <span>سکانەری بارکۆد و تەرازوو ئامادەیە</span>
                 </div>
-                <span className="text-[11px] font-mono text-[#86868B]">
-                  F2: سکانەر • F4: تەواوکردن و چاپ
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAutoPrintReceipt(prev => !prev)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      autoPrintReceipt
+                        ? 'bg-[#34C759]/12 text-[#248A3D]'
+                        : 'bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F]'
+                    }`}
+                  >
+                    <Printer className="w-3 h-3" />
+                    <span>چاپی خۆکار: {autoPrintReceipt ? 'چالاک' : 'ناچالاک'}</span>
+                  </button>
+                  {posSales.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPrintReceipt(posSales[0])}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-[#0071E3]/10 hover:bg-[#0071E3] text-[#0071E3] hover:text-white font-bold transition-all"
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>دوا وەسڵ (F8)</span>
+                    </button>
+                  )}
+                  <span className="text-[11px] font-mono text-[#86868B]">
+                    F2 • F4
+                  </span>
+                </div>
               </div>
 
               <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
@@ -1347,6 +1280,7 @@ export const POSView: React.FC<POSViewProps> = ({
                     { id: 'WINGS', label: 'باڵ و مل' },
                     { id: 'GIBLETS', label: 'جگەر و قەسیل' },
                     { id: 'BONES_SCRAP', label: 'ئێسک' },
+                    { id: 'OTHER', label: 'بەش و پارچەی تر' },
                   ].map(cat => (
                     <button
                       type="button"
@@ -2019,6 +1953,30 @@ export const POSView: React.FC<POSViewProps> = ({
                               <Scale className="w-3 h-3" />
                               جەرد/تەلەف
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setBarcodeStockItem(item)}
+                              title="ستیکەری بارکۆد"
+                              className="p-1.5 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white transition-colors"
+                            >
+                              <Barcode className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!window.confirm(`بەرهەمی "${item.productName}" لە کۆگای شۆرۆم بسڕدرێتەوە؟`)) return;
+                                const res = deleteBranchProduct(item.productId);
+                                if (!res.ok) {
+                                  showToast(res.error || 'نەتوانرا بسڕدرێتەوە', 'warn');
+                                } else {
+                                  showToast('بەرهەمەکە سڕایەوە', 'success');
+                                }
+                              }}
+                              title="سڕینەوە"
+                              className="p-1.5 rounded-full bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -2110,6 +2068,32 @@ export const POSView: React.FC<POSViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    const rows = [
+                      ['ناوی کڕیار', 'مۆبایل', 'ناونیشان', 'قەرزی ماوە (د.ع)'],
+                      ...filteredDebtors.map(c => [
+                        c.name,
+                        c.phone || '',
+                        c.address || 'شۆرۆم',
+                        String(c.currentDebt),
+                      ]),
+                    ];
+                    const csv = '\uFEFF' + rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `showroom-debtors-${todayISO}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  title="دابەزاندنی Excel / CSV"
+                  className="w-9 h-9 rounded-full bg-[#34C759]/12 hover:bg-[#34C759]/20 text-[#248A3D] flex items-center justify-center shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setNewCustName('');
                     setNewCustPhone('');
                     setNewCustAddress('');
@@ -2168,6 +2152,13 @@ export const POSView: React.FC<POSViewProps> = ({
                               {c.currentDebt.toLocaleString()} د.ع
                             </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => setLedgerCustomer(c)}
+                            className="px-3 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white font-bold text-xs transition-all"
+                          >
+                            کەشف حساب
+                          </button>
                           {c.currentDebt > 0 && (
                             <button
                               type="button"
@@ -3639,14 +3630,49 @@ export const POSView: React.FC<POSViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-[#515154] block mb-1">پۆلێن:</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-[#515154]">پۆلێن:</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewExpCatBox(prev => !prev)}
+                      className="text-[11px] font-bold text-[#0071E3]"
+                    >
+                      {showNewExpCatBox ? 'پاشگەزبوونەوە' : '+ جۆری نوێ'}
+                    </button>
+                  </div>
+                  {showNewExpCatBox && (
+                    <div className="flex gap-1.5 mb-2">
+                      <input
+                        type="text"
+                        placeholder="جۆری خەرجی نوێ..."
+                        value={newExpCatName}
+                        onChange={e => setNewExpCatName(e.target.value)}
+                        className="apple-input flex-1 px-2.5 py-1.5 text-xs font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clean = newExpCatName.trim();
+                          if (!clean) return;
+                          const existing = factorySettings.customBranchExpenseCategories || [];
+                          if (!existing.some(c => c.toLowerCase() === clean.toLowerCase())) {
+                            updateFactorySettings({
+                              customBranchExpenseCategories: [...existing, clean],
+                            });
+                          }
+                          setExpCategory(clean);
+                          setNewExpCatName('');
+                          setShowNewExpCatBox(false);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-[#0071E3] text-white font-bold text-[11px]"
+                      >
+                        زیادکردن
+                      </button>
+                    </div>
+                  )}
                   <select
                     value={expCategory}
-                    onChange={e =>
-                      setExpCategory(
-                        e.target.value as 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER'
-                      )
-                    }
+                    onChange={e => setExpCategory(e.target.value)}
                     className="apple-input w-full px-3 py-2.5 font-bold"
                   >
                     <option value="PACKAGING">پاکەت و عەلاگە</option>
@@ -3655,8 +3681,45 @@ export const POSView: React.FC<POSViewProps> = ({
                     <option value="SALARIES">مووچە</option>
                     <option value="CLEANING">خاوێنکردنەوە</option>
                     <option value="MAINTENANCE">چاککردنەوە</option>
+                    {(factorySettings.customBranchExpenseCategories || []).map(cat => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
                     <option value="OTHER">هی تر</option>
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-[#515154] block mb-1">ڕەزامەندی لەلایەن (پەسەندکەر):</label>
+                <div className="space-y-1.5">
+                  <select
+                    value={expApprover}
+                    onChange={e => {
+                      setExpApprover(e.target.value);
+                      if (e.target.value !== 'CUSTOM') setCustomExpApprover('');
+                    }}
+                    className="apple-input w-full px-3 py-2 font-semibold"
+                  >
+                    {users
+                      .filter(u => u.isActive !== false)
+                      .map(u => (
+                        <option key={u.id} value={u.name}>
+                          {u.name}
+                        </option>
+                      ))}
+                    <option value="CUSTOM">+ ناوی تر (دەستی بنووسە)...</option>
+                  </select>
+                  {expApprover === 'CUSTOM' && (
+                    <input
+                      type="text"
+                      placeholder="ناوی پەسەندکەر بنووسە..."
+                      value={customExpApprover}
+                      onChange={e => setCustomExpApprover(e.target.value)}
+                      className="apple-input w-full px-3 py-2 font-semibold"
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -3726,6 +3789,31 @@ export const POSView: React.FC<POSViewProps> = ({
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setReturnRestockToBranch(true)}
+                className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
+                  returnRestockToBranch
+                    ? 'bg-[#34C759] text-white border-[#34C759]'
+                    : 'bg-[#F5F5F7] text-[#515154] border-transparent'
+                }`}
+              >
+                گەڕانەوە بۆ کۆگای شۆرۆم
+              </button>
+              <button
+                type="button"
+                onClick={() => setReturnRestockToBranch(false)}
+                className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
+                  !returnRestockToBranch
+                    ? 'bg-[#FF3B30] text-white border-[#FF3B30]'
+                    : 'bg-[#F5F5F7] text-[#515154] border-transparent'
+                }`}
+              >
+                تەلەف و بەسەرچوو (شۆرۆم)
+              </button>
             </div>
 
             <input
@@ -4255,6 +4343,139 @@ export const POSView: React.FC<POSViewProps> = ({
                 <p dir="ltr" className="text-[9px] font-bold text-[#86868B] tracking-widest uppercase pt-1">
                   Powered by RAND SUITE
                 </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* 13. Showroom Barcode Sticker Print Modal */}
+      {barcodeStockItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-xs bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 text-center apple-sheet">
+            <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">ستیکەری بارکۆدی شۆرۆم</h4>
+              <button
+                type="button"
+                onClick={() => setBarcodeStockItem(null)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 rounded-2xl border-2 border-dashed border-black/15 bg-white space-y-2">
+              <div className="font-extrabold text-sm text-[#1D1D1F]">{barcodeStockItem.productName}</div>
+              <div className="text-xs font-bold text-[#0071E3] tabular-nums">
+                {barcodeStockItem.retailPricePerKg.toLocaleString()} د.ع / کگم
+              </div>
+              <div className="flex justify-center">
+                <BarcodeSVG code={barcodeStockItem.barcode || barcodeStockItem.code} width={200} height={48} />
+              </div>
+              <div className="font-mono text-xs font-bold tracking-widest text-[#1D1D1F]">
+                {barcodeStockItem.barcode || barcodeStockItem.code}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="w-full py-2.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Printer className="w-4 h-4" />
+              چاپکردنی ستیکەر
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 14. Showroom Customer Ledger (کەشف حسابی کڕیار) */}
+      {ledgerCustomer && (() => {
+        const custNorm = ledgerCustomer.name.trim().toLowerCase();
+        const custSales = posSales.filter(
+          s =>
+            s.customerId === ledgerCustomer.id ||
+            (s.customerName || '').trim().toLowerCase() === custNorm
+        );
+        const custVouchers = vouchers.filter(
+          v =>
+            v.collectedAtPos &&
+            (v.partyId === ledgerCustomer.id || v.partyName.trim().toLowerCase() === custNorm)
+        );
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+            <div className="w-full max-w-lg bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 max-h-[88vh] flex flex-col apple-sheet">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+                <div>
+                  <h4 className="font-extrabold text-sm text-[#1D1D1F]">
+                    کەشف حسابی کڕیار: {ledgerCustomer.name}
+                  </h4>
+                  <p className="text-[11px] text-[#86868B] mt-0.5">
+                    قەرزی ماوەی ئێستا:{' '}
+                    <span className="font-black text-[#D70015]">
+                      {ledgerCustomer.currentDebt.toLocaleString()} د.ع
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLedgerCustomer(null)}
+                  className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3 text-xs flex-1">
+                <div>
+                  <div className="font-bold text-[#1D1D1F] mb-1.5">
+                    وەسڵەکانی کڕین ({custSales.length})
+                  </div>
+                  {custSales.length === 0 ? (
+                    <p className="text-[#86868B] py-3 text-center bg-[#F5F5F7] rounded-xl">
+                      هیچ وەسڵێکی کڕین نییە
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-black/[0.05] border border-black/[0.06] rounded-xl overflow-hidden">
+                      {custSales.map(s => (
+                        <div key={s.id} className="p-2.5 flex items-center justify-between">
+                          <div>
+                            <span className="font-mono font-bold text-[#0071E3]">{s.saleNo}</span>
+                            <span className="text-[#86868B] mr-2">{s.date}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F5F7] font-bold mr-1.5">
+                              {s.paymentType === 'DEBT' ? 'قەرز' : s.paymentType === 'CASH' ? 'نەقد' : s.paymentType}
+                            </span>
+                          </div>
+                          <span className="font-extrabold tabular-nums">
+                            {s.total.toLocaleString()} د.ع
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="font-bold text-[#1D1D1F] mb-1.5">
+                    وەسڵەکانی دانەوەی قەرز ({custVouchers.length})
+                  </div>
+                  {custVouchers.length === 0 ? (
+                    <p className="text-[#86868B] py-3 text-center bg-[#F5F5F7] rounded-xl">
+                      هیچ وەسڵێکی دانەوە نییە
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-black/[0.05] border border-black/[0.06] rounded-xl overflow-hidden">
+                      {custVouchers.map(v => (
+                        <div key={v.id} className="p-2.5 flex items-center justify-between">
+                          <div>
+                            <span className="font-mono font-bold text-[#248A3D]">{v.voucherNo}</span>
+                            <span className="text-[#86868B] mr-2">{v.date}</span>
+                          </div>
+                          <span className="font-extrabold text-[#248A3D] tabular-nums">
+                            -{v.amount.toLocaleString()} د.ع
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

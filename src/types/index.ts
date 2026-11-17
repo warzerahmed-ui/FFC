@@ -44,6 +44,7 @@ export interface FactorySettings {
   orderWhatsapp?: string;
   logoUrl?: string;
   customExpenseCategories?: string[];
+  customBranchExpenseCategories?: string[];
   updatedAt?: string;
 }
 
@@ -362,9 +363,10 @@ export interface BranchExpense {
   date: string;
   time?: string;
   title: string;
-  category: 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER';
+  category: 'RENT' | 'ELECTRICITY' | 'PACKAGING' | 'SALARIES' | 'CLEANING' | 'MAINTENANCE' | 'OTHER' | (string & {});
   amount: number;
   cashierName?: string;
+  approvedBy?: string;
   notes?: string;
 }
 
