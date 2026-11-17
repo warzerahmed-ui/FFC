@@ -118,6 +118,7 @@ interface AppContextType {
     category?: ProductCategory;
     unit?: 'KG' | 'PIECE';
     initialStockKg?: number;
+    barcodePrefix?: string;
   }) => ProductItem;
   updateProduct: (product: ProductItem) => void;
   deleteProduct: (id: string) => { ok: boolean; error?: string };
@@ -853,7 +854,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const branchItem = product 
       ? branchStock.find(b => b.productId === product.id) 
-      : branchStock.find(b => b.barcode === clean || b.code === clean || b.productId === clean);
+      : branchStock.find(b => b.barcode === clean || b.code === clean || b.productId === clean || (b.barcode && clean.startsWith(b.barcode)));
 
     const resolvedProduct = product || (branchItem ? products.find(p => p.id === branchItem.productId) : undefined);
 
@@ -1313,13 +1314,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Add received weight to branch store stock (sum per product)
     const arrivedByProduct = new Map<string, number>();
     delivery.items.forEach(i => arrivedByProduct.set(i.productId, (arrivedByProduct.get(i.productId) || 0) + i.weightKg));
-    setBranchStock(prev => prev.map(bs => {
-      const arrivedKg = arrivedByProduct.get(bs.productId);
-      if (arrivedKg) {
-        return { ...bs, inStockKg: Math.round((bs.inStockKg + arrivedKg) * 1000) / 1000 };
+    setBranchStock(prev => {
+      const updated = prev.map(bs => {
+        const arrivedKg = arrivedByProduct.get(bs.productId);
+        if (arrivedKg) {
+          return { ...bs, inStockKg: Math.round((bs.inStockKg + arrivedKg) * 1000) / 1000 };
+        }
+        return bs;
+      });
+      const existingIds = new Set(prev.map(b => b.productId));
+      for (const item of delivery.items) {
+        if (!existingIds.has(item.productId)) {
+          existingIds.add(item.productId);
+          const prod = products.find(p => p.id === item.productId);
+          updated.push({
+            productId: item.productId,
+            productName: item.productName,
+            code: prod?.code || item.productId.slice(-4),
+            barcode: prod?.barcodePrefix || item.productId,
+            inStockKg: Math.round((arrivedByProduct.get(item.productId) || item.weightKg) * 1000) / 1000,
+            minAlertKg: 10,
+            retailPricePerKg: prod?.pricePerKg || item.factoryPricePerKg || 0,
+            factoryCostPerKg: prod?.costPerKg || item.factoryPricePerKg || 0,
+            category: prod?.category || 'OTHER',
+            unit: prod?.unit || 'KG',
+          });
+        }
       }
-      return bs;
-    }));
+      return updated;
+    });
 
     // Factory stock is NOT deducted here: goods reaching the showroom were already deducted
     // from factory stock when loaded to the rep (custody) or dispatched directly.
@@ -1572,13 +1595,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     category?: ProductCategory;
     unit?: 'KG' | 'PIECE';
     initialStockKg?: number;
+    barcodePrefix?: string;
   }): ProductItem => {
     const numericCodes = products
       .map(p => parseInt(p.code, 10))
       .filter(n => !isNaN(n));
     const nextCodeNum = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 107;
     const code = String(nextCodeNum);
-    const barcodePrefix = `2100${code}`;
+    const barcodePrefix = newProd.barcodePrefix?.trim() || `2100${code}`;
     const id = `prod-${genId()}`;
 
     const created: ProductItem = {

@@ -163,13 +163,10 @@ export const POSView: React.FC<POSViewProps> = ({
     addCustomer,
     addVoucher,
     addBranchDelivery,
-    acceptBranchDelivery,
-    rejectBranchDelivery,
     addBranchExpense,
     addProduct,
     updateBranchStockItem,
     adjustBranchStock,
-    returnBranchToReady,
     parseWeightBarcode,
     softDeleteRecord,
     hasAccess,
@@ -288,14 +285,11 @@ export const POSView: React.FC<POSViewProps> = ({
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
   const [editingCartWeight, setEditingCartWeight] = useState<string>('');
 
-  // Inventory Audit / Spoilage & Return-to-Factory Modals
+  // Inventory Audit / Spoilage Modal
   const [stockAdjustItem, setStockAdjustItem] = useState<BranchStockItem | null>(null);
   const [adjustNewKg, setAdjustNewKg] = useState<string>('');
   const [adjustReason, setAdjustReason] = useState<'AUDIT' | 'SPOILAGE'>('SPOILAGE');
   const [adjustNote, setAdjustNote] = useState<string>('');
-  const [showReturnFactoryModal, setShowReturnFactoryModal] = useState(false);
-  const [returnFactoryQty, setReturnFactoryQty] = useState<Record<string, string>>({});
-  const [returnFactoryNote, setReturnFactoryNote] = useState<string>('');
 
   const handleOpeningFloatChange = (val: number) => {
     const clean = Math.max(0, val || 0);
@@ -341,6 +335,7 @@ export const POSView: React.FC<POSViewProps> = ({
   >([]);
   const [showRecAddProduct, setShowRecAddProduct] = useState(false);
   const [recNewProdName, setRecNewProdName] = useState('');
+  const [recNewProdBarcode, setRecNewProdBarcode] = useState('');
   const [recNewProdPrice, setRecNewProdPrice] = useState<string>('4500');
   const [recNewProdCost, setRecNewProdCost] = useState<string>('3250');
   const receiveScannerRef = useRef<HTMLInputElement>(null);
@@ -469,7 +464,23 @@ export const POSView: React.FC<POSViewProps> = ({
 
     const result = parseWeightBarcode(rawBarcode);
     if (result.valid && (result.product || result.branchItem)) {
-      const prod = result.product || products.find(p => p.id === result.branchItem?.productId);
+      const bi = result.branchItem;
+      const prod: ProductItem | undefined =
+        result.product ||
+        products.find(p => p.id === bi?.productId) ||
+        (bi
+          ? {
+              id: bi.productId,
+              code: bi.code,
+              barcodePrefix: bi.barcode,
+              nameKu: bi.productName,
+              category: bi.category || 'OTHER',
+              pricePerKg: bi.retailPricePerKg,
+              costPerKg: bi.factoryCostPerKg,
+              unit: bi.unit || 'KG',
+              inStockKg: 0,
+            }
+          : undefined);
       if (!prod) {
         playPosBeep('error');
         showToast('بەرهەم نەدۆزرایەوە!', 'warn');
@@ -747,11 +758,6 @@ export const POSView: React.FC<POSViewProps> = ({
   // ==========================================
   // INBOUND STOCK RECEIPT (شۆرۆم وەرگرتنی بار)
   // ==========================================
-  const pendingBranchDeliveries = useMemo(
-    () => branchDeliveries.filter(b => b.status === 'PENDING'),
-    [branchDeliveries]
-  );
-
   const showroomInboundReceipts = useMemo(() => {
     const showroomNameNorm = (factorySettings.showroomName || '').trim().replace(/\s+/g, ' ').toLowerCase();
     const repDeliveries = dispatches
@@ -824,7 +830,23 @@ export const POSView: React.FC<POSViewProps> = ({
 
     const result = parseWeightBarcode(raw);
     if (result.valid && (result.product || result.branchItem)) {
-      const prod = result.product || products.find(p => p.id === result.branchItem?.productId);
+      const bi = result.branchItem;
+      const prod: ProductItem | undefined =
+        result.product ||
+        products.find(p => p.id === bi?.productId) ||
+        (bi
+          ? {
+              id: bi.productId,
+              code: bi.code,
+              barcodePrefix: bi.barcode,
+              nameKu: bi.productName,
+              category: bi.category || 'OTHER',
+              pricePerKg: bi.retailPricePerKg,
+              costPerKg: bi.factoryCostPerKg,
+              unit: bi.unit || 'KG',
+              inStockKg: 0,
+            }
+          : undefined);
       if (!prod) {
         playPosBeep('error');
         setReceiveScanFeedback({ text: 'بەرهەم نەدۆزرایەوە!', ok: false });
@@ -860,9 +882,11 @@ export const POSView: React.FC<POSViewProps> = ({
       costPerKg: cost,
       category: 'OTHER',
       unit: 'KG',
+      barcodePrefix: recNewProdBarcode.trim() || undefined,
     });
     setReceiveProdId(created.id);
     setRecNewProdName('');
+    setRecNewProdBarcode('');
     setShowRecAddProduct(false);
     showToast(`بەرهەمی "${created.nameKu}" زیادکرا`, 'success');
   };
@@ -892,7 +916,7 @@ export const POSView: React.FC<POSViewProps> = ({
       manualReceiptNo: receiveReceiptNo.trim() || `SH-IN-${Date.now().toString().slice(-4)}`,
       date: toLocalISODate(),
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      repName: receiveRepName.trim() || 'مەندوب / گەیاندنی ناوخۆ',
+      repName: receiveRepName.trim() || 'داخڵکردنی ڕۆژانەی شۆرۆم',
       items: cleanItems,
       totalWeightKg: totalKg,
       totalCost,
@@ -1200,16 +1224,6 @@ export const POSView: React.FC<POSViewProps> = ({
                 <UserCheck className="w-3 h-3" />
                 کاشێری ئێستا: {currentUser?.name || '---'}
               </span>
-              {pendingBranchDeliveries.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => handleSubTabChange('INVENTORY')}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-[#B25000] bg-[#FF9500]/18 hover:bg-[#FF9500] hover:text-white px-2.5 py-0.5 rounded-full transition-colors animate-pulse"
-                >
-                  <Truck className="w-3 h-3" />
-                  {pendingBranchDeliveries.length} باری چاوەڕوانی ئەکسیپت
-                </button>
-              )}
               {lowStockCount > 0 && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D70015] bg-[#FF3B30]/12 px-2.5 py-0.5 rounded-full">
                   <AlertCircle className="w-3 h-3" />
@@ -1888,104 +1902,15 @@ export const POSView: React.FC<POSViewProps> = ({
       {/* ===================================================================== */}
       {activeSubTab === 'INVENTORY' && (
         <div className="space-y-5">
-          {/* Pending Factory-to-Showroom Deliveries Awaiting Showroom Acceptance */}
-          {pendingBranchDeliveries.length > 0 && (
-            <div className="apple-card p-5 border-2 border-[#FF9500]/40 bg-[#FF9500]/[0.04] space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm text-[#B25000] flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-[#FF9500]" />
-                  باری نێردراو لە کارگەوە (چاوەڕوانی ئەکسیپت و وەرگرتنی شۆرۆم: {pendingBranchDeliveries.length})
-                </h3>
-                <span className="text-[11px] text-[#86868B] font-semibold">
-                  تا ئەکسیپت نەکرێت ناچێتە سەر کۆگای شۆرۆم
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {pendingBranchDeliveries.map(del => (
-                  <div key={del.id} className="bg-white rounded-2xl p-4 border border-[#FF9500]/25 shadow-2xs space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-mono font-extrabold text-[#0071E3] text-sm">#{del.manualReceiptNo}</span>
-                        <span className="text-[11px] text-[#86868B] mr-2">
-                          {del.date} {del.time}
-                        </span>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#FF9500]/15 text-[#B25000] font-extrabold">
-                        {del.totalWeightKg.toFixed(2)} کگم
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-[#515154]">
-                      نێردراو لەلایەن: <span className="font-bold text-[#1D1D1F]">{del.sentBy || del.repName}</span>
-                      {del.notes && <span className="text-[#86868B]"> • {del.notes}</span>}
-                    </div>
-                    <div className="bg-[#F5F5F7] rounded-xl p-2.5 space-y-1">
-                      {del.items.map((it, idx) => (
-                        <div key={idx} className="flex justify-between font-semibold">
-                          <span>{it.productName}</span>
-                          <span className="font-extrabold tabular-nums">{it.weightKg.toFixed(2)} کگم</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const res = acceptBranchDelivery(del.id);
-                          if (!res.ok) {
-                            playPosBeep('error');
-                            showToast(res.error || 'هەڵە لە وەرگرتنی بار', 'warn');
-                          } else {
-                            playPosBeep('success');
-                            showToast(`باری #${del.manualReceiptNo} (${del.totalWeightKg.toFixed(1)} کگم) ئەکسیپت کرا و خرایە سەر کۆگای شۆرۆم`, 'success');
-                          }
-                        }}
-                        className="flex-1 py-2 rounded-xl bg-[#34C759] hover:bg-[#2FB350] text-white font-extrabold flex items-center justify-center gap-1.5 transition-all"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        ئەکسیپت و وەرگرتن
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const reason = window.prompt('هۆکاری ڕەتکردنەوەی ئەم بارە بنووسە (ئارەزوومەندانە):', '');
-                          if (reason !== null) {
-                            rejectBranchDelivery(del.id, reason);
-                            playPosBeep('scale');
-                            showToast(`باری #${del.manualReceiptNo} ڕەتکرایەوە`, 'info');
-                          }
-                        }}
-                        className="px-4 py-2 rounded-xl bg-[#FF3B30]/10 hover:bg-[#FF3B30] text-[#FF3B30] hover:text-white font-bold transition-all"
-                      >
-                        ڕەتکردنەوە
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Inventory Header + Receive Stock Button */}
+          {/* Inventory Header + Barcode Stock-In Button */}
           <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-extrabold text-base text-[#1D1D1F]">کۆگای فرۆشگای شۆرۆم، جەرد و نرخەکان</h3>
               <p className="text-xs text-[#86868B] mt-0.5">
-                وەرگرتنی بار، گۆڕینی نرخ، جەرد و تەلەفی ناو ساردکەرەوە، و گەڕاندنەوە بۆ کارگە
+                داخڵکردنی ڕۆژانەی بەرهەم بە بارکۆد ریدەر، گۆڕینی نرخ، و جەرد و تەلەفی ساردکەرەوە
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setReturnFactoryQty({});
-                  setReturnFactoryNote('');
-                  setShowReturnFactoryModal(true);
-                }}
-                className="px-4 py-2.5 rounded-full bg-[#FF9500]/12 hover:bg-[#FF9500] text-[#B25000] hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                <RotateCcw className="w-4 h-4" />
-                گەڕاندنەوە بۆ کارگە
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1994,8 +1919,8 @@ export const POSView: React.FC<POSViewProps> = ({
                 }}
                 className="px-4 py-2.5 rounded-full bg-[#34C759] hover:bg-[#2FB350] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
               >
-                <Plus className="w-4 h-4" />
-                وەرگرتنی باری نوێ بۆ شۆرۆم
+                <Barcode className="w-4 h-4" />
+                داخلکردنی بار بە بارکۆد ریدەر
               </button>
             </div>
           </div>
@@ -2013,7 +1938,7 @@ export const POSView: React.FC<POSViewProps> = ({
                 <table className="w-full text-right text-xs">
                   <thead className="bg-[#F5F5F7] text-[#515154] font-semibold border-b border-black/[0.06]">
                     <tr>
-                      <th className="p-3.5">کۆد</th>
+                      <th className="p-3.5">کۆد / بارکۆد</th>
                       <th className="p-3.5">بەرهەم</th>
                       <th className="p-3.5">بەردەست (کگم)</th>
                       <th className="p-3.5">نرخی فرۆشتن</th>
@@ -2023,7 +1948,10 @@ export const POSView: React.FC<POSViewProps> = ({
                   <tbody className="divide-y divide-black/[0.05]">
                     {branchStock.map(item => (
                       <tr key={item.productId} className="hover:bg-[#F5F5F7]/50 transition-colors">
-                        <td className="p-3.5 font-mono font-bold text-[#515154]">{item.code}</td>
+                        <td className="p-3.5 font-mono">
+                          <div className="font-bold text-[#515154]">{item.code}</div>
+                          <div className="text-[10px] text-[#86868B]">{item.barcode}</div>
+                        </td>
                         <td className="p-3.5 font-bold text-[#1D1D1F]">{item.productName}</td>
                         <td className="p-3.5">
                           <span
@@ -3387,10 +3315,10 @@ export const POSView: React.FC<POSViewProps> = ({
                 />
               </div>
               <div>
-                <label className="font-semibold text-[#515154] block mb-1">مەندوب / گەیەنەر:</label>
+                <label className="font-semibold text-[#515154] block mb-1">سەرچاوە / تێبینی (ئارەزوومەندانە):</label>
                 <input
                   type="text"
-                  placeholder="ناوی مەندوب..."
+                  placeholder="داخڵکردنی ڕۆژانەی شۆرۆم..."
                   value={receiveRepName}
                   onChange={e => setReceiveRepName(e.target.value)}
                   className="apple-input w-full px-3 py-2 font-bold"
@@ -3469,6 +3397,14 @@ export const POSView: React.FC<POSViewProps> = ({
                     value={recNewProdName}
                     onChange={e => setRecNewProdName(e.target.value)}
                     className="apple-input w-full px-3 py-1.5 text-xs font-semibold"
+                  />
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="بارکۆدی بەرهەم (سکان یان بنووسە — ئارەزوومەندانە)"
+                    value={recNewProdBarcode}
+                    onChange={e => setRecNewProdBarcode(e.target.value)}
+                    className="apple-input w-full px-3 py-1.5 text-xs font-mono text-left"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -4096,95 +4032,6 @@ export const POSView: React.FC<POSViewProps> = ({
                 className="w-full py-3 rounded-2xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-sm transition-all"
               >
                 تۆمارکردنی جەرد / تەلەف
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 10. Return Unsold Stock Back to Factory Modal */}
-      {showReturnFactoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 max-h-[90vh] overflow-y-auto apple-sheet">
-            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
-              <div>
-                <h4 className="font-extrabold text-sm text-[#1D1D1F]">گەڕاندنەوەی کاڵای شۆرۆم بۆ کارگە</h4>
-                <p className="text-xs text-[#86868B] mt-0.5">
-                  ئەو بڕەی لێرە دەینووسێت لە کۆگای شۆرۆم کەم دەبێتەوە و دەگەڕێتەوە بۆ کۆگای سەرەکی کارگە
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowReturnFactoryModal(false)}
-                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={e => {
-                e.preventDefault();
-                const itemsToReturn = Object.entries(returnFactoryQty)
-                  .map(([productId, val]) => ({ productId, weightKg: parseFloat(val) || 0 }))
-                  .filter(i => i.weightKg > 0);
-                if (itemsToReturn.length === 0) {
-                  showToast('تکایە کێشی لانیکەم یەک بەرهەم بنووسە', 'warn');
-                  return;
-                }
-                const ok = returnBranchToReady({
-                  items: itemsToReturn,
-                  note: returnFactoryNote.trim(),
-                });
-                if (!ok) {
-                  playPosBeep('error');
-                  showToast('ناتوانیت زیاتر لە کۆگای بەردەستی شۆرۆم بگەڕێنیتەوە!', 'warn');
-                  return;
-                }
-                playPosBeep('success');
-                showToast('کاڵاکە بە سەرکەوتوویی گەڕێندرایەوە بۆ کارگە', 'success');
-                setShowReturnFactoryModal(false);
-              }}
-              className="space-y-3 text-xs"
-            >
-              <div className="divide-y divide-black/[0.05] max-h-[260px] overflow-y-auto">
-                {branchStock
-                  .filter(b => b.inStockKg > 0)
-                  .map(b => (
-                    <div key={b.productId} className="py-2.5 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-bold text-[#1D1D1F]">{b.productName}</div>
-                        <span className="text-[10px] text-[#86868B]">بەردەست: {b.inStockKg.toFixed(2)} کگم</span>
-                      </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max={b.inStockKg}
-                        placeholder="0.00 کگم"
-                        value={returnFactoryQty[b.productId] || ''}
-                        onChange={e =>
-                          setReturnFactoryQty(prev => ({ ...prev, [b.productId]: e.target.value }))
-                        }
-                        className="apple-input w-28 px-3 py-1.5 font-bold text-xs tabular-nums"
-                      />
-                    </div>
-                  ))}
-              </div>
-
-              <input
-                type="text"
-                value={returnFactoryNote}
-                onChange={e => setReturnFactoryNote(e.target.value)}
-                placeholder="هۆکاری گەڕاندنەوە بۆ کارگە..."
-                className="apple-input w-full px-3 py-2"
-              />
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-[#FF9500] hover:bg-[#E08600] text-white font-bold text-sm transition-all"
-              >
-                پشتڕاستکردنەوەی گەڕاندنەوە بۆ کارگە
               </button>
             </form>
           </div>
