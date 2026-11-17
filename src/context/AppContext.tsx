@@ -135,6 +135,14 @@ interface AppContextType {
   // Dedicated Store Actions
   addBranchDelivery: (delivery: Omit<BranchDelivery, 'id'>) => void;
   addBranchExpense: (expense: Omit<BranchExpense, 'id'>) => void;
+  addBranchProduct: (product: {
+    nameKu: string;
+    pricePerKg: number;
+    costPerKg?: number;
+    category?: ProductCategory;
+    unit?: 'KG' | 'PIECE';
+    barcodePrefix?: string;
+  }) => BranchStockItem;
   updateBranchStockItem: (productId: string, updates: Partial<BranchStockItem>) => void;
   adjustBranchStock: (payload: {
     productId: string;
@@ -1260,6 +1268,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const id = `bexp-${genId()}`;
     setBranchExpenses(prev => [{ ...expData, id }, ...prev]);
     recordActivity('FINANCE', 'CREATE', 'خەرجی شۆرۆم (POS)', `${expData.title} • ${expData.amount.toLocaleString()} د.ع`);
+  };
+
+  const addBranchProduct = (input: {
+    nameKu: string;
+    pricePerKg: number;
+    costPerKg?: number;
+    category?: ProductCategory;
+    unit?: 'KG' | 'PIECE';
+    barcodePrefix?: string;
+  }): BranchStockItem => {
+    const num = branchStock.length + 1;
+    const prefix = `20${String(num).padStart(2, '0')}00`;
+    const newItem: BranchStockItem = {
+      productId: `bprod-${genId()}`,
+      productName: input.nameKu.trim(),
+      code: `SH-${String(num).padStart(2, '0')}`,
+      barcode: input.barcodePrefix?.trim() || prefix,
+      inStockKg: 0,
+      minAlertKg: 5,
+      retailPricePerKg: input.pricePerKg,
+      factoryCostPerKg: input.costPerKg ?? Math.round(input.pricePerKg * 0.75),
+      category: input.category || 'OTHER',
+      unit: input.unit || 'KG',
+    };
+    setBranchStock(prev => [...prev, newItem]);
+    recordActivity('SALES', 'CREATE', 'زیادکردنی بەرهەمی نوێ بۆ شۆرۆم', `${newItem.productName} (${newItem.retailPricePerKg.toLocaleString()} د.ع)`);
+    return newItem;
   };
 
   const updateBranchStockItem = (productId: string, updates: Partial<BranchStockItem>) => {
@@ -2492,6 +2527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addReadyStock,
         addBranchDelivery,
         addBranchExpense,
+        addBranchProduct,
         updateBranchStockItem,
         adjustBranchStock,
         returnBranchToReady,

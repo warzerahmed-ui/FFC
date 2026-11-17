@@ -163,7 +163,7 @@ export const POSView: React.FC<POSViewProps> = ({
     addVoucher,
     addBranchDelivery,
     addBranchExpense,
-    addProduct,
+    addBranchProduct,
     updateBranchStockItem,
     adjustBranchStock,
     parseWeightBarcode,
@@ -878,7 +878,7 @@ export const POSView: React.FC<POSViewProps> = ({
       showToast('تکایە ناو و نرخی فرۆشتنی بەرهەم بنووسە', 'warn');
       return;
     }
-    const created = addProduct({
+    const created = addBranchProduct({
       nameKu: cleanName,
       pricePerKg: price,
       costPerKg: cost,
@@ -886,15 +886,15 @@ export const POSView: React.FC<POSViewProps> = ({
       unit: 'KG',
       barcodePrefix: recNewProdBarcode.trim() || undefined,
     });
-    setReceiveProdId(created.id);
+    setReceiveProdId(created.productId);
     setRecNewProdName('');
     setRecNewProdBarcode('');
     setShowRecAddProduct(false);
-    showToast(`بەرهەمی "${created.nameKu}" زیادکرا`, 'success');
+    showToast(`بەرهەمی "${created.productName}" زیادکرا بۆ شۆرۆم`, 'success');
   };
 
   const handleAddReceiveItem = () => {
-    const prod = products.find(p => p.id === receiveProdId);
+    const prod = showroomProducts.find(p => p.id === receiveProdId);
     const w = parseFloat(receiveWeight);
     if (!prod || isNaN(w) || w <= 0) {
       showToast('تکایە بەرهەم و کێشێکی دروست بنووسە', 'warn');
@@ -967,7 +967,24 @@ export const POSView: React.FC<POSViewProps> = ({
     setShowAddExpenseModal(false);
   };
 
-  const filteredProducts = products.filter(p => {
+  const showroomProducts: ProductItem[] = useMemo(
+    () =>
+      branchStock.map(b => ({
+        id: b.productId,
+        code: b.code,
+        barcodePrefix: b.barcode,
+        nameKu: b.productName,
+        category: b.category || 'OTHER',
+        pricePerKg: b.retailPricePerKg,
+        costPerKg: b.factoryCostPerKg,
+        unit: b.unit || 'KG',
+        inStockKg: b.inStockKg,
+        minAlertKg: b.minAlertKg,
+      })),
+    [branchStock]
+  );
+
+  const filteredProducts = showroomProducts.filter(p => {
     const matchesCat = activeCategory === 'ALL' || p.category === activeCategory;
     const matchesSearch =
       !searchFilter.trim() ||
@@ -3453,10 +3470,10 @@ export const POSView: React.FC<POSViewProps> = ({
                   onChange={e => setReceiveProdId(e.target.value)}
                   className="apple-input bg-white flex-1 px-3 py-2 font-bold"
                 >
-                  {products.length === 0 && (
+                  {showroomProducts.length === 0 && (
                     <option value="">هیچ بەرهەمێک نییە — سەرەتا زیادی بکە</option>
                   )}
-                  {products.map(p => (
+                  {showroomProducts.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.nameKu}
                     </option>
@@ -3668,7 +3685,7 @@ export const POSView: React.FC<POSViewProps> = ({
                   گەڕانەوەی کاڵا لە وەسڵی #{returningSale.saleNo}
                 </h4>
                 <p className="text-[11px] text-[#86868B]">
-                  {returningSale.customerName || 'کڕیاری ئاسایی'} • دەچێتە قۆناغی ٣ بۆ گۆڕین یان تەلەف
+                  {returningSale.customerName || 'کڕیاری ئاسایی'} • گەڕانەوەی کاڵا بۆ کۆگای شۆرۆم یان تۆمارکردنی تەلەف
                 </p>
               </div>
               <button

@@ -281,7 +281,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
     };
   };
 
-  const filteredCustomers = customers.filter(c =>
+  const factoryCustomers = customers.filter(c => c.source !== 'SHOWROOM');
+  const filteredCustomers = factoryCustomers.filter(c =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.phone.includes(customerSearch)
   );
@@ -590,8 +591,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
 
       {/* View 2: Customers Ledger */}
       {activeSubTab === 'CUSTOMERS' && (() => {
-        const totalCustomersDebt = customers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
-        const debtorCount = customers.filter(c => c.currentDebt > 0).length;
+        const totalCustomersDebt = factoryCustomers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
+        const debtorCount = factoryCustomers.filter(c => c.currentDebt > 0).length;
         const handleExportCustomersCsv = () => {
           const rows = [
             ['ناوی کڕیار', 'جۆر', 'مۆبایل', 'ناونیشان', 'سنووری قەرز', 'قەرزی ئێستا (د.ع)'],
@@ -626,7 +627,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
             <div className="apple-card p-4">
               <span className="text-[11px] font-semibold text-[#86868B] block">کڕیارە قەرزارەکان</span>
               <div className="text-xl font-black text-[#1D1D1F] tabular-nums mt-1">
-                {debtorCount} <span className="text-[11px] font-medium text-[#86868B]">لە کۆی {customers.length} کڕیار</span>
+                {debtorCount} <span className="text-[11px] font-medium text-[#86868B]">لە کۆی {factoryCustomers.length} کڕیار</span>
               </div>
             </div>
           </div>
