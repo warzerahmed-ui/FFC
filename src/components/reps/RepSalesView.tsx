@@ -73,7 +73,6 @@ export const RepSalesView: React.FC = () => {
   const [itemWeight, setItemWeight] = useState<number | ''>('');
   const [itemPrice, setItemPrice] = useState<number | ''>('');
   const [itemsList, setItemsList] = useState<DispatchItem[]>([]);
-  const [discountInput, setDiscountInput] = useState<string>('');
   const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
 
   // Add Market / Public Place Modal States
@@ -286,7 +285,6 @@ export const RepSalesView: React.FC = () => {
     setItemsList([]);
     setItemWeight('');
     setItemPrice('');
-    setDiscountInput('');
     setFinalOverrideInput(null);
     setNotes('فرۆشی مەندوب بە وەسڵی دەستی');
     setShowSaleModal(true);
@@ -399,7 +397,7 @@ export const RepSalesView: React.FC = () => {
   const saleTotalAmount =
     finalOverrideInput !== null && finalOverrideInput !== ''
       ? Math.max(0, Number(finalOverrideInput) || 0)
-      : Math.max(0, saleRawTotalAmount - (Number(discountInput) || 0));
+      : saleRawTotalAmount;
   const saleDiscountAmount = Math.max(0, saleRawTotalAmount - saleTotalAmount);
 
   const handleSubmitSale = (e: React.FormEvent) => {
@@ -1488,8 +1486,8 @@ export const RepSalesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Bottom Summary Bar + Discount / Final Amount */}
-              <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-3">
+              {/* Bottom Summary Bar + Single Final Amount After Discount */}
+              <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[#515154] text-xs font-semibold">
                     کۆی کاڵاکان ({saleTotalWeight.toLocaleString()} کگم):
@@ -1499,57 +1497,26 @@ export const RepSalesView: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-black/[0.06]">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#515154] mb-1">
-                      داشکاندن (د.ع)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="250"
-                      placeholder="0"
-                      value={discountInput}
-                      onChange={e => {
-                        setDiscountInput(e.target.value);
-                        setFinalOverrideInput(null);
-                      }}
-                      className="w-full bg-white border border-black/[0.08] rounded-xl px-3 py-2 text-xs font-bold text-[#FF3B30] outline-none focus:border-[#0071E3] tabular-nums"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#515154] mb-1">
-                      کۆی کۆتایی / پارەی دراو (د.ع)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="250"
-                      value={
-                        finalOverrideInput !== null
-                          ? finalOverrideInput
-                          : String(saleTotalAmount)
-                      }
-                      onChange={e => {
-                        const v = e.target.value;
-                        setFinalOverrideInput(v);
-                        if (v === '') {
-                          setDiscountInput('');
-                        } else {
-                          const num = Number(v) || 0;
-                          setDiscountInput(
-                            saleRawTotalAmount > num ? String(saleRawTotalAmount - num) : ''
-                          );
-                        }
-                      }}
-                      className="w-full bg-white border border-[#0071E3]/40 rounded-xl px-3 py-2 text-xs font-black text-[#0071E3] outline-none focus:border-[#0071E3] tabular-nums"
-                    />
-                  </div>
+                <div className="pt-2 border-t border-black/[0.06]">
+                  <label className="block text-[11px] font-bold text-[#515154] mb-1">
+                    کۆی پارە دوای داشکاندن (د.ع)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="250"
+                    value={
+                      finalOverrideInput !== null
+                        ? finalOverrideInput
+                        : String(saleTotalAmount)
+                    }
+                    onChange={e => setFinalOverrideInput(e.target.value)}
+                    className="w-full bg-white border border-[#0071E3]/40 rounded-xl px-3.5 py-2 text-xs font-black text-[#0071E3] outline-none focus:border-[#0071E3] tabular-nums"
+                  />
                 </div>
 
                 {saleDiscountAmount > 0 && (
-                  <div className="text-[11px] font-bold text-[#248A3D] flex items-center justify-between pt-1">
+                  <div className="text-[11px] font-bold text-[#248A3D] flex items-center justify-between pt-0.5">
                     <span>داشکاندنی هەژمارکراو:</span>
                     <span className="tabular-nums">-{saleDiscountAmount.toLocaleString()} د.ع</span>
                   </div>
