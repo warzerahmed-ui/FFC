@@ -12,6 +12,7 @@ import {
   RotateCcw,
   X,
   AlertTriangle,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { ProductCategory, ProductItem, ReturnOrder, TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -237,6 +238,20 @@ export const ReadyForSaleView: React.FC<ReadyForSaleViewProps> = ({ onNavigate }
             className="w-9 h-9 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] flex items-center justify-center transition-all"
           >
             <Printer className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStockInProdId(products[0]?.id || '');
+              setStockInWeight('');
+              setStockInNote('');
+              setShowStockInModal(true);
+            }}
+            className="px-4 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <ArrowDownToLine className="w-4 h-4" />
+            داخلکردنی کێش بۆ کۆگا
           </button>
 
           <button

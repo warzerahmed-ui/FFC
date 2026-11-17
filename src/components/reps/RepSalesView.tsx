@@ -74,15 +74,6 @@ export const RepSalesView: React.FC = () => {
   const [itemPrice, setItemPrice] = useState<number | ''>('');
   const [itemsList, setItemsList] = useState<DispatchItem[]>([]);
 
-  // Optional Inline Return inside New Sale Modal (same receipt #)
-  const [includeReturnInSale, setIncludeReturnInSale] = useState(false);
-  const [inlineReturnProductId, setInlineReturnProductId] = useState(products[0]?.id || '');
-  const [inlineReturnWeight, setInlineReturnWeight] = useState<number | ''>('');
-  const [inlineReturnReason, setInlineReturnReason] = useState<
-    'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED'
-  >('EXPIRED_3_DAYS');
-  const [inlineReturnItems, setInlineReturnItems] = useState<ReturnItem[]>([]);
-
   // Standalone Return Modal States (uses SAME sales receipt #)
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnDate, setReturnDate] = useState(toLocalISODate());
@@ -286,9 +277,6 @@ export const RepSalesView: React.FC = () => {
     setItemWeight('');
     setItemPrice('');
     setNotes('فرۆشی مەندوب بە وەسڵی دەستی');
-    setIncludeReturnInSale(false);
-    setInlineReturnItems([]);
-    setInlineReturnWeight('');
     setShowSaleModal(true);
   };
 
@@ -361,7 +349,7 @@ export const RepSalesView: React.FC = () => {
     const inListWeight = itemsList.filter(i => i.productId === prod.id).reduce((s, i) => s + i.weightKg, 0);
     if (weight + inListWeight > avail + 0.001) {
       alert(
-        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە کۆگای مەندوب زیاتر بفرۆشیت!\n\nبەرهەم: ${prod.nameKu}\nبەردەست لە ئۆتۆمبێل: ${avail} کگم\nلە وەسڵدایە: ${inListWeight} کگم\nکێشی داواکراو: ${weight} کگم\n\nتکایە سەرەتا لە قۆناغی ٤ (کۆگای مەندوب) بار بخە سەر حسابی ئەم مەندوبە.`
+        `ڕێگری لە فرۆشتنی زێدە:\nناتوانیت لە کۆگای مەندوب زیاتر بفرۆشیت!\n\nبەرهەم: ${prod.nameKu}\nبەردەست لە ئۆتۆمبێل: ${avail} کگم\nلە وەسڵدایە: ${inListWeight} کگم\nکێشی داواکراو: ${weight} کگم\n\nتکایە سەرەتا لە ٣. کۆگای مەندوب بار بخە سەر حسابی ئەم مەندوبە.`
       );
       return;
     }
@@ -394,43 +382,8 @@ export const RepSalesView: React.FC = () => {
     setItemPrice('');
   };
 
-  const handleAddInlineReturnItem = () => {
-    const prod = products.find(p => p.id === inlineReturnProductId);
-    const weight = Number(inlineReturnWeight);
-    if (!prod || !weight || weight <= 0) {
-      alert('تکایە بەرهەم و کێشی گەڕاوە بنووسە');
-      return;
-    }
-
-    const saleItemMatch = itemsList.find(i => i.productId === prod.id);
-    const salePrice = saleItemMatch ? saleItemMatch.pricePerKg : prod.pricePerKg;
-
-    setInlineReturnItems(prev => [
-      ...prev,
-      {
-        productId: prod.id,
-        productName: prod.nameKu,
-        barcode: `RET-${prod.id}`,
-        weightKg: weight,
-        soldWeightKg: saleItemMatch?.weightKg || weight,
-        salePricePerKg: salePrice,
-        unitCost: prod.costPerKg,
-        totalLoss: roundTo250(weight * prod.costPerKg),
-        customerDeductionAmount: roundTo250(weight * salePrice),
-        reason: inlineReturnReason,
-      },
-    ]);
-    setInlineReturnWeight('');
-  };
-
   const saleTotalWeight = itemsList.reduce((sum, item) => sum + item.weightKg, 0);
   const saleTotalAmount = roundTo250(itemsList.reduce((sum, item) => sum + item.totalAmount, 0));
-  const inlineReturnTotalWeight = inlineReturnItems.reduce((sum, r) => sum + r.weightKg, 0);
-  const inlineReturnTotalDeduction = roundTo250(inlineReturnItems.reduce(
-    (sum, r) => sum + (r.customerDeductionAmount || r.totalLoss),
-    0
-  ));
-  const inlineReturnTotalLoss = roundTo250(inlineReturnItems.reduce((sum, r) => sum + r.totalLoss, 0));
 
   const handleSubmitSale = (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,7 +420,7 @@ export const RepSalesView: React.FC = () => {
     });
     if (custodyShortages.length > 0) {
       alert(
-        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تۆمار بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای مەندوبدا لە کێشی داواکراو کەمترە:\n\n• ${custodyShortages.join('\n• ')}\n\nتکایە سەرەتا لە قۆناغی ٤ (کۆگای مەندوب) بار بخە سەر حسابەکەی تا بتوانیت وەسڵ بکەیت.`
+        `ڕێگری لە دەرکردنی وەسڵ:\nناتوانیت ئەم وەسڵە تۆمار بکەیت چونکە بڕی ئەم کاڵایانە لە کۆگای مەندوبدا لە کێشی داواکراو کەمترە:\n\n• ${custodyShortages.join('\n• ')}\n\nتکایە سەرەتا لە ٣. کۆگای مەندوب بار بخە سەر حسابەکەی تا بتوانیت وەسڵ بکەیت.`
       );
       return;
     }
@@ -502,26 +455,6 @@ export const RepSalesView: React.FC = () => {
       status: 'COMPLETED',
       notes,
     });
-
-    // If user also recorded 3-day returns inside the same receipt, bind to SAME receipt #
-    if (includeReturnInSale && inlineReturnItems.length > 0) {
-      addReturn({
-        salesReceiptNo: cleanReceipt,
-        manualReceiptNo: cleanReceipt,
-        date,
-        time,
-        sourceType: 'REP',
-        sourceName: `${effectiveRepName} (${finalCustomer})`,
-        customerName: finalCustomer,
-        repName: effectiveRepName,
-        items: inlineReturnItems,
-        totalWeightKg: inlineReturnTotalWeight,
-        totalLossAmount: inlineReturnTotalLoss,
-        totalCustomerDeduction: inlineReturnTotalDeduction,
-        disposalMethod: 'DESTROYED',
-        notes: `گەڕاوەی ٣ ڕۆژ لەسەر هەمان وەسڵی فرۆشتن [${cleanReceipt}]`,
-      });
-    }
 
     setShowSaleModal(false);
   };
@@ -1320,7 +1253,7 @@ export const RepSalesView: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-[11px] text-[#B25000] font-semibold">
-                    هیچ بڕە بەرهەمێکی ماوە لە کۆگای ئەم مەندوبەدا نییە — سەرەتا لە قۆناغی ٤ باری بۆ بنێرە.
+                    هیچ بڕە بەرهەمێکی ماوە لە کۆگای ئەم مەندوبەدا نییە — سەرەتا لە ٣. کۆگای مەندوب باری بۆ بنێرە.
                   </p>
                 )}
               </div>
@@ -1534,127 +1467,6 @@ export const RepSalesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Optional Inline Return on SAME Receipt Number */}
-              <div className="border border-[#FF3B30]/20 rounded-2xl p-4 bg-[#FF3B30]/[0.03] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RotateCcw className="w-4 h-4 text-[#FF3B30]" />
-                    <div>
-                      <div className="font-bold text-[#1D1D1F]">
-                        گەڕاوەی ٣ ڕۆژ لەسەر هەمان وەسڵ ({manualReceiptNo || '---'})
-                      </div>
-                      <div className="text-[10px] text-[#86868B]">
-                        ئەگەر مارکێتەکە تەلەفی گەڕاندەوە، لێرە یان دواتر بە هەمان ژمارەی وەسڵ تۆماری بکە
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIncludeReturnInSale(prev => !prev)}
-                    className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
-                      includeReturnInSale
-                        ? 'bg-[#FF3B30] text-white'
-                        : 'bg-white text-[#FF3B30] border border-[#FF3B30]/30'
-                    }`}
-                  >
-                    {includeReturnInSale ? 'لادان' : '+ گەڕاوەی لەگەڵدایە'}
-                  </button>
-                </div>
-
-                {includeReturnInSale && (
-                  <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <select
-                        value={inlineReturnProductId}
-                        onChange={e => setInlineReturnProductId(e.target.value)}
-                        className="bg-white border border-black/[0.08] rounded-xl px-3 py-2 text-[#1D1D1F] font-semibold outline-none"
-                      >
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.nameKu}
-                          </option>
-                        ))}
-                      </select>
-
-                      <input
-                        type="number"
-                        step="0.1"
-                        placeholder="کێشی گەڕاوە (کگم)"
-                        value={inlineReturnWeight}
-                        onChange={e =>
-                          setInlineReturnWeight(e.target.value ? Number(e.target.value) : '')
-                        }
-                        className="bg-white border border-black/[0.08] rounded-xl px-3 py-2 text-[#1D1D1F] font-bold outline-none"
-                      />
-
-                      <select
-                        value={inlineReturnReason}
-                        onChange={e =>
-                          setInlineReturnReason(
-                            e.target.value as 'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED'
-                          )
-                        }
-                        className="bg-white border border-black/[0.08] rounded-xl px-3 py-2 text-[#1D1D1F] font-semibold outline-none"
-                      >
-                        {Object.entries(REASON_LABELS).map(([k, label]) => (
-                          <option key={k} value={k}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleAddInlineReturnItem}
-                      className="w-full py-1.5 bg-white hover:bg-[#FF3B30]/5 border border-[#FF3B30]/25 text-[#FF3B30] font-bold rounded-xl flex items-center justify-center gap-1 text-[11px]"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      زیادکردنی بەرهەمی گەڕاوە بۆ هەمان وەسڵ
-                    </button>
-
-                    {inlineReturnItems.length > 0 && (
-                      <div className="bg-white rounded-xl border border-[#FF3B30]/15 overflow-hidden">
-                        <table className="w-full text-right text-xs">
-                          <thead className="bg-[#FF3B30]/5 text-[#515154] font-semibold">
-                            <tr>
-                              <th className="p-2">بەرهەم</th>
-                              <th className="p-2">کێشی گەڕاوە</th>
-                              <th className="p-2">داشکاو لە قەرز</th>
-                              <th className="p-2 text-center">سڕینەوە</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-black/[0.04]">
-                            {inlineReturnItems.map((ri, idx) => (
-                              <tr key={idx}>
-                                <td className="p-2 font-bold">{ri.productName}</td>
-                                <td className="p-2 font-black text-[#FF3B30]">{ri.weightKg} کگم</td>
-                                <td className="p-2 font-bold text-[#248A3D]">
-                                  -{(ri.customerDeductionAmount || ri.totalLoss).toLocaleString()} د.ع
-                                </td>
-                                <td className="p-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setInlineReturnItems(
-                                        inlineReturnItems.filter((_, i) => i !== idx)
-                                      )
-                                    }
-                                    className="text-[#FF3B30] p-1"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
               {/* Bottom Summary Bar */}
               <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.05] flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1663,16 +1475,6 @@ export const RepSalesView: React.FC = () => {
                     {saleTotalWeight.toLocaleString()} کگم • {saleTotalAmount.toLocaleString()} د.ع
                   </span>
                 </div>
-                {inlineReturnItems.length > 0 && (
-                  <div className="text-xs font-bold text-[#FF3B30]">
-                    گەڕاوە: -{inlineReturnTotalWeight} کگم (-
-                    {inlineReturnTotalDeduction.toLocaleString()} د.ع) | صافی:{' '}
-                    <span className="text-[#248A3D]">
-                      {Math.max(0, saleTotalAmount - inlineReturnTotalDeduction).toLocaleString()}{' '}
-                      د.ع
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div>
