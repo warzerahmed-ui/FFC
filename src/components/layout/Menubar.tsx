@@ -484,7 +484,7 @@ export const Menubar: React.FC<MenubarProps> = ({
                 title="سیتینی کارگە"
               >
                 {isSettingsTab && <span className="w-1.5 h-1.5 rounded-full bg-[#0071E3] shrink-0" />}
-                <span>سیتین</span>
+                <span>سیتینی کارگە</span>
               </button>
             )}
           </nav>
