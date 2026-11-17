@@ -669,11 +669,6 @@ export const Menubar: React.FC<MenubarProps> = ({
         </div>
 
         <div className="hidden xl:flex items-center gap-2 text-[10px] font-extrabold tracking-wide shrink-0">
-          <span className="inline-flex items-center gap-1.5 text-[#248A3D]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-            <span>{factorySettings.shortCode} • کارکردن: کراوەیە</span>
-          </span>
-          <span className="text-black/15">|</span>
           <span
             dir="ltr"
             className="px-2 py-0.5 rounded-full bg-[#0071E3]/10 text-[#0071E3] font-black tracking-wider"
