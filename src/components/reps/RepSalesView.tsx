@@ -36,7 +36,7 @@ const REASON_LABELS: Record<'EXPIRED_3_DAYS' | 'DAMAGED' | 'SPOILED', string> = 
 };
 
 export const RepSalesView: React.FC = () => {
-  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, addReturn, softDeleteRecord, parseWeightBarcode, hasAccess } =
+  const { dispatches, returns, products, customers, custodyTransfers, factorySettings, repNames, currentUser, addDispatch, addReturn, addCustomer, softDeleteRecord, parseWeightBarcode, hasAccess } =
     useApp();
 
   const isRepRole = currentUser.role === 'REP';
@@ -73,6 +73,14 @@ export const RepSalesView: React.FC = () => {
   const [itemWeight, setItemWeight] = useState<number | ''>('');
   const [itemPrice, setItemPrice] = useState<number | ''>('');
   const [itemsList, setItemsList] = useState<DispatchItem[]>([]);
+
+  // Add Market / Public Place Modal States
+  const [showAddMarketModal, setShowAddMarketModal] = useState(false);
+  const [newMarketName, setNewMarketName] = useState('');
+  const [newMarketPhone, setNewMarketPhone] = useState('');
+  const [newMarketType, setNewMarketType] = useState<'SUPERMARKET' | 'RESTAURANT' | 'HOTEL' | 'WHOLESALER'>('SUPERMARKET');
+  const [newMarketAddress, setNewMarketAddress] = useState('');
+  const [newMarketCreditLimit, setNewMarketCreditLimit] = useState<number | ''>(1000000);
 
   // Standalone Return Modal States (uses SAME sales receipt #)
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -426,9 +434,25 @@ export const RepSalesView: React.FC = () => {
     }
 
     const finalCustomer = customCustomer.trim() || customerName;
+    if (!finalCustomer || finalCustomer === 'CUSTOM') {
+      alert('تکایە ناوی مارکێت یان شوێنی گشتی بنووسە');
+      return;
+    }
+
+    // Auto-save manually typed market/public place if not yet in customers
+    let targetCust = customers.find(c => c.name.trim().toLowerCase() === finalCustomer.toLowerCase());
+    if (customerName === 'CUSTOM' && !targetCust) {
+      targetCust = addCustomer({
+        name: finalCustomer,
+        phone: '',
+        type: 'SUPERMARKET',
+        address: '',
+        currentDebt: 0,
+        creditLimit: 1000000,
+      });
+    }
 
     // Credit limit enforcement
-    const targetCust = customers.find(c => c.name === finalCustomer);
     if (paymentType === 'CREDIT' && targetCust) {
       const projected = targetCust.currentDebt + saleTotalAmount;
       if (projected > targetCust.creditLimit && !overrideCreditLimit) {
@@ -615,6 +639,15 @@ export const RepSalesView: React.FC = () => {
           >
             <Printer className="w-4 h-4" />
           </button>
+          <button
+            type="button"
+            onClick={() => setShowAddMarketModal(true)}
+            className="px-4 py-2.5 bg-[#34C759]/15 hover:bg-[#34C759]/25 text-[#248A3D] font-bold text-xs rounded-full flex items-center gap-1.5 transition-all active:scale-[0.98]"
+          >
+            <Store className="w-4 h-4" />
+            + زیادکردنی مارکێت / شوێن
+          </button>
+
           <button
             type="button"
             onClick={handleOpenSaleModal}
@@ -1173,10 +1206,19 @@ export const RepSalesView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[#515154] font-semibold mb-1 flex items-center gap-1.5">
-                    <Store className="w-3.5 h-3.5 text-[#34C759]" />
-                    ناوی مارکێت / کڕیار *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[#515154] font-semibold flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5 text-[#34C759]" />
+                      ناوی مارکێت / کڕیار *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMarketModal(true)}
+                      className="text-[11px] font-bold text-[#0071E3] hover:text-[#0077ED]"
+                    >
+                      + مارکێت / شوێنی نوێ
+                    </button>
+                  </div>
                   <div className="space-y-1.5">
                     <select
                       value={customerName}
@@ -2111,6 +2153,160 @@ export const RepSalesView: React.FC = () => {
                 پرینتکردنی وەسڵ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Add Market / Public Place */}
+      {showAddMarketModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-black/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-[#34C759]/12 text-[#248A3D] flex items-center justify-center">
+                  <Store className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-[#1D1D1F]">
+                    زیادکردنی مارکێت یان شوێنی گشتی
+                  </h3>
+                  <p className="text-[11px] text-[#86868B]">
+                    دەچێتە ناو لیستی مارکێت و کڕیارەکانی سیستەم
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMarketModal(false)}
+                className="w-8 h-8 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] flex items-center justify-center text-[#515154]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                const cleanName = newMarketName.trim();
+                if (!cleanName) {
+                  alert('تکایە ناوی مارکێت یان شوێن بنووسە');
+                  return;
+                }
+                const existing = customers.find(
+                  c => c.name.trim().toLowerCase() === cleanName.toLowerCase()
+                );
+                if (existing) {
+                  setCustomerName(existing.name);
+                  setCustomCustomer('');
+                  setShowAddMarketModal(false);
+                  return;
+                }
+                const created = addCustomer({
+                  name: cleanName,
+                  phone: newMarketPhone.trim(),
+                  type: newMarketType,
+                  address: newMarketAddress.trim(),
+                  currentDebt: 0,
+                  creditLimit: Number(newMarketCreditLimit) || 1000000,
+                });
+                setCustomerName(created.name);
+                setCustomCustomer('');
+                setNewMarketName('');
+                setNewMarketPhone('');
+                setNewMarketAddress('');
+                setNewMarketCreditLimit(1000000);
+                setShowAddMarketModal(false);
+              }}
+              className="p-5 space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[#1D1D1F] mb-1">
+                  ناوی مارکێت یان شوێنی گشتی *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="نموونە: سوپەرمارکێتی ڕۆژ / خواردنگەی پاشا"
+                  value={newMarketName}
+                  onChange={e => setNewMarketName(e.target.value)}
+                  className="apple-input w-full px-3.5 py-2.5 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#1D1D1F] mb-1">جۆری شوێن</label>
+                  <select
+                    value={newMarketType}
+                    onChange={e =>
+                      setNewMarketType(
+                        e.target.value as 'SUPERMARKET' | 'RESTAURANT' | 'HOTEL' | 'WHOLESALER'
+                      )
+                    }
+                    className="apple-input w-full px-3 py-2.5 font-semibold bg-[#F5F5F7]"
+                  >
+                    <option value="SUPERMARKET">مارکێت / سوپەرمارکێت</option>
+                    <option value="RESTAURANT">خواردنگە / شوێنی گشتی</option>
+                    <option value="HOTEL">هۆتێل / مۆڵ / شوێنی گشتی</option>
+                    <option value="WHOLESALER">کۆفرۆش / جوملە</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#1D1D1F] mb-1">ژمارەی مۆبایل</label>
+                  <input
+                    type="text"
+                    placeholder="0770 ..."
+                    value={newMarketPhone}
+                    onChange={e => setNewMarketPhone(e.target.value)}
+                    dir="ltr"
+                    className="apple-input w-full px-3 py-2.5 font-mono font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#1D1D1F] mb-1">ناونیشان / گەڕەک</label>
+                  <input
+                    type="text"
+                    placeholder="شەقام یان گەڕەک..."
+                    value={newMarketAddress}
+                    onChange={e => setNewMarketAddress(e.target.value)}
+                    className="apple-input w-full px-3 py-2.5 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#1D1D1F] mb-1">سنووری قەرز (د.ع)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50000"
+                    value={newMarketCreditLimit}
+                    onChange={e =>
+                      setNewMarketCreditLimit(e.target.value ? Number(e.target.value) : '')
+                    }
+                    className="apple-input w-full px-3 py-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMarketModal(false)}
+                  className="px-4 py-2 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#515154] font-bold"
+                >
+                  پاشگەزبوونەوە
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#34C759] hover:bg-[#28B84C] text-white font-bold shadow-sm"
+                >
+                  تۆمارکردنی مارکێت / شوێن
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
