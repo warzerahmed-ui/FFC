@@ -456,6 +456,7 @@ export const RepSalesView: React.FC = () => {
         address: '',
         currentDebt: 0,
         creditLimit: 1000000,
+        source: 'FACTORY',
       });
     }
 
@@ -1237,7 +1238,9 @@ export const RepSalesView: React.FC = () => {
                       }}
                       className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2.5 text-[#1D1D1F] outline-none focus:border-[#0071E3] font-semibold"
                     >
-                      {customers.map(c => (
+                      {customers
+                        .filter(c => c.source !== 'SHOWROOM')
+                        .map(c => (
                         <option key={c.id} value={c.name}>
                           {c.name} ({c.currentDebt.toLocaleString()} د.ع قەرز)
                         </option>
@@ -2229,6 +2232,7 @@ export const RepSalesView: React.FC = () => {
                   address: newMarketAddress.trim(),
                   currentDebt: 0,
                   creditLimit: Number(newMarketCreditLimit) || 1000000,
+                  source: 'FACTORY',
                 });
                 setCustomerName(created.name);
                 setCustomCustomer('');

@@ -918,6 +918,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               address: 'سلێمانی',
               currentDebt: dispatch.totalAmount,
               creditLimit: 3000000,
+              source: 'FACTORY',
               createdAt: dispatch.date,
             };
             return [...prev, newCust];
@@ -1194,6 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             address: 'کڕیاری شۆرۆم',
             currentDebt: sale.total,
             creditLimit: 3000000,
+            source: 'SHOWROOM',
             createdAt: sale.date.slice(0, 10),
           };
           return [...prev, newCust];

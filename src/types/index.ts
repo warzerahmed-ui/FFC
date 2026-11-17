@@ -238,6 +238,7 @@ export interface Customer {
   creditLimit: number;          // سنووری قەرز
   priceTier?: 'STANDARD' | 'WHOLESALE' | 'SPECIAL'; // پۆلی نرخ
   customDiscountPerKg?: number; // داشکاندنی تایبەت بۆ هەر کیلۆیەک (د.ع)
+  source?: 'FACTORY' | 'SHOWROOM';
   createdAt: string;
 }
 

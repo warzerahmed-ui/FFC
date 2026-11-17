@@ -1078,7 +1078,11 @@ export const POSView: React.FC<POSViewProps> = ({
   const lowStockCount = branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 5)).length;
 
   const allPosGifts = posSales.filter(s => s.paymentType === 'GIFT');
-  const customersWithDebtCount = customers.filter(c => c.currentDebt > 0).length;
+  const showroomCustomers = useMemo(
+    () => customers.filter(c => c.source === 'SHOWROOM'),
+    [customers]
+  );
+  const customersWithDebtCount = showroomCustomers.filter(c => c.currentDebt > 0).length;
 
   const filteredPosSales = periodSales.filter(s => {
     if (reportPaymentFilter !== 'ALL' && s.paymentType !== reportPaymentFilter) return false;
@@ -1664,7 +1668,7 @@ export const POSView: React.FC<POSViewProps> = ({
                     onChange={e => {
                       const cid = e.target.value;
                       setSelectedDebtCustomerId(cid);
-                      const found = customers.find(c => c.id === cid);
+                      const found = showroomCustomers.find(c => c.id === cid);
                       if (found) {
                         setCustomerNameInput(found.name);
                         setCustomerPhoneInput(found.phone || '');
@@ -1677,7 +1681,7 @@ export const POSView: React.FC<POSViewProps> = ({
                         ? '-- هەڵبژێرە یان "+ کڕیاری نوێ" دابگرە --'
                         : '-- کڕیاری ئاسایی نەقد (یان هەڵبژێرە) --'}
                     </option>
-                    {customers.map(c => (
+                    {showroomCustomers.map(c => (
                       <option key={c.id} value={c.id}>
                         {c.name} {c.phone ? `• ${c.phone}` : ''} {c.currentDebt > 0 ? `(قەرز: ${c.currentDebt.toLocaleString()} د.ع)` : ''}
                       </option>
@@ -2054,13 +2058,13 @@ export const POSView: React.FC<POSViewProps> = ({
       {/* ===================================================================== */}
       {activeSubTab === 'CUSTOMERS_DEBT' && (() => {
         const q = debtSearch.trim().toLowerCase();
-        const filteredDebtors = customers
+        const filteredDebtors = showroomCustomers
           .filter(c => {
             if (!q) return c.currentDebt > 0;
             return c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
           })
           .sort((a, b) => b.currentDebt - a.currentDebt);
-        const totalAllCustomerDebt = customers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
+        const totalAllCustomerDebt = showroomCustomers.reduce((s, c) => s + Math.max(0, c.currentDebt), 0);
         const posVouchersList = vouchers.filter(v => v.collectedAtPos);
 
         return (
@@ -4082,6 +4086,7 @@ export const POSView: React.FC<POSViewProps> = ({
                   address: newCustAddress.trim() || 'شۆرۆم',
                   currentDebt: 0,
                   creditLimit: 3000000,
+                  source: 'SHOWROOM',
                 });
                 setCustomerNameInput(created.name);
                 setCustomerPhoneInput(created.phone || '');
