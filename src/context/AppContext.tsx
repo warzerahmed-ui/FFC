@@ -38,9 +38,10 @@ const normalizeName = (s: string | undefined | null): string =>
 export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: string }[] = [
   { id: 'dashboard', label: 'داشبۆردی سەرەکی', groupLabel: 'سەرەکی' },
   { id: 'intake', label: '١. کۆگای وەرگرتن', groupLabel: 'کارگە' },
-  { id: 'custody', label: '٢. کۆگای مەندوب', groupLabel: 'کارگە' },
-  { id: 'rep-sales', label: '٣. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'کارگە' },
-  { id: 'gifts', label: '٤. دیاری و هەدیە', groupLabel: 'کارگە' },
+  { id: 'ready-for-sale', label: '٢. کۆگای ئامادە', groupLabel: 'کارگە' },
+  { id: 'custody', label: '٣. کۆگای مەندوب', groupLabel: 'کارگە' },
+  { id: 'rep-sales', label: '٤. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'کارگە' },
+  { id: 'gifts', label: '٥. دیاری و هەدیە', groupLabel: 'کارگە' },
   { id: 'pos', label: 'شۆرۆم (POS)', groupLabel: 'شۆرۆم' },
   { id: 'accounting', label: 'کەشف حساب و دانەوەی قەرز', groupLabel: 'ژمێریاری' },
   { id: 'reports', label: 'خەرجی، قازانج و تەسفییە', groupLabel: 'ژمێریاری' },
@@ -122,6 +123,7 @@ interface AppContextType {
   }) => ProductItem;
   updateProduct: (product: ProductItem) => void;
   deleteProduct: (id: string) => { ok: boolean; error?: string };
+  addReadyStock: (productId: string, weightKg: number, note?: string) => void;
   updateProductPrice: (id: string, newPrice: number, newCost: number, minAlertKg?: number) => void;
   transferReadyToBranch: (payload: {
     items: { productId: string; weightKg: number }[];
@@ -988,7 +990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
-    if (!hasAccess('rep-sales') && !hasAccess('custody') && !hasAccess('gifts')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('custody') && !hasAccess('gifts')) return;
     const id = `disp-${genId()}`;
     const dispatch: DispatchOrder = { ...newDispatch, id };
     setDispatches(prev => [dispatch, ...prev]);
@@ -1049,7 +1051,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addReturn = (newReturn: Omit<ReturnOrder, 'id'>) => {
-    if (!hasAccess('rep-sales') && !hasAccess('custody') && !hasAccess('pos')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('custody') && !hasAccess('pos')) return;
     const id = `ret-${genId()}`;
     const deduction = newReturn.totalCustomerDeduction !== undefined 
       ? newReturn.totalCustomerDeduction 
@@ -1108,7 +1110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     outputs: { productId: string; productName: string; weightKg: number }[],
     notes?: string
   ) => {
-    if (!hasAccess('rep-sales') && !hasAccess('custody')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('custody')) return;
     const existing = returns.find(r => r.id === returnId);
     if (!existing || existing.conversionStatus === 'CONVERTED') return;
     const today = toLocalISODate();
@@ -1684,6 +1686,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  const addReadyStock = (productId: string, weightKg: number, note?: string) => {
+    if (!hasAccess('ready-for-sale') && !hasAccess('intake')) return;
+    if (!Number.isFinite(weightKg) || weightKg <= 0) return;
+    const prod = products.find(p => p.id === productId);
+    if (!prod) return;
+    const added = Number(weightKg.toFixed(3));
+    setProducts(prev =>
+      prev.map(p =>
+        p.id === productId
+          ? { ...p, inStockKg: Number((p.inStockKg + added).toFixed(3)) }
+          : p
+      )
+    );
+    recordActivity(
+      'PRODUCTION',
+      'UPDATE',
+      'داخلکردن بۆ کۆگای ئامادە',
+      `${prod.nameKu} (+${added} کگم)${note ? ` • ${note}` : ''}`,
+      prod.code
+    );
+  };
+
   const loadToRepCustody = (transfer: Omit<CustodyTransfer, 'id' | 'direction'>) => {
     const id = `cust-ld-${Date.now()}`;
     const record: CustodyTransfer = {
@@ -1752,6 +1776,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (target.direction === 'LOAD') {
+      setProducts(prev =>
+        prev.map(p => {
+          const sent = target.items
+            .filter(i => i.productId === p.id)
+            .reduce((s, i) => s + i.weightKg, 0);
+          return sent > 0 ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - sent).toFixed(2))) } : p;
+        })
+      );
       recordActivity(
         'CUSTODY',
         'UPDATE',
@@ -1760,6 +1792,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         target.receiptNo
       );
     } else {
+      setProducts(prev =>
+        prev.map(p => {
+          const retKg = target.items
+            .filter(i => i.productId === p.id)
+            .reduce((s, i) => s + i.weightKg, 0);
+          return retKg > 0 ? { ...p, inStockKg: Number((p.inStockKg + retKg).toFixed(2)) } : p;
+        })
+      );
       recordActivity(
         'CUSTODY',
         'UPDATE',
@@ -2557,6 +2597,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProduct,
         updateProduct,
         deleteProduct,
+        addReadyStock,
         addBranchDelivery,
         addBranchExpense,
         updateBranchStockItem,

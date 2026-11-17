@@ -15,6 +15,9 @@ const DashboardView = lazy(() =>
 const LiveIntakeView = lazy(() =>
   import('./components/intake/LiveIntakeView').then(m => ({ default: m.LiveIntakeView }))
 );
+const ReadyForSaleView = lazy(() =>
+  import('./components/ready/ReadyForSaleView').then(m => ({ default: m.ReadyForSaleView }))
+);
 const CustodyView = lazy(() =>
   import('./components/custody/CustodyView').then(m => ({ default: m.CustodyView }))
 );
@@ -61,6 +64,7 @@ function AppContent() {
         'accounting',
         'reports',
         'intake',
+        'ready-for-sale',
         'custody',
         'gifts',
         'settings',
@@ -148,6 +152,9 @@ function AppContent() {
             <DashboardView setActiveTab={setActiveTab} />
           )}
           {activeTab === 'intake' && hasAccess('intake') && <LiveIntakeView />}
+          {activeTab === 'ready-for-sale' && hasAccess('ready-for-sale') && (
+            <ReadyForSaleView onNavigate={setActiveTab} />
+          )}
           {activeTab === 'custody' && hasAccess('custody') && (
             <CustodyView onNavigate={setActiveTab} />
           )}

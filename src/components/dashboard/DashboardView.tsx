@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Send,
   ClipboardList,
+  PackageCheck,
 } from 'lucide-react';
 import { TabType } from '../../types';
 import { toLocalISODate } from '../../utils/date';
@@ -25,6 +26,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) => {
   const {
     intakes,
+    products,
     dispatches,
     returns,
     customers,
@@ -44,6 +46,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
   const todayLiveIntakeKg = intakes
     .filter(i => i.date.slice(0, 10) === todayISO)
     .reduce((sum, i) => sum + i.netWeightKg, 0);
+  const totalReadyStockKg = products.reduce((sum, p) => sum + p.inStockKg, 0);
   const totalReturnsKg = returns.reduce((sum, r) => sum + r.totalWeightKg, 0);
   const totalReturnsLoss = returns.reduce((sum, r) => sum + r.totalLossAmount, 0);
   const totalCustomerDebt = customers.reduce((sum, c) => sum + c.currentDebt, 0);
@@ -127,7 +130,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
       : []),
   ].filter(w => w.ageDays >= Math.max(2, freshWindowDays - 1));
 
-  // Low-Stock Alerts (Showroom POS)
+  // Low-Stock Alerts (Ready Warehouse + Showroom POS)
+  const lowReadyProducts = hasAccess('ready-for-sale')
+    ? products.filter(p => p.inStockKg < (p.minAlertKg ?? 100))
+    : [];
   const lowBranchProducts = hasAccess('pos')
     ? branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 10))
     : [];
@@ -201,6 +207,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             icon: Truck,
             color: 'text-[#0071E3]',
             bg: 'bg-[#0071E3]/12',
+          },
+          {
+            tab: 'ready-for-sale',
+            label: 'کۆگای ئامادە',
+            sub: 'ئامادە و نرخدانان',
+            icon: PackageCheck,
+            color: 'text-[#248A3D]',
+            bg: 'bg-[#34C759]/12',
           },
           {
             tab: 'custody',
@@ -318,8 +332,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
         </div>
       )}
 
-      {/* Low-Stock Alert Banner (Showroom POS) */}
-      {lowBranchProducts.length > 0 && (
+      {/* Low-Stock Alert Banner (Ready Warehouse + Showroom POS) */}
+      {(lowReadyProducts.length > 0 || lowBranchProducts.length > 0) && (
         <div className="p-4 rounded-3xl bg-[#FF3B30]/8 border border-[#FF3B30]/25 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center shrink-0">
@@ -327,9 +341,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
             <div>
               <div className="text-xs font-extrabold text-[#B91C1C]">
-                ئاگادارکردنەوەی کەمبوونی کۆگا: {lowBranchProducts.length} بەرهەمی شۆرۆم لە سنووری کەمیدان!
+                ئاگادارکردنەوەی کەمبوونی کۆگا: {lowReadyProducts.length + lowBranchProducts.length} بەرهەم لە سنووری کەمیدان!
               </div>
               <div className="text-[11px] text-[#7F1D1D] mt-1 flex flex-wrap gap-1.5">
+                {lowReadyProducts.slice(0, 4).map(p => (
+                  <span key={p.id} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
+                    ئامادە: {p.nameKu} ({p.inStockKg.toFixed(1)} کگم)
+                  </span>
+                ))}
                 {lowBranchProducts.slice(0, 4).map(b => (
                   <span key={b.productId} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
                     شۆرۆم: {b.productName} ({b.inStockKg.toFixed(1)} کگم)
@@ -339,6 +358,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {lowReadyProducts.length > 0 && hasAccess('ready-for-sale') && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('ready-for-sale')}
+                className="px-3.5 py-2 rounded-full bg-[#FF3B30] hover:bg-[#D70015] text-white text-xs font-bold transition-all"
+              >
+                کۆگای ئامادە
+              </button>
+            )}
             {lowBranchProducts.length > 0 && hasAccess('pos') && (
               <button
                 type="button"
@@ -511,6 +539,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             <div className="mt-4 pt-3 border-t border-black/[0.05] flex items-center justify-between text-xs w-full">
               <span className="text-[#86868B]">کۆی کێشی وەرگیراو:</span>
               <span className="font-bold text-[#1D1D1F] tabular-nums">{totalIntakeKg.toLocaleString()} کگم</span>
+            </div>
+          </button>
+        )}
+
+        {hasAccess('ready-for-sale') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('ready-for-sale')}
+            className="apple-card apple-card-hover p-5 text-right flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold text-[#248A3D] bg-[#34C759]/12 px-2.5 py-1 rounded-full">
+                  ٢. کۆگای ئامادە
+                </span>
+                <PackageCheck className="w-4 h-4 text-[#248A3D]" />
+              </div>
+              <h3 className="text-sm font-extrabold text-[#1D1D1F]">کۆگای ئامادە و نرخدانان</h3>
+              <p className="text-xs text-[#86868B] mt-1 leading-relaxed">
+                داخلکردنی بەرهەمی ئامادە، نرخدانان و گۆڕینی گەڕاوەی ٣ ڕۆژ و بارکۆد.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-black/[0.05] flex items-center justify-between text-xs w-full">
+              <span className="text-[#86868B]">بەردەستی ئێستا:</span>
+              <span className="font-bold text-[#1D1D1F] tabular-nums">{totalReadyStockKg.toLocaleString()} کگم</span>
             </div>
           </button>
         )}

@@ -133,6 +133,14 @@ export const GiftsView: React.FC = () => {
         );
         return;
       }
+    } else {
+      const availableStock = Math.max(0, Number(prod.inStockKg.toFixed(2)));
+      if (weight + alreadyQueued > availableStock + 0.001) {
+        alert(
+          `ڕێگری لە دەرکردنی دیاری:\nبڕی پێویست لە کۆگای ئامادە بەردەست نییە!\n\nبەرهەم: ${prod.nameKu}\nبەردەست: ${availableStock.toLocaleString()} کگم\nداواکراو: ${(weight + alreadyQueued).toLocaleString()} کگم`
+        );
+        return;
+      }
     }
 
     const costPerKg =
@@ -638,7 +646,7 @@ export const GiftsView: React.FC = () => {
                 <div>
                   <span className="font-bold text-[#1D1D1F] block">سەرچاوەی دەرکردنی کێش:</span>
                   <span className="text-[11px] text-[#86868B]">
-                    دیارییەکە لە کۆگای سەرەکی کارگە دەرچێت یان لە کۆگای ئەو مەندوبە؟
+                    دیارییەکە لە کۆگای ئامادەی کارگە دەرچێت یان لە کۆگای ئەو مەندوبە؟
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -651,7 +659,7 @@ export const GiftsView: React.FC = () => {
                         : 'bg-white text-[#515154] border border-black/[0.06]'
                     }`}
                   >
-                    کۆگای سەرەکی (کارگە)
+                    کۆگای ئامادە (کارگە)
                   </button>
                   <button
                     type="button"
