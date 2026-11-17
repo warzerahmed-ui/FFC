@@ -37,6 +37,9 @@ import {
   Activity,
   Smartphone,
   Share,
+  WifiOff,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 
 interface MenubarProps {
@@ -255,10 +258,22 @@ export const Menubar: React.FC<MenubarProps> = ({
     cloudSyncStatus,
     lastSyncedAt,
     syncNow,
+    isOnline,
+    pendingOfflineCount,
+    offlineModeEnabled,
+    setOfflineModeEnabled,
+    hasPinConfigured,
+    lockApp,
+    configurePin,
+    removePin,
   } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [showPwdModal, setShowPwdModal] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinMsg, setPinMsg] = useState<string | null>(null);
+  const [offlineSaving, setOfflineSaving] = useState(false);
   const [currPwd, setCurrPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -506,33 +521,41 @@ export const Menubar: React.FC<MenubarProps> = ({
               onClick={() => syncNow()}
               title={lastSyncedAt ? `دوایین سینک: ${lastSyncedAt}` : 'کلیک بکە بۆ سینککردن لەگەڵ Cloudflare D1'}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer whitespace-nowrap ${
-                cloudSyncStatus === 'SYNCED'
+                !isOnline || cloudSyncStatus === 'LOCAL_ONLY'
+                  ? 'bg-[#FFFBEB] text-[#B45309]'
+                  : cloudSyncStatus === 'SYNCED'
                   ? 'bg-[#ECFDF5] text-[#047857]'
                   : cloudSyncStatus === 'SYNCING'
                   ? 'bg-[#EFF6FF] text-[#1D4ED8]'
-                  : cloudSyncStatus === 'ERROR'
-                  ? 'bg-[#FEF2F2] text-[#B91C1C]'
-                  : 'bg-[#FFFBEB] text-[#B45309]'
+                  : 'bg-[#FEF2F2] text-[#B91C1C]'
               }`}
             >
-              <Cloud
-                className={`w-3.5 h-3.5 ${
-                  cloudSyncStatus === 'SYNCED'
-                    ? 'text-[#10B981]'
-                    : cloudSyncStatus === 'SYNCING'
-                    ? 'text-[#3B82F6] animate-pulse'
-                    : cloudSyncStatus === 'ERROR'
-                    ? 'text-[#EF4444]'
-                    : 'text-[#F59E0B]'
-                }`}
-              />
+              {!isOnline || cloudSyncStatus === 'LOCAL_ONLY' ? (
+                <WifiOff className="w-3.5 h-3.5 text-[#F59E0B]" />
+              ) : (
+                <Cloud
+                  className={`w-3.5 h-3.5 ${
+                    cloudSyncStatus === 'SYNCED'
+                      ? 'text-[#10B981]'
+                      : cloudSyncStatus === 'SYNCING'
+                      ? 'text-[#3B82F6] animate-pulse'
+                      : 'text-[#EF4444]'
+                  }`}
+                />
+              )}
               <span>
-                {cloudSyncStatus === 'SYNCED'
+                {!isOnline
+                  ? pendingOfflineCount > 0
+                    ? `بێ هێڵ (${pendingOfflineCount})`
+                    : 'بێ هێڵ'
+                  : cloudSyncStatus === 'SYNCED'
                   ? 'D1 هاوئاهەنگە'
                   : cloudSyncStatus === 'SYNCING'
                   ? 'لە سینکدایە...'
                   : cloudSyncStatus === 'ERROR'
                   ? 'هەڵەی D1'
+                  : pendingOfflineCount > 0
+                  ? `چاوەڕێ (${pendingOfflineCount})`
                   : 'لۆکاڵ'}
               </span>
             </button>
@@ -544,6 +567,19 @@ export const Menubar: React.FC<MenubarProps> = ({
               <span dir="ltr">{formattedDateTime}</span>
             </div>
           </div>
+
+          {/* Mobile Offline / Pending Sync Indicator */}
+          {(!isOnline || pendingOfflineCount > 0 || cloudSyncStatus === 'LOCAL_ONLY') && (
+            <button
+              type="button"
+              onClick={() => syncNow()}
+              className="xl:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#FFFBEB] text-[#B45309] border border-[#F59E0B]/30 text-[11px] font-bold whitespace-nowrap cursor-pointer"
+              title="دۆخی هێڵ و ناردنی داتا"
+            >
+              <WifiOff className="w-3.5 h-3.5 text-[#F59E0B]" />
+              <span>{pendingOfflineCount > 0 ? `بێ هێڵ (${pendingOfflineCount})` : 'بێ هێڵ'}</span>
+            </button>
+          )}
 
           {/* Mobile PWA Install Pill */}
           {!isStandalone && (
@@ -572,6 +608,30 @@ export const Menubar: React.FC<MenubarProps> = ({
                   {displayRole}
                 </div>
               </div>
+              {hasPinConfigured && (
+                <button
+                  type="button"
+                  onClick={lockApp}
+                  className="p-1 rounded-full bg-white hover:bg-slate-100 border border-slate-200/90 text-slate-600 hover:text-[#0071E3] transition-all cursor-pointer"
+                  title="قوفڵکردنی خێرای شاشە"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput('');
+                  setPinMsg(null);
+                  setShowSecurityModal(true);
+                }}
+                className={`p-1 rounded-full bg-white hover:bg-slate-100 border border-slate-200/90 transition-all cursor-pointer ${
+                  offlineModeEnabled ? 'text-[#059669]' : 'text-slate-600 hover:text-[#0071E3]'
+                }`}
+                title="ئۆفلاین و قوفڵی پاراستن (PIN)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+              </button>
               {!isSuper && (
                 <button
                   type="button"
@@ -763,6 +823,30 @@ export const Menubar: React.FC<MenubarProps> = ({
               </div>
             ))}
             <div className="grid grid-cols-2 gap-2 pt-1">
+              {hasPinConfigured && (
+                <button
+                  type="button"
+                  onClick={lockApp}
+                  className="p-1 rounded-full bg-white hover:bg-slate-100 border border-slate-200/90 text-slate-600 hover:text-[#0071E3] transition-all cursor-pointer"
+                  title="قوفڵکردنی خێرای شاشە"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput('');
+                  setPinMsg(null);
+                  setShowSecurityModal(true);
+                }}
+                className={`p-1 rounded-full bg-white hover:bg-slate-100 border border-slate-200/90 transition-all cursor-pointer ${
+                  offlineModeEnabled ? 'text-[#059669]' : 'text-slate-600 hover:text-[#0071E3]'
+                }`}
+                title="ئۆفلاین و قوفڵی پاراستن (PIN)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+              </button>
               {!isSuper && (
                 <button
                   type="button"
@@ -1200,6 +1284,152 @@ export const Menubar: React.FC<MenubarProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Mode & Quick-Lock PIN Security Modal */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-x-hidden">
+          <div className="bg-white rounded-[24px] sm:rounded-[28px] w-full max-w-md min-w-0 overflow-hidden shadow-2xl border border-black/[0.08] apple-sheet">
+            <div className="p-4 sm:p-5 bg-[#FBFBFD] border-b border-black/[0.06] flex items-center justify-between gap-2">
+              <h3 className="text-xs sm:text-sm font-extrabold text-[#1D1D1F] flex items-center gap-2 min-w-0 truncate">
+                <ShieldCheck className="w-4 h-4 text-[#059669] shrink-0" />
+                <span className="truncate">پاراستن و کارکردنی بێ ئینتەرنێت (Offline)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSecurityModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F] flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-5 text-xs">
+              {/* Encrypted Offline Toggle */}
+              <div className="p-3.5 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-extrabold text-[#1D1D1F]">دۆخی ئۆفلاینی پارێزراو (AES-GCM)</div>
+                    <div className="text-[11px] text-[#515154] mt-0.5">
+                      کارکردن و تۆمارکردنی فرۆشتن لە کاتی بڕانی ئینتەرنێت و ناردنەوەی خۆکار دوای گەڕانەوەی هێڵ.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={offlineSaving}
+                    onClick={async () => {
+                      setOfflineSaving(true);
+                      await setOfflineModeEnabled(!offlineModeEnabled);
+                      setOfflineSaving(false);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-full font-bold shrink-0 transition-all cursor-pointer ${
+                      offlineModeEnabled
+                        ? 'bg-[#059669] text-white'
+                        : 'bg-white text-[#515154] border border-black/[0.1]'
+                    }`}
+                  >
+                    {offlineModeEnabled ? 'چالاکە' : 'ناچالاکە'}
+                  </button>
+                </div>
+                <div className="text-[10px] text-[#86868B]">
+                  {offlineModeEnabled
+                    ? 'داتای ئەم ئامێرە بە شفرەکراوی لە IndexedDB هەڵدەگیرێت و لە کاتی Logout بە تەواوی دەسڕدرێتەوە.'
+                    : 'هیچ داتایەکی بازرگانی لەسەر ئەم ئامێرە هەڵناگیرێت (تەنها بە ئینتەرنێت کار دەکات).'}
+                </div>
+              </div>
+
+              {/* Quick-Lock PIN Section */}
+              <div className="p-3.5 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-extrabold text-[#1D1D1F]">قوفڵی خێرا (PIN ٤ ژمارەیی)</div>
+                    <div className="text-[11px] text-[#515154] mt-0.5">
+                      دوای ١٥ خولەک بێ‌چالاکی یان بە کلیککردن لە دوگمەی قوفڵ، شاشە دادەخرێت.
+                    </div>
+                  </div>
+                  {hasPinConfigured && (
+                    <span className="px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#047857] text-[10px] font-bold shrink-0">
+                      دانراوە
+                    </span>
+                  )}
+                </div>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const clean = pinInput.replace(/\D/g, '');
+                    if (clean.length !== 4) {
+                      setPinMsg('تکایە ٤ ژمارە بنووسە');
+                      return;
+                    }
+                    await configurePin(clean);
+                    setPinInput('');
+                    setPinMsg('کۆدی قوفڵ بە سەرکەوتوویی دانرا');
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pinInput}
+                    onChange={(e) => {
+                      setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4));
+                      setPinMsg(null);
+                    }}
+                    placeholder={hasPinConfigured ? 'گۆڕینی PIN (٤ ژمارە)' : '٤ ژمارە بنووسە'}
+                    dir="ltr"
+                    className="apple-input flex-1 px-3 py-2 text-center font-mono font-bold bg-white"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-2 rounded-xl bg-[#0071E3] text-white font-bold hover:bg-[#0077ED] shrink-0 cursor-pointer"
+                  >
+                    {hasPinConfigured ? 'نوێکردنەوە' : 'دانان'}
+                  </button>
+                </form>
+
+                {pinMsg && (
+                  <div className="text-[11px] font-bold text-[#0071E3]">{pinMsg}</div>
+                )}
+
+                {hasPinConfigured && (
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSecurityModal(false);
+                        lockApp();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-black/[0.08] text-[#1D1D1F] font-bold hover:bg-slate-50 cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-[#0071E3]" />
+                      قوفڵکردنی ئێستا
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removePin();
+                        setPinMsg('کۆدی قوفڵ سڕایەوە');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-[#FEF2F2] text-[#DC2626] font-bold hover:bg-[#FEE2E2] cursor-pointer"
+                    >
+                      لابردنی PIN
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSecurityModal(false)}
+                className="w-full py-2.5 bg-[#1D1D1F] text-white rounded-full font-bold cursor-pointer"
+              >
+                داخستن
+              </button>
+            </div>
           </div>
         </div>
       )}

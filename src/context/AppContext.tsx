@@ -27,6 +27,22 @@ import {
   UserRole,
 } from '../types';
 import { toLocalISODate } from '../utils/date';
+import {
+  clearLockPin,
+  clearOfflinePendingDelta,
+  getOfflinePreference,
+  hasLockPin,
+  loadEncryptedSnapshot,
+  loadOfflinePendingDelta,
+  loadOfflineUserMeta,
+  purgeOfflineVault,
+  saveEncryptedSnapshot,
+  saveOfflinePendingDelta,
+  saveOfflineUserMeta,
+  setLockPin,
+  setOfflinePreference,
+  verifyLockPin,
+} from '../utils/offlineVault';
 
 // Collision-resistant record IDs (safe across multiple devices syncing to D1)
 const genId = (): string =>
@@ -210,10 +226,22 @@ interface AppContextType {
     newPassword: string
   ) => Promise<{ ok: boolean; error?: string }>;
 
-  // Cloudflare D1 Cloud Sync
+  // Cloudflare D1 Cloud Sync & Encrypted Offline Mode
   cloudSyncStatus: 'SYNCING' | 'SYNCED' | 'LOCAL_ONLY' | 'ERROR';
   lastSyncedAt: string | null;
   syncNow: () => Promise<void>;
+  isOnline: boolean;
+  pendingOfflineCount: number;
+  offlineModeEnabled: boolean;
+  setOfflineModeEnabled: (enabled: boolean) => Promise<void>;
+  offlineAuthBlocked: boolean;
+  retryOfflineOrOnline: () => Promise<void>;
+  isLocked: boolean;
+  hasPinConfigured: boolean;
+  lockApp: () => void;
+  unlockWithPin: (pin: string) => Promise<boolean>;
+  configurePin: (pin: string) => Promise<void>;
+  removePin: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -313,16 +341,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [factorySettings.factoryName, factorySettings.shortCode]);
 
   // ==========================================
-  // CLOUDFLARE D1 CLOUD SYNC ENGINE
+  // CLOUDFLARE D1 CLOUD SYNC & OFFLINE VAULT
   // ==========================================
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'SYNCING' | 'SYNCED' | 'LOCAL_ONLY' | 'ERROR'>('SYNCING');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [pendingOfflineCount, setPendingOfflineCount] = useState<number>(0);
+  const [offlineModeEnabled, setOfflineModeEnabledState] = useState<boolean>(false);
+  const [offlineAuthBlocked, setOfflineAuthBlocked] = useState<boolean>(false);
+  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [hasPinConfigured, setHasPinConfigured] = useState<boolean>(false);
+
   const isHydratedFromCloudRef = useRef(false);
   const skipNextPushRef = useRef(false);
   const lastServerUpdatedAtRef = useRef<string | null>(null);
   const keyVersionsRef = useRef<Record<string, string>>({});
   const lastSyncedJsonByKeyRef = useRef<Record<string, string>>({});
   const pushTimerRef = useRef<number | null>(null);
+  const currentUserRef = useRef<User>(UNAUTHENTICATED_USER);
+  const offlineModeEnabledRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+    if (currentUser.id) {
+      setHasPinConfigured(hasLockPin(currentUser.id));
+    } else {
+      setHasPinConfigured(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    offlineModeEnabledRef.current = offlineModeEnabled;
+  }, [offlineModeEnabled]);
 
   const clearMemoryState = useCallback(() => {
     if (pushTimerRef.current !== null) {
@@ -350,6 +402,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActivityLogs([]);
     setCurrentUser(UNAUTHENTICATED_USER);
     setIsHydratedFromCloud(false);
+    setPendingOfflineCount(0);
+    setOfflineAuthBlocked(false);
+    setIsLocked(false);
     isHydratedFromCloudRef.current = false;
     lastServerUpdatedAtRef.current = null;
     keyVersionsRef.current = {};
@@ -504,6 +559,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     []
   );
 
+  const persistOfflineVaultSnapshot = useCallback(
+    async (snapshot: Record<string, unknown>, userOverride?: User) => {
+      const user = userOverride || currentUserRef.current;
+      const token = getToken();
+      if (!token || !user?.id || !offlineModeEnabledRef.current) return;
+      await saveEncryptedSnapshot(token, user.id, {
+        state: snapshot,
+        keyVersions: { ...keyVersionsRef.current },
+        lastSyncedJsonByKey: { ...lastSyncedJsonByKeyRef.current },
+        serverUpdatedAt: lastServerUpdatedAtRef.current,
+        callerUser: user,
+        savedAt: Date.now(),
+      });
+    },
+    []
+  );
+
   const pushStateToD1 = useCallback(
     async (snapshot: Record<string, unknown>, forceFull = false) => {
       const delta: Record<string, unknown> = {};
@@ -522,8 +594,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      // Always keep encrypted local vault updated when offline mode is enabled
+      if (offlineModeEnabledRef.current) {
+        void persistOfflineVaultSnapshot(snapshot);
+      }
+
       if (Object.keys(delta).length === 0) {
         setCloudSyncStatus('SYNCED');
+        return;
+      }
+
+      const token = getToken();
+      const userId = currentUserRef.current?.id;
+
+      // If browser reports offline, queue delta into encrypted IndexedDB outbox immediately
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (offlineModeEnabledRef.current && token && userId) {
+          const count = await saveOfflinePendingDelta(token, userId, delta, baseVersions);
+          setPendingOfflineCount(count);
+        } else {
+          setPendingOfflineCount(Object.keys(delta).length);
+        }
+        setCloudSyncStatus('LOCAL_ONLY');
         return;
       }
 
@@ -531,12 +623,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudSyncStatus('SYNCING');
         const res = await fetch('/api/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ state: delta, baseVersions }),
         });
         if (res.status === 401) {
           localStorage.removeItem(TOKEN_KEY);
           purgeBrowserStorage();
+          void purgeOfflineVault();
           clearMemoryState();
           setIsAuthenticated(false);
           return;
@@ -565,17 +658,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (conflictSet.size > 0 && data.conflictState) {
             applyCloudState(data.conflictState, data.keyVersions);
           }
+          if (userId) {
+            await clearOfflinePendingDelta(userId);
+          }
+          setPendingOfflineCount(0);
           lastServerUpdatedAtRef.current = data.serverUpdatedAt || new Date().toISOString();
           setLastSyncedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
           setCloudSyncStatus('SYNCED');
+          if (offlineModeEnabledRef.current) {
+            void persistOfflineVaultSnapshot(snapshot);
+          }
         } else {
           setCloudSyncStatus('ERROR');
         }
       } catch {
+        if (offlineModeEnabledRef.current && token && userId) {
+          const count = await saveOfflinePendingDelta(token, userId, delta, baseVersions);
+          setPendingOfflineCount(count);
+        } else {
+          setPendingOfflineCount(Object.keys(delta).length);
+        }
         setCloudSyncStatus('LOCAL_ONLY');
       }
     },
-    [applyCloudState, clearMemoryState]
+    [applyCloudState, clearMemoryState, persistOfflineVaultSnapshot]
   );
 
   const buildSnapshotRef = useRef(buildSnapshot);
@@ -583,26 +689,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     buildSnapshotRef.current = buildSnapshot;
   }, [buildSnapshot]);
 
+  const hydrateFromEncryptedOfflineVault = useCallback(async (): Promise<boolean> => {
+    const token = getToken();
+    const meta = loadOfflineUserMeta();
+    if (!token || !meta || !meta.offlineEnabled) return false;
+    const snapshot = await loadEncryptedSnapshot(token, meta.userId);
+    if (!snapshot) return false;
+
+    const pending = await loadOfflinePendingDelta(token, meta.userId);
+    const mergedState = pending
+      ? { ...snapshot.state, ...pending.delta }
+      : snapshot.state;
+
+    skipNextPushRef.current = true;
+    applyCloudState(mergedState, snapshot.keyVersions);
+    lastSyncedJsonByKeyRef.current = { ...(snapshot.lastSyncedJsonByKey || {}) };
+    lastServerUpdatedAtRef.current = snapshot.serverUpdatedAt || null;
+    if (snapshot.callerUser) {
+      setCurrentUser(snapshot.callerUser);
+    }
+    setOfflineModeEnabledState(true);
+    offlineModeEnabledRef.current = true;
+    isHydratedFromCloudRef.current = true;
+    setIsHydratedFromCloud(true);
+    setOfflineAuthBlocked(false);
+    setPendingOfflineCount(pending ? Object.keys(pending.delta).length : 0);
+    setCloudSyncStatus('LOCAL_ONLY');
+    return true;
+  }, [applyCloudState]);
+
   const pullStateFromD1 = useCallback(
     async (initializeIfEmpty = false) => {
+      const token = getToken();
       try {
         const res = await fetch('/api/sync', {
           cache: 'no-store',
-          headers: { Authorization: `Bearer ${getToken()}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (res.status === 401) {
           localStorage.removeItem(TOKEN_KEY);
           purgeBrowserStorage();
+          void purgeOfflineVault();
           clearMemoryState();
           setIsAuthenticated(false);
           return;
         }
         if (!res.ok) {
           if (!isHydratedFromCloudRef.current) {
-            localStorage.removeItem(TOKEN_KEY);
-            purgeBrowserStorage();
-            clearMemoryState();
-            setIsAuthenticated(false);
+            const hydratedOffline = await hydrateFromEncryptedOfflineVault();
+            if (!hydratedOffline) {
+              setOfflineAuthBlocked(true);
+            }
           } else {
             setCloudSyncStatus(res.status === 503 || res.status === 404 ? 'LOCAL_ONLY' : 'ERROR');
           }
@@ -620,6 +757,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!isHydratedFromCloudRef.current) {
             localStorage.removeItem(TOKEN_KEY);
             purgeBrowserStorage();
+            void purgeOfflineVault();
             clearMemoryState();
             setIsAuthenticated(false);
           } else {
@@ -627,38 +765,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           return;
         }
+
+        const caller = data.callerUser && typeof data.callerUser === 'object' ? data.callerUser : currentUserRef.current;
         if (data.callerUser && typeof data.callerUser === 'object') {
           skipNextPushRef.current = true;
           setCurrentUser(data.callerUser);
         }
+
+        const offlinePref = caller?.id ? getOfflinePreference(caller.id, caller.role) : false;
+        setOfflineModeEnabledState(offlinePref);
+        offlineModeEnabledRef.current = offlinePref;
+        if (caller?.id) {
+          saveOfflineUserMeta({
+            userId: caller.id,
+            role: caller.role,
+            offlineEnabled: offlinePref,
+          });
+          if (!offlinePref) {
+            void purgeOfflineVault();
+          }
+        }
+
+        // If there are pending offline edits from an earlier offline session, flush them to D1 first
+        let mergedServerState = data.state;
+        if (caller?.id && offlinePref && token) {
+          const pending = await loadOfflinePendingDelta(token, caller.id);
+          if (pending && Object.keys(pending.delta).length > 0) {
+            try {
+              const flushRes = await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ state: pending.delta, baseVersions: pending.baseVersions }),
+              });
+              if (flushRes.ok) {
+                await clearOfflinePendingDelta(caller.id);
+                setPendingOfflineCount(0);
+                mergedServerState = { ...(data.state || {}), ...pending.delta };
+              }
+            } catch {
+              // keep pending for next retry
+            }
+          }
+        }
+
         if (data.empty) {
           if (initializeIfEmpty) {
             await pushStateToD1(buildSnapshotRef.current(), true);
           }
           isHydratedFromCloudRef.current = true;
           setIsHydratedFromCloud(true);
+          setOfflineAuthBlocked(false);
           return;
         }
-        if (data.state && (!isHydratedFromCloudRef.current || data.serverUpdatedAt !== lastServerUpdatedAtRef.current)) {
-          applyCloudState(data.state, data.keyVersions);
+        if (mergedServerState && (!isHydratedFromCloudRef.current || data.serverUpdatedAt !== lastServerUpdatedAtRef.current)) {
+          applyCloudState(mergedServerState, data.keyVersions);
           lastServerUpdatedAtRef.current = data.serverUpdatedAt || null;
         }
         isHydratedFromCloudRef.current = true;
         setIsHydratedFromCloud(true);
+        setOfflineAuthBlocked(false);
         setLastSyncedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         setCloudSyncStatus('SYNCED');
+
+        if (offlinePref && caller?.id && mergedServerState) {
+          void saveEncryptedSnapshot(token, caller.id, {
+            state: mergedServerState,
+            keyVersions: { ...keyVersionsRef.current },
+            lastSyncedJsonByKey: { ...lastSyncedJsonByKeyRef.current },
+            serverUpdatedAt: lastServerUpdatedAtRef.current,
+            callerUser: caller,
+            savedAt: Date.now(),
+          });
+        }
       } catch {
         if (!isHydratedFromCloudRef.current) {
-          localStorage.removeItem(TOKEN_KEY);
-          purgeBrowserStorage();
-          clearMemoryState();
-          setIsAuthenticated(false);
+          const hydratedOffline = await hydrateFromEncryptedOfflineVault();
+          if (!hydratedOffline) {
+            setOfflineAuthBlocked(true);
+          }
         } else {
           setCloudSyncStatus('LOCAL_ONLY');
         }
       }
     },
-    [applyCloudState, clearMemoryState, pushStateToD1]
+    [applyCloudState, clearMemoryState, hydrateFromEncryptedOfflineVault, pushStateToD1]
   );
 
   // Initial D1 hydration + 20s background pull from other devices
@@ -714,6 +904,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!isHydratedFromCloudRef.current) return;
     await pushStateToD1(buildSnapshot());
   }, [pushStateToD1, buildSnapshot]);
+
+  const retryOfflineOrOnline = useCallback(async () => {
+    if (!isAuthenticated) return;
+    await pullStateFromD1(true);
+  }, [isAuthenticated, pullStateFromD1]);
+
+  // Monitor browser online/offline state and auto-sync immediately upon reconnect
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (isAuthenticated && isHydratedFromCloudRef.current) {
+        void pushStateToD1(buildSnapshotRef.current());
+      } else if (isAuthenticated && !isHydratedFromCloudRef.current) {
+        void pullStateFromD1(true);
+      }
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      if (isHydratedFromCloudRef.current) {
+        setCloudSyncStatus('LOCAL_ONLY');
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isAuthenticated, pullStateFromD1, pushStateToD1]);
+
+  // 15-minute inactivity auto-lock when user has a Quick-Lock PIN configured
+  useEffect(() => {
+    if (!isAuthenticated || !hasPinConfigured || isLocked) return;
+    const IDLE_LOCK_MS = 15 * 60 * 1000;
+    let timer = window.setTimeout(() => setIsLocked(true), IDLE_LOCK_MS);
+    const resetTimer = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIsLocked(true), IDLE_LOCK_MS);
+    };
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach(ev => window.addEventListener(ev, resetTimer, { passive: true }));
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach(ev => window.removeEventListener(ev, resetTimer));
+    };
+  }, [isAuthenticated, hasPinConfigured, isLocked]);
+
+  const setOfflineModeEnabled = useCallback(
+    async (enabled: boolean) => {
+      const user = currentUserRef.current;
+      if (!user?.id) return;
+      setOfflinePreference(user.id, enabled);
+      setOfflineModeEnabledState(enabled);
+      offlineModeEnabledRef.current = enabled;
+      saveOfflineUserMeta({
+        userId: user.id,
+        role: user.role,
+        offlineEnabled: enabled,
+      });
+      if (enabled) {
+        await persistOfflineVaultSnapshot(buildSnapshotRef.current(), user);
+      } else {
+        await purgeOfflineVault();
+        saveOfflineUserMeta({
+          userId: user.id,
+          role: user.role,
+          offlineEnabled: false,
+        });
+      }
+    },
+    [persistOfflineVaultSnapshot]
+  );
+
+  const lockApp = useCallback(() => {
+    if (hasPinConfigured) {
+      setIsLocked(true);
+    }
+  }, [hasPinConfigured]);
+
+  const unlockWithPin = useCallback(async (pin: string): Promise<boolean> => {
+    const userId = currentUserRef.current?.id;
+    if (!userId) return false;
+    const ok = await verifyLockPin(userId, pin);
+    if (ok) {
+      setIsLocked(false);
+    }
+    return ok;
+  }, []);
+
+  const configurePin = useCallback(async (pin: string) => {
+    const userId = currentUserRef.current?.id;
+    if (!userId) return;
+    await setLockPin(userId, pin);
+    setHasPinConfigured(true);
+  }, []);
+
+  const removePin = useCallback(() => {
+    const userId = currentUserRef.current?.id;
+    if (!userId) return;
+    clearLockPin(userId);
+    setHasPinConfigured(false);
+    setIsLocked(false);
+  }, []);
 
   const recordActivity = (
     category: ActivityCategory,
@@ -798,6 +1091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     purgeBrowserStorage();
+    void purgeOfflineVault();
     clearMemoryState();
     setIsAuthenticated(false);
   };
@@ -2737,6 +3031,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudSyncStatus,
         lastSyncedAt,
         syncNow,
+        isOnline,
+        pendingOfflineCount,
+        offlineModeEnabled,
+        setOfflineModeEnabled,
+        offlineAuthBlocked,
+        retryOfflineOrOnline,
+        isLocked,
+        hasPinConfigured,
+        lockApp,
+        unlockWithPin,
+        configurePin,
+        removePin,
       }}
     >
       {children}

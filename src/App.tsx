@@ -7,6 +7,7 @@ import type { ReportSubTab } from './components/reports/ReportsView';
 import type { SettingsSubTab } from './components/settings/SettingsView';
 import { TabType } from './types';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { LockScreen } from './components/auth/LockScreen';
 import { LandingPage } from './components/landing/LandingPage';
 
 const DashboardView = lazy(() =>
@@ -52,7 +53,17 @@ function AppContent() {
   const [forceLandingView, setForceLandingView] = useState<boolean>(() =>
     typeof window !== 'undefined' && window.location.search.includes('shop=1')
   );
-  const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud, factorySettings } = useApp();
+  const {
+    hasAccess,
+    currentUser,
+    isAuthenticated,
+    isHydratedFromCloud,
+    factorySettings,
+    offlineAuthBlocked,
+    retryOfflineOrOnline,
+    logout,
+    isLocked,
+  } = useApp();
 
   // Redirect if current role/account lacks permission for activeTab
   useEffect(() => {
@@ -107,6 +118,37 @@ function AppContent() {
   }
 
   if (!isHydratedFromCloud) {
+    if (offlineAuthBlocked) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] p-6">
+          <div className="apple-card p-6 sm:p-8 text-center space-y-4 max-w-sm w-full">
+            <div className="text-sm font-extrabold text-[#1D1D1F]">
+              پەیوەندی ئینتەرنێت نییە
+            </div>
+            <p className="text-xs text-[#515154] leading-relaxed">
+              داتای ئۆفلاینی پارێزراو بۆ ئەم ئەکاونتە لەسەر ئەم ئامێرە بەردەست نییە یان ئۆفلاین ناچالاکە. تکایە ئینتەرنێت چالاک بکە و دووبارە هەوڵبدەرەوە.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => void retryOfflineOrOnline()}
+                className="px-4 py-2 rounded-xl bg-[#0071E3] text-white text-xs font-bold hover:bg-[#0077ED]"
+              >
+                دووبارە هەوڵدانەوە
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="px-4 py-2 rounded-xl bg-[#FEF2F2] text-[#DC2626] text-xs font-bold hover:bg-[#FEE2E2]"
+              >
+                چوونەدەرەوە
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] p-6">
         <div className="apple-card p-8 text-center space-y-3 max-w-xs w-full">
@@ -123,6 +165,10 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  if (isLocked) {
+    return <LockScreen />;
   }
 
   return (
