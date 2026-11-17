@@ -388,14 +388,14 @@ export const LiveIntakeView: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <label className="block text-[#515154] font-semibold mb-1">بەروار *</label>
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={e => setDate(e.target.value)}
-                    className="apple-input w-full px-3.5 py-2"
+                    className="apple-input block w-full min-w-0 max-w-full px-3.5 py-2"
                   />
                 </div>
 
