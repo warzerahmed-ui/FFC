@@ -65,7 +65,7 @@ interface MenuSubItem {
 }
 
 interface MenuGroup {
-  key: 'dashboard' | 'factory' | 'sales' | 'showroom' | 'finance';
+  key: 'dashboard' | 'factory' | 'sales' | 'gifts-expenses' | 'showroom' | 'finance';
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   directTab?: TabType;
@@ -122,12 +122,27 @@ const MENU_GROUPS: MenuGroup[] = [
         badge: 'قۆناغی ٢',
         icon: Send,
       },
+    ],
+  },
+  {
+    key: 'gifts-expenses',
+    label: 'هەدیە و خەرجی',
+    icon: Gift,
+    items: [
       {
         id: 'gifts',
-        label: '٣. دیاری و هەدیە',
+        label: '١. دیاری و هەدیە',
         description: 'بەخشینی بێبەرامبەر بە تێچووی کارگە',
-        badge: 'قۆناغی ٣',
+        badge: 'هەدیە',
         icon: Gift,
+      },
+      {
+        id: 'reports',
+        reportSubTab: 'EXPENSES',
+        label: '٢. خەرجییەکانی کارگە',
+        description: 'تۆمارکردن و بەدواداچوونی خەرجییەکانی کارگە',
+        badge: 'خەرجی',
+        icon: DollarSign,
       },
     ],
   },
@@ -209,16 +224,8 @@ const MENU_GROUPS: MenuGroup[] = [
       },
       {
         id: 'reports',
-        reportSubTab: 'EXPENSES',
-        label: '٤. خەرجییەکانی کارگە',
-        description: 'تۆمارکردن و بەدواداچوونی خەرجییەکانی کارگە',
-        badge: 'خەرجی',
-        icon: DollarSign,
-      },
-      {
-        id: 'reports',
         reportSubTab: 'PNL',
-        label: '٥. ڕاپۆرتی قازانج و زەرەر (P&L)',
+        label: '٤. ڕاپۆرتی قازانج و زەرەر (P&L)',
         description: 'ڕاپۆرتی داهات، تێچوو، خەرجی و قازانجی گشتی',
         badge: 'P&L',
         icon: TrendingUp,
@@ -226,7 +233,7 @@ const MENU_GROUPS: MenuGroup[] = [
       {
         id: 'reports',
         reportSubTab: 'DAILY',
-        label: '٦. ڕاپۆرت و تەسفییەی ڕۆژانە',
+        label: '٥. ڕاپۆرت و تەسفییەی ڕۆژانە',
         description: 'تەسفییەی ڕۆژانەی مەندوب و شۆرۆم',
         badge: 'تەسفییە',
         icon: Calendar,

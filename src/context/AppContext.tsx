@@ -40,7 +40,7 @@ export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: strin
   { id: 'intake', label: 'کۆگای وەرگرتن (وەسڵی کێڵگە)', groupLabel: 'کۆگای وەرگرتن' },
   { id: 'custody', label: '١. کۆگای مەندوب', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'rep-sales', label: '٢. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'ناردن و فرۆشتن' },
-  { id: 'gifts', label: '٣. دیاری و هەدیە', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'gifts', label: 'دیاری و هەدیە', groupLabel: 'هەدیە و خەرجی' },
   { id: 'pos', label: 'فرۆشگای شۆرۆم (POS)', groupLabel: 'فرۆشگای شۆرۆم' },
   { id: 'accounting', label: '٨. کەشف حساب و دانەوەی قەرز', groupLabel: 'ژمێریاری و ڕاپۆرت' },
   { id: 'reports', label: '٩. قازانج و زەرەر و ڕاپۆرتی ڕۆژانە', groupLabel: 'ژمێریاری و ڕاپۆرت' },
