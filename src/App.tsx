@@ -14,12 +14,6 @@ const DashboardView = lazy(() =>
 const LiveIntakeView = lazy(() =>
   import('./components/intake/LiveIntakeView').then(m => ({ default: m.LiveIntakeView }))
 );
-const SlaughterCuttingView = lazy(() =>
-  import('./components/production/SlaughterCuttingView').then(m => ({ default: m.SlaughterCuttingView }))
-);
-const ReadyForSaleView = lazy(() =>
-  import('./components/ready/ReadyForSaleView').then(m => ({ default: m.ReadyForSaleView }))
-);
 const CustodyView = lazy(() =>
   import('./components/custody/CustodyView').then(m => ({ default: m.CustodyView }))
 );
@@ -48,13 +42,7 @@ function AppContent() {
   const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('FACTORY_INFO');
-  const [selectedIntakeForProductionId, setSelectedIntakeForProductionId] = useState<string | null>(null);
   const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud, factorySettings } = useApp();
-
-  const handleSendToSlaughter = (intakeId: string) => {
-    setSelectedIntakeForProductionId(intakeId);
-    setActiveTab('production');
-  };
 
   // Redirect if current role/account lacks permission for activeTab
   useEffect(() => {
@@ -66,8 +54,6 @@ function AppContent() {
         'accounting',
         'reports',
         'intake',
-        'production',
-        'ready-for-sale',
         'custody',
         'gifts',
         'settings',
@@ -128,22 +114,7 @@ function AppContent() {
           {activeTab === 'dashboard' && hasAccess('dashboard') && (
             <DashboardView setActiveTab={setActiveTab} />
           )}
-          {activeTab === 'intake' && hasAccess('intake') && (
-            <LiveIntakeView
-              onNavigate={setActiveTab}
-              onSendToSlaughter={handleSendToSlaughter}
-            />
-          )}
-          {activeTab === 'production' && hasAccess('production') && (
-            <SlaughterCuttingView
-              onNavigate={setActiveTab}
-              preselectedIntakeId={selectedIntakeForProductionId}
-              onClearPreselect={() => setSelectedIntakeForProductionId(null)}
-            />
-          )}
-          {activeTab === 'ready-for-sale' && hasAccess('ready-for-sale') && (
-            <ReadyForSaleView onNavigate={setActiveTab} />
-          )}
+          {activeTab === 'intake' && hasAccess('intake') && <LiveIntakeView />}
           {activeTab === 'custody' && hasAccess('custody') && (
             <CustodyView onNavigate={setActiveTab} />
           )}

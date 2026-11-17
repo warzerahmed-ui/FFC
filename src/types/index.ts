@@ -3,8 +3,6 @@
 export type TabType =
   | 'dashboard'
   | 'intake'
-  | 'production'
-  | 'ready-for-sale'
   | 'custody'
   | 'rep-sales'
   | 'gifts'

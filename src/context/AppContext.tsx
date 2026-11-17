@@ -37,13 +37,11 @@ const normalizeName = (s: string | undefined | null): string =>
 
 export const ALL_SYSTEM_SECTIONS: { id: string; label: string; groupLabel: string }[] = [
   { id: 'dashboard', label: 'داشبۆردی سەرەکی', groupLabel: 'سەرەکی' },
-  { id: 'intake', label: '١. وەرگرتنی مریشک (کێڵگە)', groupLabel: 'کارگە و کۆگا' },
-  { id: 'production', label: '٢. سەربڕین و پارچەکردن', groupLabel: 'کارگە و کۆگا' },
-  { id: 'ready-for-sale', label: '٣. ئامادە بۆ فرۆشتن', groupLabel: 'کارگە و کۆگا' },
-  { id: 'custody', label: '٤. کۆگای مەندوب', groupLabel: 'ناردن و فرۆشتن' },
-  { id: 'rep-sales', label: '٥. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'intake', label: 'کۆگای وەرگرتن (وەسڵی کێڵگە)', groupLabel: 'کۆگای وەرگرتن' },
+  { id: 'custody', label: '١. کۆگای مەندوب', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'rep-sales', label: '٢. فرۆشتنی مەندوب و گەڕاوە', groupLabel: 'ناردن و فرۆشتن' },
+  { id: 'gifts', label: '٣. دیاری و هەدیە', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'pos', label: 'فرۆشگای شۆرۆم (POS)', groupLabel: 'فرۆشگای شۆرۆم' },
-  { id: 'gifts', label: '٦. دیاری و هەدیە', groupLabel: 'ناردن و فرۆشتن' },
   { id: 'accounting', label: '٨. کەشف حساب و دانەوەی قەرز', groupLabel: 'ژمێریاری و ڕاپۆرت' },
   { id: 'reports', label: '٩. قازانج و زەرەر و ڕاپۆرتی ڕۆژانە', groupLabel: 'ژمێریاری و ڕاپۆرت' },
   { id: 'settings', label: 'سیتینی کارگە و ئەکاونتەکان', groupLabel: 'بەڕێوەبردن' },
@@ -896,7 +894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addYieldRecord = (newYield: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => {
-    if (!hasAccess('production')) return;
+    if (!hasAccess('intake')) return;
     const id = `yld-${genId()}`;
     const targetIntake = intakes.find(i => i.id === newYield.intakeId);
     const prevRemaining = targetIntake ? targetIntake.remainingLiveWeightKg : 0;
@@ -943,7 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteYieldRecord = (id: string): boolean => {
-    if (!hasAccess('production')) return false;
+    if (!hasAccess('intake')) return false;
     const target = yields.find(y => y.id === id);
     if (!target) return false;
 
@@ -988,7 +986,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
-    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('gifts')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('custody') && !hasAccess('gifts')) return;
     const id = `disp-${genId()}`;
     const dispatch: DispatchOrder = { ...newDispatch, id };
     setDispatches(prev => [dispatch, ...prev]);
@@ -1049,7 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addReturn = (newReturn: Omit<ReturnOrder, 'id'>) => {
-    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale') && !hasAccess('pos')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('custody') && !hasAccess('pos')) return;
     const id = `ret-${genId()}`;
     const deduction = newReturn.totalCustomerDeduction !== undefined 
       ? newReturn.totalCustomerDeduction 
@@ -1108,7 +1106,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     outputs: { productId: string; productName: string; weightKg: number }[],
     notes?: string
   ) => {
-    if (!hasAccess('rep-sales') && !hasAccess('ready-for-sale')) return;
+    if (!hasAccess('rep-sales') && !hasAccess('custody')) return;
     const existing = returns.find(r => r.id === returnId);
     if (!existing || existing.conversionStatus === 'CONVERTED') return;
     const today = toLocalISODate();
@@ -1446,13 +1444,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     manualReceiptNo?: string;
     notes?: string;
   }): BranchDelivery | null => {
-    if (!hasAccess('ready-for-sale')) return null;
+    if (!hasAccess('pos') && !hasAccess('custody')) return null;
 
     const validItems = payload.items
       .filter(i => i.weightKg > 0)
       .map(i => {
         const prod = products.find(p => p.id === i.productId);
-        if (!prod || prod.inStockKg + 0.0001 < i.weightKg) return null;
+        if (!prod) return null;
         return {
           productId: prod.id,
           productName: prod.nameKu,
@@ -1481,7 +1479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: validItems,
       totalWeightKg,
       totalCost,
-      notes: payload.notes?.trim() || 'ناردن لە کۆگای ئامادەی کارگەوە بۆ شۆرۆم (چاوەڕوانی ئەکسیپت)',
+      notes: payload.notes?.trim() || 'ناردن لە کۆگای سەرەکی کارگەوە بۆ شۆرۆم (چاوەڕوانی ئەکسیپت)',
       status: 'PENDING',
       sentBy: currentUser.name,
     };
@@ -1507,18 +1505,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { ok: false, error: 'ئەم بارە چاوەڕوانی ئەکسیپت نییە' };
     }
 
-    // Verify factory ready stock still has enough weight
     const neededByProd = new Map<string, number>();
     target.items.forEach(it => neededByProd.set(it.productId, (neededByProd.get(it.productId) || 0) + it.weightKg));
-    for (const [prodId, w] of neededByProd.entries()) {
-      const prod = products.find(p => p.id === prodId);
-      if (!prod || prod.inStockKg + 0.001 < w) {
-        return {
-          ok: false,
-          error: `بڕی پێویست لە کۆگای ئامادەی کارگە نەماوە بۆ "${prod?.nameKu || prodId}"`,
-        };
-      }
-    }
 
     const respondedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     setBranchDeliveries(prev =>
@@ -1527,13 +1515,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...b, status: 'ACCEPTED', respondedBy: currentUser.name, respondedAt }
           : b
       )
-    );
-
-    setProducts(prev =>
-      prev.map(p => {
-        const w = neededByProd.get(p.id);
-        return w ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - w).toFixed(3))) } : p;
-      })
     );
 
     setBranchStock(prev =>
@@ -1720,7 +1701,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = custodyTransfers.find(t => t.id === transferId);
     if (!target || target.status !== 'PENDING') return;
 
-    if (target.direction === 'LOAD' && currentUser.role !== 'REP') return;
+    if (
+      target.direction === 'LOAD' &&
+      currentUser.role !== 'REP' &&
+      currentUser.role !== 'SUPER_ADMIN' &&
+      currentUser.role !== 'ADMIN'
+    ) {
+      return;
+    }
     if (
       target.direction === 'RETURN_TO_READY' &&
       currentUser.role !== 'SUPER_ADMIN' &&
@@ -1739,14 +1727,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (target.direction === 'LOAD') {
-      setProducts(prev =>
-        prev.map(p => {
-          const sent = target.items
-            .filter(i => i.productId === p.id)
-            .reduce((s, i) => s + i.weightKg, 0);
-          return sent > 0 ? { ...p, inStockKg: Math.max(0, Number((p.inStockKg - sent).toFixed(2))) } : p;
-        })
-      );
       recordActivity(
         'CUSTODY',
         'UPDATE',
@@ -1755,14 +1735,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         target.receiptNo
       );
     } else {
-      setProducts(prev =>
-        prev.map(p => {
-          const retKg = target.items
-            .filter(i => i.productId === p.id)
-            .reduce((s, i) => s + i.weightKg, 0);
-          return retKg > 0 ? { ...p, inStockKg: Number((p.inStockKg + retKg).toFixed(2)) } : p;
-        })
-      );
       recordActivity(
         'CUSTODY',
         'UPDATE',
@@ -1777,7 +1749,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = custodyTransfers.find(t => t.id === transferId);
     if (!target || target.status !== 'PENDING') return;
 
-    if (target.direction === 'LOAD' && currentUser.role !== 'REP') return;
+    if (
+      target.direction === 'LOAD' &&
+      currentUser.role !== 'REP' &&
+      currentUser.role !== 'SUPER_ADMIN' &&
+      currentUser.role !== 'ADMIN'
+    ) {
+      return;
+    }
     if (
       target.direction === 'RETURN_TO_READY' &&
       currentUser.role !== 'SUPER_ADMIN' &&

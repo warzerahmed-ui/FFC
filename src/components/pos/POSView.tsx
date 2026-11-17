@@ -166,6 +166,7 @@ export const POSView: React.FC<POSViewProps> = ({
     acceptBranchDelivery,
     rejectBranchDelivery,
     addBranchExpense,
+    addProduct,
     updateBranchStockItem,
     adjustBranchStock,
     returnBranchToReady,
@@ -338,6 +339,10 @@ export const POSView: React.FC<POSViewProps> = ({
   const [receiveItems, setReceiveItems] = useState<
     { productId: string; productName: string; weightKg: number; trayCount?: number; factoryPricePerKg: number; totalCost: number }[]
   >([]);
+  const [showRecAddProduct, setShowRecAddProduct] = useState(false);
+  const [recNewProdName, setRecNewProdName] = useState('');
+  const [recNewProdPrice, setRecNewProdPrice] = useState<string>('4500');
+  const [recNewProdCost, setRecNewProdCost] = useState<string>('3250');
   const receiveScannerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -839,6 +844,27 @@ export const POSView: React.FC<POSViewProps> = ({
     }
     setReceiveScannerInput('');
     setTimeout(() => receiveScannerRef.current?.focus(), 20);
+  };
+
+  const handleCreateReceiveProduct = () => {
+    const cleanName = recNewProdName.trim();
+    const price = parseFloat(recNewProdPrice) || 0;
+    const cost = parseFloat(recNewProdCost) || Math.round(price * 0.75);
+    if (!cleanName || price <= 0) {
+      showToast('تکایە ناو و نرخی فرۆشتنی بەرهەم بنووسە', 'warn');
+      return;
+    }
+    const created = addProduct({
+      nameKu: cleanName,
+      pricePerKg: price,
+      costPerKg: cost,
+      category: 'OTHER',
+      unit: 'KG',
+    });
+    setReceiveProdId(created.id);
+    setRecNewProdName('');
+    setShowRecAddProduct(false);
+    showToast(`بەرهەمی "${created.nameKu}" زیادکرا`, 'success');
   };
 
   const handleAddReceiveItem = () => {
@@ -3425,13 +3451,59 @@ export const POSView: React.FC<POSViewProps> = ({
             </div>
 
             <div className="p-3 rounded-2xl bg-[#F5F5F7] space-y-2 text-xs">
-              <div className="text-[11px] font-bold text-[#86868B]">یان زیادکردنی دەستی (بێ بارکۆد):</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] font-bold text-[#86868B]">زیادکردنی بەرهەم و کێش:</div>
+                <button
+                  type="button"
+                  onClick={() => setShowRecAddProduct(prev => !prev)}
+                  className="text-[11px] font-bold text-[#0071E3] hover:text-[#0077ED]"
+                >
+                  {showRecAddProduct ? 'پاشگەزبوونەوە' : '+ زیادکردنی بەرهەمی نوێ'}
+                </button>
+              </div>
+              {showRecAddProduct && (
+                <div className="p-2.5 rounded-xl bg-white border border-black/[0.06] space-y-2">
+                  <input
+                    type="text"
+                    placeholder="ناوی بەرهەمی نوێ..."
+                    value={recNewProdName}
+                    onChange={e => setRecNewProdName(e.target.value)}
+                    className="apple-input w-full px-3 py-1.5 text-xs font-semibold"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      placeholder="نرخی فرۆشتن (د.ع)"
+                      value={recNewProdPrice}
+                      onChange={e => setRecNewProdPrice(e.target.value)}
+                      className="apple-input w-full px-3 py-1.5 text-xs font-bold"
+                    />
+                    <input
+                      type="number"
+                      placeholder="تێچووی کیلۆ (د.ع)"
+                      value={recNewProdCost}
+                      onChange={e => setRecNewProdCost(e.target.value)}
+                      className="apple-input w-full px-3 py-1.5 text-xs font-bold"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateReceiveProduct}
+                    className="w-full py-1.5 rounded-xl bg-[#0071E3] text-white font-bold text-[11px]"
+                  >
+                    زیادکردنی بەرهەم و هەڵبژاردنی
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <select
                   value={receiveProdId}
                   onChange={e => setReceiveProdId(e.target.value)}
                   className="apple-input bg-white flex-1 px-3 py-2 font-bold"
                 >
+                  {products.length === 0 && (
+                    <option value="">هیچ بەرهەمێک نییە — سەرەتا زیادی بکە</option>
+                  )}
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.nameKu}
@@ -4038,7 +4110,7 @@ export const POSView: React.FC<POSViewProps> = ({
               <div>
                 <h4 className="font-extrabold text-sm text-[#1D1D1F]">گەڕاندنەوەی کاڵای شۆرۆم بۆ کارگە</h4>
                 <p className="text-xs text-[#86868B] mt-0.5">
-                  ئەو بڕەی لێرە دەینووسێت لە کۆگای شۆرۆم کەم دەبێتەوە و دەگەڕێتەوە سەر کۆگای ئامادەی کارگە
+                  ئەو بڕەی لێرە دەینووسێت لە کۆگای شۆرۆم کەم دەبێتەوە و دەگەڕێتەوە بۆ کۆگای سەرەکی کارگە
                 </p>
               </div>
               <button

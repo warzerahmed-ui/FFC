@@ -54,6 +54,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     returnUnsoldToReadyStock,
     acceptCustodyTransfer,
     rejectCustodyTransfer,
+    addProduct,
     parseWeightBarcode,
     currentUser,
     repNames,
@@ -85,6 +86,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
   const [loadItems, setLoadItems] = useState<
     { productId: string; productName: string; weightKg: number }[]
   >([]);
+  const [showQuickProductBox, setShowQuickProductBox] = useState(false);
+  const [quickProdName, setQuickProdName] = useState('');
+  const [quickProdPrice, setQuickProdPrice] = useState<number | ''>(4500);
+  const [quickProdCost, setQuickProdCost] = useState<number | ''>(3250);
 
   // Modal 2: Return Unsold Stock from Rep or Store Back to Ready Stock
   const [returnTarget, setReturnTarget] = useState<HolderSummary | null>(null);
@@ -229,26 +234,28 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     }
     const prod = decoded.product;
     const weight = decoded.weightKg > 0 ? decoded.weightKg : 1;
-    const alreadyQueued = loadItems
-      .filter(i => i.productId === prod.id)
-      .reduce((s, i) => s + i.weightKg, 0);
-    const pendingLoadKg = custodyTransfers
-      .filter(t => t.direction === 'LOAD' && t.status === 'PENDING')
-      .reduce(
-        (s, t) =>
-          s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
-        0
-      );
-    const availableStock = Math.max(0, prod.inStockKg - pendingLoadKg);
-    if (alreadyQueued + weight > availableStock) {
-      alert(
-        `بڕی پێویست لە کۆگای ئامادەدا نییە! تەنها ${(availableStock - alreadyQueued).toFixed(1)} کگم ماوە`
-      );
-      setLoadScannerInput('');
-      return;
-    }
     setLoadItems(prev => [...prev, { productId: prod.id, productName: prod.nameKu, weightKg: weight }]);
     setLoadScannerInput('');
+  };
+
+  const handleCreateQuickProduct = () => {
+    const cleanName = quickProdName.trim();
+    const price = Number(quickProdPrice) || 0;
+    const cost = Number(quickProdCost) || Math.round(price * 0.75);
+    if (!cleanName || price <= 0) {
+      alert('تکایە ناو و نرخی فرۆشتنی بەرهەم بنووسە');
+      return;
+    }
+    const created = addProduct({
+      nameKu: cleanName,
+      pricePerKg: price,
+      costPerKg: cost,
+      category: 'OTHER',
+      unit: 'KG',
+    });
+    setLoadProductId(created.id);
+    setQuickProdName('');
+    setShowQuickProductBox(false);
   };
 
   const handleAddLoadItem = () => {
@@ -256,26 +263,6 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     const weight = Number(loadWeight);
     if (!prod || !weight || weight <= 0) {
       alert('تکایە بەرهەم و کێش بنووسە');
-      return;
-    }
-
-    const alreadyQueued = loadItems
-      .filter(i => i.productId === prod.id)
-      .reduce((s, i) => s + i.weightKg, 0);
-    const pendingLoadKg = custodyTransfers
-      .filter(t => t.direction === 'LOAD' && t.status === 'PENDING')
-      .reduce(
-        (s, t) =>
-          s + t.items.filter(i => i.productId === prod.id).reduce((is, i) => is + i.weightKg, 0),
-        0
-      );
-    const availableStock = Math.max(0, prod.inStockKg - pendingLoadKg);
-    if (alreadyQueued + weight > availableStock) {
-      alert(
-        `بڕی پێویست لە کۆگای ئامادەدا نییە! تەنها ${(availableStock - alreadyQueued).toFixed(
-          1
-        )} کگم ماوە`
-      );
       return;
     }
 
@@ -374,7 +361,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       totalWeightKg: totalReturnBackKg,
       notes:
         returnNotes.trim() ||
-        `گەڕانەوەی باری نەفرۆشراو لە ${returnTarget.holderName} بۆ کۆگای ئامادە`,
+        `گەڕانەوەی باری نەفرۆشراو لە ${returnTarget.holderName} بۆ کۆگای سەرەکی`,
     });
 
     setReturnTarget(null);
@@ -400,7 +387,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
         t.receiptNo,
         t.date,
         t.time,
-        t.direction === 'LOAD' ? 'ناردن بۆ مەندوب' : 'گەڕانەوە بۆ کۆگای ئامادە',
+        t.direction === 'LOAD' ? 'ناردن بۆ مەندوب' : 'گەڕانەوە بۆ کۆگای سەرەکی',
         t.holderName,
         t.items.map(i => `${i.productName} (${i.weightKg} کگم)`).join('، '),
         String(t.totalWeightKg),
@@ -428,10 +415,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-[#1D1D1F] tracking-tight">
-              ٤. کۆگای مەندوب
+              ١. کۆگای مەندوب
             </h2>
             <p className="text-xs text-[#86868B] mt-0.5">
-              بارکردنی گۆشت لە کۆگای ئامادەوە بۆ سەر کۆگای مەندوبەکان، بەدواداچوونی فرۆشراو، و گەڕاندنەوەی نەفرۆشراو
+              بارکردنی گۆشت لە کۆگای سەرەکییەوە بۆ سەر کۆگای مەندوبەکان، بەدواداچوونی فرۆشراو، و گەڕاندنەوەی نەفرۆشراو
             </p>
           </div>
         </div>
@@ -457,7 +444,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
             <span className="text-xs font-medium text-[#86868B]">کگم</span>
           </div>
           <div className="text-[11px] text-[#0071E3] font-semibold mt-1">
-            نێردراوە لە کۆگای ئامادەوە
+            نێردراوە بۆ مەندوبەکان
           </div>
         </div>
 
@@ -473,7 +460,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
         </div>
 
         <div className="apple-card p-5">
-          <span className="text-xs font-semibold text-[#86868B]">گەڕێنراوە بۆ کۆگای ئامادە</span>
+          <span className="text-xs font-semibold text-[#86868B]">گەڕێنراوە بۆ کۆگای سەرەکی</span>
           <div className="text-2xl font-black text-[#5856D6] tabular-nums mt-2">
             {totalReturnedAll.toLocaleString()}{' '}
             <span className="text-xs font-medium text-[#86868B]">کگم</span>
@@ -548,7 +535,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                           >
                             {t.direction === 'LOAD'
                               ? 'ناردن بۆ کۆگای مەندوب'
-                              : 'گەڕانەوە بۆ کۆگای ئامادە'}
+                              : 'گەڕانەوە بۆ کۆگای سەرەکی'}
                           </span>
                         </div>
                         <div className="text-xs font-extrabold text-[#1D1D1F] mt-1.5">
@@ -817,7 +804,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                     className="px-3.5 py-2 rounded-full bg-[#5856D6] hover:bg-[#4947C2] text-white text-[11px] font-bold flex items-center gap-1 transition-all"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    گەڕانەوەی نەفرۆشراو بۆ کۆگای ئامادە
+                    گەڕانەوەی نەفرۆشراو بۆ کۆگای سەرەکی
                   </button>
                 )}
 
@@ -853,7 +840,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
       <div className="apple-card overflow-hidden">
         <div className="p-4 border-b border-black/[0.05] flex flex-col md:flex-row md:items-center justify-between gap-3">
           <span className="font-bold text-xs text-[#1D1D1F]">
-            تۆماری جوڵەی ناردن و گەڕانەوە لە نێوان کۆگای ئامادە و مەندوبەکان ({filteredTransfers.length})
+            تۆماری جوڵەی ناردن و گەڕانەوەی کۆگای مەندوبەکان ({filteredTransfers.length})
           </span>
           <div className="flex flex-wrap items-center gap-2 text-xs no-print">
             <Calendar className="w-3.5 h-3.5 text-[#0071E3] shrink-0" />
@@ -945,7 +932,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                           </span>
                         ) : (
                           <span className="bg-[#5856D6]/12 text-[#5856D6] px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                            گەڕایەوە کۆگای ئامادە
+                            گەڕایەوە کۆگای سەرەکی
                           </span>
                         )}
                       </td>
@@ -1000,10 +987,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-[#1D1D1F]">
-                    ناردنی ڕۆژانە لە کۆگای ئامادەوە بۆ کۆگای مەندوب
+                    ناردنی ڕۆژانە بۆ کۆگای مەندوب
                   </h3>
                   <p className="text-[11px] text-[#86868B]">
-                    لە کۆگای ئامادە دادەبەزێت و دەچێتە ناو کۆگای مەندوب هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
+                    دەچێتە ناو کۆگای مەندوب هەتا دەفرۆشرێت یان دەگەڕێنرێتەوە
                   </p>
                 </div>
               </div>
@@ -1059,7 +1046,51 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               </div>
 
               <div className="p-4 rounded-2xl bg-[#FBFBFD] border border-black/[0.06] space-y-3">
-                <div className="font-bold text-[#1D1D1F]">بەرهەمەکانی کۆگای ئامادە</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-bold text-[#1D1D1F]">بەرهەم و کێش بۆ مەندوب</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickProductBox(prev => !prev)}
+                    className="text-[11px] font-bold text-[#0071E3] hover:text-[#0077ED] flex items-center gap-0.5"
+                  >
+                    {showQuickProductBox ? 'پاشگەزبوونەوە' : '+ زیادکردنی بەرهەمی نوێ'}
+                  </button>
+                </div>
+
+                {showQuickProductBox && (
+                  <div className="p-3 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-2">
+                    <input
+                      type="text"
+                      placeholder="ناوی بەرهەمی نوێ (نموونە: سنگی بێ ئێسک)..."
+                      value={quickProdName}
+                      onChange={e => setQuickProdName(e.target.value)}
+                      className="apple-input w-full px-3 py-1.5 text-xs font-semibold bg-white"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        placeholder="نرخی فرۆشتن (د.ع)"
+                        value={quickProdPrice}
+                        onChange={e => setQuickProdPrice(e.target.value ? Number(e.target.value) : '')}
+                        className="apple-input w-full px-3 py-1.5 text-xs bg-white font-bold"
+                      />
+                      <input
+                        type="number"
+                        placeholder="تێچووی کیلۆ (د.ع)"
+                        value={quickProdCost}
+                        onChange={e => setQuickProdCost(e.target.value ? Number(e.target.value) : '')}
+                        className="apple-input w-full px-3 py-1.5 text-xs bg-white font-bold"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCreateQuickProduct}
+                      className="w-full py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-[11px]"
+                    >
+                      زیادکردنی بەرهەم و هەڵبژاردنی
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -1094,9 +1125,12 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                     onChange={e => setLoadProductId(e.target.value)}
                     className="sm:col-span-2 apple-input px-3 py-2 bg-white font-semibold"
                   >
+                    {products.length === 0 && (
+                      <option value="">هیچ بەرهەمێک نییە — سەرەتا زیادی بکە</option>
+                    )}
                     {products.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.nameKu} (بەردەست: {p.inStockKg.toLocaleString()} کگم)
+                        {p.nameKu} ({p.pricePerKg.toLocaleString()} د.ع)
                       </option>
                     ))}
                   </select>
@@ -1192,7 +1226,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-[#1D1D1F]">
-                    گەڕانەوەی باری نەفرۆشراو بۆ کۆگای ئامادە
+                    گەڕانەوەی باری نەفرۆشراو بۆ کۆگای سەرەکی
                   </h3>
                   <p className="text-[11px] text-[#86868B]">{returnTarget.holderName}</p>
                 </div>
@@ -1220,7 +1254,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
               <div className="p-4 rounded-2xl bg-[#FBFBFD] border border-black/[0.06] space-y-3">
                 <div className="font-bold text-[#1D1D1F]">
-                  ئەو بەرهەمانەی لەسەر حسابی ماون (بڕی گەڕانەوە بۆ کۆگای ئامادە دیاری بکە):
+                  ئەو بەرهەمانەی لەسەر حسابی ماون (بڕی گەڕانەوە بۆ کۆگای سەرەکی دیاری بکە):
                 </div>
 
                 <div className="space-y-2">
@@ -1263,7 +1297,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
 
               <div className="p-4 rounded-2xl bg-[#5856D6]/8 border border-[#5856D6]/20 flex items-center justify-between">
                 <span className="font-bold text-[#1D1D1F]">
-                  کۆی گشتی گەڕێنراو بۆ کۆگای ئامادە:
+                  کۆی گشتی گەڕێنراو بۆ کۆگای سەرەکی:
                 </span>
                 <span className="text-lg font-black text-[#5856D6] tabular-nums">
                   +{totalReturnBackKg} کگم
@@ -1291,7 +1325,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
                   className="px-6 py-2.5 rounded-full text-xs font-bold text-white bg-[#5856D6] hover:bg-[#4947C2] flex items-center gap-1.5"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  گەڕانەوە بۆ کۆگای ئامادە
+                  گەڕانەوە بۆ کۆگای سەرەکی
                 </button>
               </div>
             </form>
@@ -1516,7 +1550,7 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
               <span className="text-xs font-bold text-[#86868B]">
                 {selectedTransferForPrint.direction === 'LOAD'
                   ? 'وەسڵی بارکردنی ئۆتۆمبێلی مەندوب'
-                  : 'وەسڵی گەڕاندنەوە بۆ کۆگای ئامادە'}
+                  : 'وەسڵی گەڕاندنەوە بۆ کۆگای سەرەکی'}
               </span>
               <div className="flex items-center gap-2">
                 <button

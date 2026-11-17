@@ -178,7 +178,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           type: 'PURCHASE' as const,
           description:
             d.destinationType === 'DIRECT'
-              ? `فرۆشتن لە ئامادە بۆ فرۆشتن (${d.totalWeightKg} کگم)`
+              ? `فرۆشتنی ڕاستەوخۆ (${d.totalWeightKg} کگم)`
               : `فرۆشی مەندوب (${d.repName || 'مەندوب'} - ${d.totalWeightKg} کگم)`,
           debit: d.paymentType === 'CASH' ? 0 : d.totalAmount, // قەرز زیاد دەکات
           credit: 0,

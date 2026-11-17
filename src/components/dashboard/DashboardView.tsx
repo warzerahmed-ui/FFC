@@ -2,7 +2,6 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Truck,
-  PackageCheck,
   RotateCcw,
   Users,
   ArrowUpRight,
@@ -13,7 +12,6 @@ import {
   Calculator,
   FileSpreadsheet,
   AlertTriangle,
-  Scissors,
   Send,
   ClipboardList,
 } from 'lucide-react';
@@ -27,7 +25,6 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) => {
   const {
     intakes,
-    products,
     dispatches,
     returns,
     customers,
@@ -43,11 +40,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
 
   const todayISO = toLocalISODate();
 
-  const remainingLiveKg = intakes.reduce((sum, i) => sum + i.remainingLiveWeightKg, 0);
+  const totalIntakeKg = intakes.reduce((sum, i) => sum + i.netWeightKg, 0);
   const todayLiveIntakeKg = intakes
     .filter(i => i.date.slice(0, 10) === todayISO)
     .reduce((sum, i) => sum + i.netWeightKg, 0);
-  const totalReadyStockKg = products.reduce((sum, p) => sum + p.inStockKg, 0);
   const totalReturnsKg = returns.reduce((sum, r) => sum + r.totalWeightKg, 0);
   const totalReturnsLoss = returns.reduce((sum, r) => sum + r.totalLossAmount, 0);
   const totalCustomerDebt = customers.reduce((sum, c) => sum + c.currentDebt, 0);
@@ -131,10 +127,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
       : []),
   ].filter(w => w.ageDays >= Math.max(2, freshWindowDays - 1));
 
-  // Low-Stock Alerts (Ready Warehouse & Showroom POS)
-  const lowReadyProducts = hasAccess('ready-for-sale')
-    ? products.filter(p => p.inStockKg < (p.minAlertKg ?? 100))
-    : [];
+  // Low-Stock Alerts (Showroom POS)
   const lowBranchProducts = hasAccess('pos')
     ? branchStock.filter(b => b.inStockKg < (b.minAlertKg ?? 10))
     : [];
@@ -203,27 +196,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
         }[] = [
           {
             tab: 'intake',
-            label: 'وەرگرتنی زیندوو',
-            sub: 'قۆناغی ١',
+            label: 'کۆگای وەرگرتن',
+            sub: 'وەسڵی کێڵگە',
             icon: Truck,
             color: 'text-[#0071E3]',
             bg: 'bg-[#0071E3]/12',
-          },
-          {
-            tab: 'production',
-            label: 'سەربڕین و بەشکردن',
-            sub: 'قۆناغی ٢',
-            icon: Scissors,
-            color: 'text-[#5856D6]',
-            bg: 'bg-[#5856D6]/12',
-          },
-          {
-            tab: 'ready-for-sale',
-            label: 'کۆگای ئامادە',
-            sub: 'قۆناغی ٣',
-            icon: PackageCheck,
-            color: 'text-[#248A3D]',
-            bg: 'bg-[#34C759]/12',
           },
           {
             tab: 'custody',
@@ -341,8 +318,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
         </div>
       )}
 
-      {/* Low-Stock Alert Banner (Factory Ready Stock & Showroom POS) */}
-      {(lowReadyProducts.length > 0 || lowBranchProducts.length > 0) && (
+      {/* Low-Stock Alert Banner (Showroom POS) */}
+      {lowBranchProducts.length > 0 && (
         <div className="p-4 rounded-3xl bg-[#FF3B30]/8 border border-[#FF3B30]/25 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center shrink-0">
@@ -350,14 +327,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
             <div>
               <div className="text-xs font-extrabold text-[#B91C1C]">
-                ئاگادارکردنەوەی کەمبوونی کۆگا: {lowReadyProducts.length} بەرهەمی کارگە و {lowBranchProducts.length} بەرهەمی شۆرۆم لە سنووری کەمیدان!
+                ئاگادارکردنەوەی کەمبوونی کۆگا: {lowBranchProducts.length} بەرهەمی شۆرۆم لە سنووری کەمیدان!
               </div>
               <div className="text-[11px] text-[#7F1D1D] mt-1 flex flex-wrap gap-1.5">
-                {lowReadyProducts.slice(0, 4).map(p => (
-                  <span key={p.id} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
-                    کارگە: {p.nameKu} ({p.inStockKg.toLocaleString()} کگم)
-                  </span>
-                ))}
                 {lowBranchProducts.slice(0, 4).map(b => (
                   <span key={b.productId} className="bg-white/80 px-2 py-0.5 rounded-full font-bold">
                     شۆرۆم: {b.productName} ({b.inStockKg.toFixed(1)} کگم)
@@ -367,15 +339,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {lowReadyProducts.length > 0 && hasAccess('ready-for-sale') && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('ready-for-sale')}
-                className="px-3.5 py-2 rounded-full bg-[#FF3B30] hover:bg-[#DC2626] text-white text-xs font-bold transition-all"
-              >
-                کۆگای ئامادە
-              </button>
-            )}
             {lowBranchProducts.length > 0 && hasAccess('pos') && (
               <button
                 type="button"
@@ -398,13 +361,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             className="apple-card apple-card-hover p-5 text-right"
           >
             <div className="flex items-center justify-between text-[#86868B] mb-3">
-              <span className="text-xs font-semibold">مەخزەنی زیندوو (چاوەڕێی سەربڕین)</span>
+              <span className="text-xs font-semibold">کۆگای وەرگرتن (کێڵگە)</span>
               <div className="w-8 h-8 rounded-full bg-[#FF9500]/12 text-[#FF9500] flex items-center justify-center">
                 <Truck className="w-4 h-4" />
               </div>
             </div>
             <div className="text-2xl font-black text-[#1D1D1F] tabular-nums">
-              {remainingLiveKg.toLocaleString()}{' '}
+              {totalIntakeKg.toLocaleString()}{' '}
               <span className="text-xs font-medium text-[#86868B]">کگم</span>
             </div>
             <div className="text-xs text-[#86868B] mt-3 pt-2.5 border-t border-black/[0.05] flex items-center justify-between">
@@ -480,10 +443,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           </button>
         )}
 
-        {(hasAccess('rep-sales') || hasAccess('ready-for-sale')) && (
+        {hasAccess('rep-sales') && (
           <button
             type="button"
-            onClick={() => setActiveTab(hasAccess('rep-sales') ? 'rep-sales' : 'ready-for-sale')}
+            onClick={() => setActiveTab('rep-sales')}
             className="apple-card apple-card-hover p-5 text-right"
           >
             <div className="flex items-center justify-between text-[#86868B] mb-3">
@@ -527,27 +490,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
 
       {/* Role-Specific Channel Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {hasAccess('ready-for-sale') && (
+        {hasAccess('intake') && (
           <button
             type="button"
-            onClick={() => setActiveTab('ready-for-sale')}
+            onClick={() => setActiveTab('intake')}
             className="apple-card apple-card-hover p-5 text-right flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-2.5 py-1 rounded-full">
-                  ئامادە بۆ فرۆشتن
+                  کۆگای وەرگرتن
                 </span>
-                <PackageCheck className="w-4 h-4 text-[#0071E3]" />
+                <Truck className="w-4 h-4 text-[#0071E3]" />
               </div>
-              <h3 className="text-sm font-extrabold text-[#1D1D1F]">کۆگای بەرهەمە ئامادەکان</h3>
+              <h3 className="text-sm font-extrabold text-[#1D1D1F]">کۆگای وەرگرتنی کێڵگە</h3>
               <p className="text-xs text-[#86868B] mt-1 leading-relaxed">
-                ئامادەکردنی باری کێڵگە و فرۆشتنی ڕاستەوخۆی بەرهەمە پاککراوەکان لە کارگەوە.
+                تۆماری وەسڵەکانی وەرگرتن لە کێڵگەکان، کێش و نرخی کڕین.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-black/[0.05] flex items-center justify-between text-xs w-full">
-              <span className="text-[#86868B]">کۆی بەرهەمی ئامادە:</span>
-              <span className="font-bold text-[#1D1D1F] tabular-nums">{totalReadyStockKg.toLocaleString()} کگم</span>
+              <span className="text-[#86868B]">کۆی کێشی وەرگیراو:</span>
+              <span className="font-bold text-[#1D1D1F] tabular-nums">{totalIntakeKg.toLocaleString()} کگم</span>
             </div>
           </button>
         )}
