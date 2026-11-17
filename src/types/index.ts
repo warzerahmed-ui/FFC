@@ -12,7 +12,7 @@ export type TabType =
   | 'reports'
   | 'settings';
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'REP' | 'CASHIER';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'WAREHOUSE_MANAGER' | 'ACCOUNTANT' | 'REP' | 'CASHIER';
 
 export interface User {
   id: string;

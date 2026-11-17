@@ -876,6 +876,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             ? 'بەڕێوەبەری گشتی'
                             : u.role === 'ADMIN'
                             ? 'بەڕێوەبەر'
+                            : u.role === 'WAREHOUSE_MANAGER'
+                            ? 'بەرپرسی کۆگا'
                             : u.role === 'ACCOUNTANT'
                             ? 'ژمێریار'
                             : u.role === 'CASHIER'

@@ -53,6 +53,8 @@ const getDefaultTabsForRole = (role: string): string[] => {
     case 'SUPER_ADMIN':
     case 'ADMIN':
       return ALL_TABS;
+    case 'WAREHOUSE_MANAGER':
+      return ['dashboard', 'intake', 'ready-for-sale', 'custody', 'gifts'];
     case 'ACCOUNTANT':
       return ['dashboard', 'accounting', 'reports'];
     case 'REP':

@@ -61,7 +61,10 @@ export const CustodyView: React.FC<CustodyViewProps> = ({ onNavigate }) => {
     factorySettings,
   } = useApp();
 
-  const isWarehouseAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN';
+  const isWarehouseAdmin =
+    currentUser.role === 'SUPER_ADMIN' ||
+    currentUser.role === 'ADMIN' ||
+    currentUser.role === 'WAREHOUSE_MANAGER';
   const isRepUser = currentUser.role === 'REP';
 
   const [selectedFilterHolder, setSelectedFilterHolder] = useState<string>('ALL');

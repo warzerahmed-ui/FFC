@@ -43,6 +43,7 @@ export type SettingsSubTab = 'FACTORY_INFO' | 'ACCOUNTS' | 'SOFT_DELETE' | 'ACTI
 
 const ROLE_OPTIONS: { value: Exclude<UserRole, 'SUPER_ADMIN'>; label: string; emoji: string }[] = [
   { value: 'ADMIN', label: 'بەڕێوەبەر', emoji: '👔' },
+  { value: 'WAREHOUSE_MANAGER', label: 'بەرپرسی کۆگا', emoji: '📦' },
   { value: 'ACCOUNTANT', label: 'ژمێریار', emoji: '🧮' },
   { value: 'REP', label: 'مەندوبی فرۆشتن', emoji: '🚚' },
   { value: 'CASHIER', label: 'کاشێری شۆرۆم', emoji: '🛒' },
@@ -952,7 +953,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="apple-card p-4">
               <div className="text-[11px] font-semibold text-[#86868B]">بەڕێوەبەر و ژمێریار</div>
               <div className="text-2xl font-black text-[#0071E3] mt-1 tabular-nums">
-                {visibleUsers.filter(u => u.role === 'ADMIN' || u.role === 'ACCOUNTANT').length}
+                {visibleUsers.filter(u => u.role === 'ADMIN' || u.role === 'WAREHOUSE_MANAGER' || u.role === 'ACCOUNTANT').length}
               </div>
             </div>
             <div className="apple-card p-4">
