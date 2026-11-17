@@ -73,6 +73,8 @@ export const RepSalesView: React.FC = () => {
   const [itemWeight, setItemWeight] = useState<number | ''>('');
   const [itemPrice, setItemPrice] = useState<number | ''>('');
   const [itemsList, setItemsList] = useState<DispatchItem[]>([]);
+  const [discountInput, setDiscountInput] = useState<string>('');
+  const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
 
   // Add Market / Public Place Modal States
   const [showAddMarketModal, setShowAddMarketModal] = useState(false);
@@ -284,6 +286,8 @@ export const RepSalesView: React.FC = () => {
     setItemsList([]);
     setItemWeight('');
     setItemPrice('');
+    setDiscountInput('');
+    setFinalOverrideInput(null);
     setNotes('فرۆشی مەندوب بە وەسڵی دەستی');
     setShowSaleModal(true);
   };
@@ -391,7 +395,12 @@ export const RepSalesView: React.FC = () => {
   };
 
   const saleTotalWeight = itemsList.reduce((sum, item) => sum + item.weightKg, 0);
-  const saleTotalAmount = roundTo250(itemsList.reduce((sum, item) => sum + item.totalAmount, 0));
+  const saleRawTotalAmount = roundTo250(itemsList.reduce((sum, item) => sum + item.totalAmount, 0));
+  const saleTotalAmount =
+    finalOverrideInput !== null && finalOverrideInput !== ''
+      ? Math.max(0, Number(finalOverrideInput) || 0)
+      : Math.max(0, saleRawTotalAmount - (Number(discountInput) || 0));
+  const saleDiscountAmount = Math.max(0, saleRawTotalAmount - saleTotalAmount);
 
   const handleSubmitSale = (e: React.FormEvent) => {
     e.preventDefault();
@@ -475,6 +484,8 @@ export const RepSalesView: React.FC = () => {
       driverOrRepPhone: phone,
       items: itemsList,
       totalWeightKg: saleTotalWeight,
+      subtotalAmount: saleDiscountAmount > 0 ? saleRawTotalAmount : undefined,
+      discountAmount: saleDiscountAmount > 0 ? saleDiscountAmount : undefined,
       totalAmount: saleTotalAmount,
       status: 'COMPLETED',
       notes,
@@ -1477,14 +1488,72 @@ export const RepSalesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Bottom Summary Bar */}
-              <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.05] flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="text-[#86868B] text-xs">کۆی فرۆش: </span>
-                  <span className="text-base font-black text-[#1D1D1F]">
-                    {saleTotalWeight.toLocaleString()} کگم • {saleTotalAmount.toLocaleString()} د.ع
+              {/* Bottom Summary Bar + Discount / Final Amount */}
+              <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.06] space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[#515154] text-xs font-semibold">
+                    کۆی کاڵاکان ({saleTotalWeight.toLocaleString()} کگم):
+                  </span>
+                  <span className="text-sm font-black text-[#1D1D1F] tabular-nums">
+                    {saleRawTotalAmount.toLocaleString()} د.ع
                   </span>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-black/[0.06]">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#515154] mb-1">
+                      داشکاندن (د.ع)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="250"
+                      placeholder="0"
+                      value={discountInput}
+                      onChange={e => {
+                        setDiscountInput(e.target.value);
+                        setFinalOverrideInput(null);
+                      }}
+                      className="w-full bg-white border border-black/[0.08] rounded-xl px-3 py-2 text-xs font-bold text-[#FF3B30] outline-none focus:border-[#0071E3] tabular-nums"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#515154] mb-1">
+                      کۆی کۆتایی / پارەی دراو (د.ع)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="250"
+                      value={
+                        finalOverrideInput !== null
+                          ? finalOverrideInput
+                          : String(saleTotalAmount)
+                      }
+                      onChange={e => {
+                        const v = e.target.value;
+                        setFinalOverrideInput(v);
+                        if (v === '') {
+                          setDiscountInput('');
+                        } else {
+                          const num = Number(v) || 0;
+                          setDiscountInput(
+                            saleRawTotalAmount > num ? String(saleRawTotalAmount - num) : ''
+                          );
+                        }
+                      }}
+                      className="w-full bg-white border border-[#0071E3]/40 rounded-xl px-3 py-2 text-xs font-black text-[#0071E3] outline-none focus:border-[#0071E3] tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                {saleDiscountAmount > 0 && (
+                  <div className="text-[11px] font-bold text-[#248A3D] flex items-center justify-between pt-1">
+                    <span>داشکاندنی هەژمارکراو:</span>
+                    <span className="tabular-nums">-{saleDiscountAmount.toLocaleString()} د.ع</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1958,6 +2027,24 @@ export const RepSalesView: React.FC = () => {
                     </div>
                   )}
 
+                  {(selectedSaleForPrint.discountAmount || 0) > 0 && (
+                    <>
+                      <div className="border-t border-black/10 pt-2 flex justify-between text-xs text-[#515154]">
+                        <span>کۆی کاڵاکان:</span>
+                        <span>
+                          {(
+                            selectedSaleForPrint.subtotalAmount ||
+                            selectedSaleForPrint.totalAmount + (selectedSaleForPrint.discountAmount || 0)
+                          ).toLocaleString()}{' '}
+                          د.ع
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs font-bold text-[#FF3B30]">
+                        <span>داشکاندن:</span>
+                        <span>-{(selectedSaleForPrint.discountAmount || 0).toLocaleString()} د.ع</span>
+                      </div>
+                    </>
+                  )}
                   <div className="border-t-2 border-black/10 pt-2 flex justify-between text-sm font-bold">
                     <span>کۆی فرۆش:</span>
                     <span>

@@ -200,6 +200,8 @@ export interface DispatchOrder {
   driverOrRepPhone?: string;
   items: DispatchItem[];
   totalWeightKg: number;
+  subtotalAmount?: number;
+  discountAmount?: number;
   totalAmount: number;
   totalFactoryCost?: number;
   sourceCustody?: 'READY' | 'REP';
