@@ -3,7 +3,6 @@ import {
   ProductItem,
   ProductCategory,
   LiveIntake,
-  YieldRecord,
   Customer,
   Supplier,
   DispatchOrder,
@@ -69,7 +68,6 @@ export const getDefaultTabsForRole = (role: UserRole): string[] => {
 interface AppContextType {
   products: ProductItem[];
   intakes: LiveIntake[];
-  yields: YieldRecord[];
   customers: Customer[];
   suppliers: Supplier[];
   dispatches: DispatchOrder[];
@@ -100,8 +98,6 @@ interface AppContextType {
 
   // Actions
   addIntake: (intake: Omit<LiveIntake, 'id' | 'processedLiveWeightKg' | 'remainingLiveWeightKg'>) => void;
-  addYieldRecord: (record: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => void;
-  deleteYieldRecord: (id: string) => boolean;
   addDispatch: (dispatch: Omit<DispatchOrder, 'id'>) => void;
   addReturn: (returnOrder: Omit<ReturnOrder, 'id'>) => void;
   convertReturnOrder: (
@@ -214,7 +210,6 @@ const UNAUTHENTICATED_USER: User = {
 const STORAGE_KEYS = {
   PRODUCTS: 'fresh_chicken_products_v4',
   INTAKES: 'fresh_chicken_intakes_v4',
-  YIELDS: 'fresh_chicken_yields_v4',
   CUSTOMERS: 'fresh_chicken_customers_v4',
   SUPPLIERS: 'fresh_chicken_suppliers_v4',
   DISPATCHES: 'fresh_chicken_dispatches_v4',
@@ -261,7 +256,6 @@ const DEFAULT_FACTORY_SETTINGS: FactorySettings = {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [intakes, setIntakes] = useState<LiveIntake[]>([]);
-  const [yields, setYields] = useState<YieldRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [dispatches, setDispatches] = useState<DispatchOrder[]>([]);
@@ -313,7 +307,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setProducts([]);
     setIntakes([]);
-    setYields([]);
     setCustomers([]);
     setSuppliers([]);
     setDispatches([]);
@@ -342,7 +335,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     () => ({
       products,
       intakes,
-      yields,
       customers,
       suppliers,
       dispatches,
@@ -363,7 +355,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [
       products,
       intakes,
-      yields,
       customers,
       suppliers,
       dispatches,
@@ -401,10 +392,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(d.intakes)) {
         setIntakes(d.intakes as LiveIntake[]);
         recordKey('intakes', d.intakes);
-      }
-      if (Array.isArray(d.yields)) {
-        setYields(d.yields as YieldRecord[]);
-        recordKey('yields', d.yields);
       }
       if (Array.isArray(d.customers)) {
         setCustomers(d.customers as Customer[]);
@@ -897,98 +884,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return s;
       }));
     }
-  };
-
-  const addYieldRecord = (newYield: Omit<YieldRecord, 'id' | 'remainingAfterBatchKg'>) => {
-    if (!hasAccess('intake')) return;
-    const id = `yld-${genId()}`;
-    const targetIntake = intakes.find(i => i.id === newYield.intakeId);
-    const prevRemaining = targetIntake ? targetIntake.remainingLiveWeightKg : 0;
-    const remainingAfter = Math.max(0, prevRemaining - newYield.batchLiveWeightKg);
-
-    const record: YieldRecord = {
-      ...newYield,
-      id,
-      remainingAfterBatchKg: remainingAfter,
-    };
-
-    setYields(prev => [record, ...prev]);
-    recordActivity(
-      'PRODUCTION',
-      'CREATE',
-      'سەربڕین و پارچەکردن',
-      `وەسڵی #${newYield.manualReceiptNo} (${newYield.farmName}) • ${newYield.batchLiveWeightKg} کگم زیندوو -> ${newYield.dressedWeightKg} کگم گۆشت`,
-      newYield.manualReceiptNo
-    );
-
-    setIntakes(prev => prev.map(i => {
-      if (i.id === newYield.intakeId) {
-        const updatedProcessed = i.processedLiveWeightKg + newYield.batchLiveWeightKg;
-        const updatedRemaining = Math.max(0, i.netWeightKg - updatedProcessed);
-        return {
-          ...i,
-          processedLiveWeightKg: updatedProcessed,
-          remainingLiveWeightKg: updatedRemaining,
-          yieldProcessed: updatedRemaining <= 0,
-        };
-      }
-      return i;
-    }));
-
-    setProducts(prev => prev.map(p => {
-      const addedKg = newYield.cuts
-        .filter(c => c.productId === p.id)
-        .reduce((s, c) => s + c.weightKg, 0);
-      if (addedKg > 0) {
-        return { ...p, inStockKg: p.inStockKg + addedKg };
-      }
-      return p;
-    }));
-  };
-
-  const deleteYieldRecord = (id: string): boolean => {
-    if (!hasAccess('intake')) return false;
-    const target = yields.find(y => y.id === id);
-    if (!target) return false;
-
-    setYields(prev => prev.filter(y => y.id !== id));
-
-    setIntakes(prev => prev.map(i => {
-      if (i.id === target.intakeId) {
-        const updatedProcessed = Math.max(0, Number((i.processedLiveWeightKg - target.batchLiveWeightKg).toFixed(3)));
-        const updatedRemaining = Math.min(i.netWeightKg, Number((i.netWeightKg - updatedProcessed).toFixed(3)));
-        return {
-          ...i,
-          processedLiveWeightKg: updatedProcessed,
-          remainingLiveWeightKg: updatedRemaining,
-          yieldProcessed: updatedRemaining <= 0,
-        };
-      }
-      return i;
-    }));
-
-    setProducts(prev => prev.map(p => {
-      const removedKg = target.cuts
-        .filter(c => c.productId === p.id)
-        .reduce((s, c) => s + c.weightKg, 0);
-      if (removedKg > 0) {
-        return {
-          ...p,
-          inStockKg: Math.max(0, Number((p.inStockKg - removedKg).toFixed(3))),
-        };
-      }
-      return p;
-    }));
-
-    recordActivity(
-      'PRODUCTION',
-      'DELETE',
-      'گەڕاندنەوە و سڕینەوەی تۆماری سەربڕین',
-      `وەسڵی #${target.manualReceiptNo} (${target.farmName}) • ${target.batchLiveWeightKg} کگم زیندوو گەڕایەوە`,
-      target.manualReceiptNo
-    );
-
-    return true;
   };
 
   const addDispatch = (newDispatch: Omit<DispatchOrder, 'id'>) => {
@@ -2022,8 +1917,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isWorkedOn =
         target.processedLiveWeightKg > 0 ||
         target.remainingLiveWeightKg < target.netWeightKg ||
-        Boolean(target.yieldProcessed) ||
-        yields.some(y => y.intakeId === target.id);
+        Boolean(target.yieldProcessed);
       if (isWorkedOn) {
         return false;
       }
@@ -2454,7 +2348,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       data: {
         products,
         intakes,
-        yields,
         customers,
         suppliers,
         dispatches,
@@ -2492,7 +2385,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setProducts(d.products);
       if (Array.isArray(d.intakes)) setIntakes(d.intakes);
-      if (Array.isArray(d.yields)) setYields(d.yields);
       if (Array.isArray(d.customers)) setCustomers(d.customers);
       if (Array.isArray(d.suppliers)) setSuppliers(d.suppliers);
       if (Array.isArray(d.dispatches)) setDispatches(d.dispatches);
@@ -2530,7 +2422,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetToCleanStart = (options?: { clearParties?: boolean }) => {
     if (!hasAccess('settings')) return;
     setIntakes([]);
-    setYields([]);
     setDispatches([]);
     setReturns([]);
     setExpenses([]);
@@ -2565,7 +2456,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         products,
         intakes,
-        yields,
         customers,
         suppliers,
         dispatches,
@@ -2586,8 +2476,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated,
         isHydratedFromCloud,
         addIntake,
-        addYieldRecord,
-        deleteYieldRecord,
         addDispatch,
         addReturn,
         convertReturnOrder,

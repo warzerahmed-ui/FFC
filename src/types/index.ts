@@ -153,28 +153,6 @@ export interface LiveIntake {
   yieldProcessed?: boolean;
 }
 
-export interface YieldRecord {
-  id: string;
-  intakeId: string;
-  manualReceiptNo: string;
-  farmName: string;
-  date: string;
-  batchLiveWeightKg: number;
-  dressedWeightKg: number;
-  wasteWeightKg: number;
-  yieldPercentage: number;
-  wastePercentage: number;
-  remainingAfterBatchKg: number;
-  liveBatchCost?: number;
-  dressedCostPerKg?: number;
-  cuts: {
-    productId: string;
-    productName: string;
-    weightKg: number;
-  }[];
-  notes?: string;
-}
-
 export type DispatchDestination = 'REP' | 'DIRECT' | 'BRANCH' | 'GIFT' | 'RETURN';
 
 export interface DispatchItem {

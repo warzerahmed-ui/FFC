@@ -1,7 +1,6 @@
 import {
   ProductItem,
   LiveIntake,
-  YieldRecord,
   DispatchOrder,
   ReturnOrder,
   Customer,
@@ -130,8 +129,6 @@ export const INITIAL_PRODUCTS: ProductItem[] = [
 ];
 
 export const INITIAL_INTAKES: LiveIntake[] = [];
-
-export const INITIAL_YIELDS: YieldRecord[] = [];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   {

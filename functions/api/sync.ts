@@ -10,7 +10,6 @@ import {
 const ALLOWED_KEYS = new Set([
   'products',
   'intakes',
-  'yields',
   'customers',
   'suppliers',
   'dispatches',
@@ -70,7 +69,6 @@ const getDefaultTabsForRole = (role: string): string[] => {
 const WRITE_KEY_TABS: Record<string, string[]> = {
   intakes: ['intake', 'accounting'],
   suppliers: ['intake', 'accounting'],
-  yields: ['intake'],
   products: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
   custodyTransfers: ['ready-for-sale', 'custody', 'rep-sales', 'gifts'],
   dispatches: ['ready-for-sale', 'custody', 'rep-sales', 'gifts', 'pos'],
@@ -90,7 +88,6 @@ const READ_KEY_TABS: Record<string, string[]> = {
   products: ALL_TABS,
   intakes: ['intake', 'accounting', 'reports'],
   suppliers: ['intake', 'accounting', 'reports'],
-  yields: ['intake', 'reports'],
   customers: ['ready-for-sale', 'custody', 'rep-sales', 'pos', 'gifts', 'accounting', 'reports'],
   dispatches: ['ready-for-sale', 'custody', 'rep-sales', 'pos', 'gifts', 'accounting', 'reports'],
   returns: ['ready-for-sale', 'custody', 'rep-sales', 'pos', 'accounting', 'reports'],
