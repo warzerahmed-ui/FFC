@@ -1300,52 +1300,20 @@ export const RepSalesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Payment Type */}
-              <div className="p-4 rounded-2xl bg-[#F5F5F7] border border-black/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="font-bold text-[#1D1D1F] block">شێوازی پارەدان و تۆماری دارایی:</span>
-                  <span className="text-[11px] text-[#86868B]">
-                    ئەگەر بە قەرز بێت، بڕی فرۆشراوەکە یەکسەر دەچێتە سەر کەشف حسابی ئەم مارکێتە
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType('CREDIT')}
-                    className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
-                      paymentType === 'CREDIT'
-                        ? 'bg-[#FF9500] text-white shadow-sm'
-                        : 'bg-white text-[#515154] border border-black/[0.06]'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    فرۆش بە قەرز
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType('CASH')}
-                    className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
-                      paymentType === 'CASH'
-                        ? 'bg-[#34C759] text-white shadow-sm'
-                        : 'bg-white text-[#515154] border border-black/[0.06]'
-                    }`}
-                  >
-                    <Banknote className="w-3.5 h-3.5" />
-                    کاش (نەقد)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType('ELECTRONIC')}
-                    className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
-                      paymentType === 'ELECTRONIC'
-                        ? 'bg-[#0071E3] text-white shadow-sm'
-                        : 'bg-white text-[#515154] border border-black/[0.06]'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    پارەدانی ئەلکترۆنی
-                  </button>
-                </div>
+              {/* Payment Type (Compact like Warehouse) */}
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">دۆخی پارەدان</label>
+                <select
+                  value={paymentType}
+                  onChange={e =>
+                    setPaymentType(e.target.value as 'CREDIT' | 'CASH' | 'ELECTRONIC')
+                  }
+                  className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2.5 text-[#1D1D1F] outline-none focus:border-[#0071E3] font-semibold"
+                >
+                  <option value="CREDIT">فرۆش بە قەرز (دەچێتە سەر کەشف حسابی مارکێت)</option>
+                  <option value="CASH">کاش (نەقد)</option>
+                  <option value="ELECTRONIC">پارەدانی ئەلکترۆنی</option>
+                </select>
               </div>
 
               {/* Credit Limit Alert Banner */}
