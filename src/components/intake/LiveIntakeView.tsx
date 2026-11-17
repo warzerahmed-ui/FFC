@@ -22,6 +22,7 @@ export const LiveIntakeView: React.FC = () => {
   const [birdCount, setBirdCount] = useState<number | ''>('');
   const [netWeightInput, setNetWeightInput] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
+  const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'DEBT' | 'PAID' | 'PARTIAL'>('DEBT');
   const [paidAmount, setPaidAmount] = useState<number | ''>(0);
   const [notes, setNotes] = useState('');
@@ -67,7 +68,12 @@ export const LiveIntakeView: React.FC = () => {
   };
 
   const netWeight = Number(netWeightInput) || 0;
-  const totalAmount = netWeight > 0 ? roundTo250(netWeight * (Number(pricePerKg) || 0)) : 0;
+  const rawTotalAmount = netWeight > 0 ? roundTo250(netWeight * (Number(pricePerKg) || 0)) : 0;
+  const totalAmount =
+    finalOverrideInput !== null && finalOverrideInput !== ''
+      ? Math.max(0, Number(finalOverrideInput) || 0)
+      : rawTotalAmount;
+  const discountAmount = Math.max(0, rawTotalAmount - totalAmount);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +114,7 @@ export const LiveIntakeView: React.FC = () => {
     setFarmName('');
     setBirdCount('');
     setNetWeightInput('');
+    setFinalOverrideInput(null);
     setPaidAmount(0);
     setNotes('');
   };
@@ -506,18 +513,40 @@ export const LiveIntakeView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#0071E3]/6 border border-[#0071E3]/15 flex items-center justify-between">
-                <div>
-                  <span className="text-[#86868B] block text-[11px]">کێشی خاوێنی زیندوو:</span>
-                  <span className="text-xl font-black text-[#0071E3] tabular-nums">
-                    {netWeight > 0 ? netWeight.toLocaleString() : 0} کگم
-                  </span>
+              <div className="p-4 rounded-2xl bg-[#0071E3]/6 border border-[#0071E3]/15 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[#86868B] block text-[11px]">کێشی خاوێنی زیندوو:</span>
+                    <span className="text-xl font-black text-[#0071E3] tabular-nums">
+                      {netWeight > 0 ? netWeight.toLocaleString() : 0} کگم
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[#86868B] block text-[11px]">کۆی پارەی کڕین:</span>
+                    <span className="text-xl font-black text-[#1D1D1F] tabular-nums">
+                      {rawTotalAmount.toLocaleString()} د.ع
+                    </span>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <span className="text-[#86868B] block text-[11px]">کۆی پارەی کڕین:</span>
-                  <span className="text-xl font-black text-[#1D1D1F] tabular-nums">
-                    {totalAmount.toLocaleString()} د.ع
-                  </span>
+
+                <div className="pt-2.5 border-t border-[#0071E3]/15">
+                  <label className="block text-[11px] font-bold text-[#515154] mb-1">
+                    کۆی پارە دوای داشکاندن (د.ع)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="250"
+                    value={finalOverrideInput !== null ? finalOverrideInput : String(totalAmount)}
+                    onChange={e => setFinalOverrideInput(e.target.value)}
+                    className="w-full bg-white border border-[#0071E3]/40 rounded-xl px-3.5 py-2 text-xs font-black text-[#0071E3] outline-none focus:border-[#0071E3] tabular-nums"
+                  />
+                  {discountAmount > 0 && (
+                    <div className="text-[11px] font-bold text-[#248A3D] flex items-center justify-between mt-1.5">
+                      <span>داشکاندنی هەژمارکراو:</span>
+                      <span className="tabular-nums">-{discountAmount.toLocaleString()} د.ع</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
