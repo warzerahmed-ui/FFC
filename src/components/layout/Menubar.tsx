@@ -472,6 +472,21 @@ export const Menubar: React.FC<MenubarProps> = ({
                   </button>
                 );
               })}
+            {hasAccess('settings') && (
+              <button
+                type="button"
+                onClick={() => handleSelectTab('settings')}
+                className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  isSettingsTab
+                    ? 'bg-[#0071E3]/10 border border-[#0071E3]/25 text-[#0071E3] font-bold shadow-[0_1px_3px_rgba(0,113,227,0.08)]'
+                    : 'border border-transparent text-[#515154] hover:text-[#1D1D1F] hover:bg-black/[0.04] font-semibold'
+                }`}
+                title="سیتینی کارگە"
+              >
+                {isSettingsTab && <span className="w-1.5 h-1.5 rounded-full bg-[#0071E3] shrink-0" />}
+                <span>سیتین</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -533,23 +548,6 @@ export const Menubar: React.FC<MenubarProps> = ({
             >
               <Smartphone className="w-3.5 h-3.5" />
               <span>ئەپ</span>
-            </button>
-          )}
-
-          {/* Factory Settings Quick Pill (Admin Only) */}
-          {hasAccess('settings') && (
-            <button
-              type="button"
-              onClick={() => handleSelectTab('settings')}
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                isSettingsTab
-                  ? 'bg-[#EFF6FF] border border-[#3B82F6]/45 text-[#1D4ED8] shadow-[0_1px_2px_rgba(37,99,235,0.08)]'
-                  : 'bg-[#F8FAFC] hover:bg-slate-100 border border-slate-200/90 text-slate-700'
-              }`}
-              title="سیتینی کارگە"
-            >
-              <Settings className={`w-3.5 h-3.5 ${isSettingsTab ? 'text-[#1D4ED8]' : 'text-slate-600'}`} />
-              <span>سیتین</span>
             </button>
           )}
 
