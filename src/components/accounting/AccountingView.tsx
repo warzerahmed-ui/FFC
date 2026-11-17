@@ -28,7 +28,7 @@ interface AccountingViewProps {
 export const AccountingView: React.FC<AccountingViewProps> = ({
   activeSubTab: controlledSubTab,
 }) => {
-  const { customers, suppliers, vouchers, dispatches, intakes, posSales, returns, repNames, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
+  const { customers, suppliers, vouchers, dispatches, intakes, expenses, returns, repNames, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<AccountingSubTab>(controlledSubTab || 'VOUCHERS');
 
@@ -72,7 +72,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [printVoucher, setPrintVoucher] = useState<PaymentVoucher | null>(null);
 
   // Selected party's current debt
-  const selectedCustomerObj = customers.find(c => c.id === selectedPartyId) || customers[0];
+  const factoryCustomers = customers.filter(c => c.source !== 'SHOWROOM');
+  const selectedCustomerObj = factoryCustomers.find(c => c.id === selectedPartyId) || factoryCustomers[0];
   const selectedSupplierObj = suppliers.find(s => s.id === selectedPartyId) || suppliers[0];
 
   const currentDebtBefore = voucherType === 'RECEIPT'
@@ -188,27 +189,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
       return [];
     });
 
-    // 1b. Showroom POS Debt Purchases
-    const posDebtTx = posSales
-      .filter(
-        s =>
-          s.paymentType === 'DEBT' &&
-          (s.customerId === customer.id ||
-            (s.customerName &&
-              (s.customerName.includes(customer.name) || customer.name.includes(s.customerName))))
-      )
-      .map(s => ({
-        id: `pos-${s.id}`,
-        date: s.date,
-        time: s.time || '10:00 ص',
-        refNo: s.saleNo,
-        type: 'PURCHASE' as const,
-        description: `فرۆشی قەرزی شۆرۆم (${s.items.map(i => `${i.productName} ${i.weightKg} کگم`).join('، ')})`,
-        debit: s.subtotal && s.subtotal > 0 ? s.subtotal : s.total + (s.discount || 0),
-        credit: 0,
-        discount: s.discount || 0,
-      }));
-
     // 2. Real-time Payments (from vouchers where partyId === customer.id)
     const paymentTx = vouchers
       .filter(v => v.partyId === customer.id || v.partyName.includes(customer.name) || customer.name.includes(v.partyName))
@@ -243,7 +223,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
       }));
 
     // Combine and sort by date & time
-    const all = [...purchaseTx, ...posDebtTx, ...paymentTx, ...returnTx].sort((a, b) => a.date.localeCompare(b.date));
+    const all = [...purchaseTx, ...paymentTx, ...returnTx].sort((a, b) => a.date.localeCompare(b.date));
 
     // Calculate opening balance before startDate
     let openingBalance = 0;
@@ -281,7 +261,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
     };
   };
 
-  const factoryCustomers = customers.filter(c => c.source !== 'SHOWROOM');
   const filteredCustomers = factoryCustomers.filter(c =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.phone.includes(customerSearch)
@@ -305,7 +284,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           <button
             onClick={() => {
               setVoucherType('RECEIPT');
-              setSelectedPartyId(customers[0]?.id || '');
+              setSelectedPartyId(factoryCustomers[0]?.id || '');
               setVoucherDate(toLocalISODate());
               setVoucherTime(new Date().toLocaleTimeString('ckb-IQ', { hour: '2-digit', minute: '2-digit' }));
               setShowVoucherModal(true);
@@ -332,13 +311,55 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         </div>
       </div>
 
+      {/* Main Factory Cashbox (خەزێنە و قاسەی سەرەکی کارگە) */}
+      {(() => {
+        const cashRepSalesIn = dispatches
+          .filter(d => (d.destinationType === 'REP' || d.destinationType === 'DIRECT') && d.paymentType === 'CASH')
+          .reduce((s, d) => s + d.totalAmount, 0);
+        const factoryReceiptsIn = vouchers
+          .filter(v => !v.collectedAtPos && v.type === 'RECEIPT' && v.paymentMethod === 'CASH')
+          .reduce((s, v) => s + v.amount, 0);
+        const totalCashIn = cashRepSalesIn + factoryReceiptsIn;
+
+        const factoryPaymentsOut = vouchers
+          .filter(v => !v.collectedAtPos && v.type === 'PAYMENT' && v.paymentMethod === 'CASH')
+          .reduce((s, v) => s + v.amount, 0);
+        const cashIntakesOut = intakes.reduce((s, i) => s + (i.paidAmount || 0), 0);
+        const factoryExpOut = expenses.reduce((s, e) => s + e.amount, 0);
+        const totalCashOut = factoryPaymentsOut + cashIntakesOut + factoryExpOut;
+        const cashboxBalance = totalCashIn - totalCashOut;
+
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">هاتووی قاسەی کارگە (کاش + قەبز)</span>
+              <div className="text-lg font-black text-[#248A3D] tabular-nums mt-1">
+                +{totalCashIn.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+            <div className="apple-card p-4">
+              <span className="text-[11px] font-semibold text-[#86868B] block">دەرچووی قاسە (سەرف + کێڵگە + خەرجی)</span>
+              <div className="text-lg font-black text-[#FF3B30] tabular-nums mt-1">
+                -{totalCashOut.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+            <div className="apple-card p-4 border-[#0071E3]/25 bg-[#0071E3]/[0.03]">
+              <span className="text-[11px] font-bold text-[#0071E3] block">باڵانسی ئێستای قاسەی کارگە</span>
+              <div className={`text-xl font-black tabular-nums mt-1 ${cashboxBalance >= 0 ? 'text-[#1D1D1F]' : 'text-[#FF3B30]'}`}>
+                {cashboxBalance.toLocaleString()} <span className="text-[11px] font-medium text-[#86868B]">د.ع</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* View 1: Vouchers List */}
       {activeSubTab === 'VOUCHERS' && (() => {
         const vq = voucherSearch.trim().toLowerCase();
         const filteredVouchers = vouchers.filter(v => {
+          if (v.collectedAtPos) return false;
           if (voucherTypeFilter === 'RECEIPT' && v.type !== 'RECEIPT') return false;
           if (voucherTypeFilter === 'PAYMENT' && v.type !== 'PAYMENT') return false;
-          if (voucherTypeFilter === 'POS' && !v.collectedAtPos) return false;
           if (voucherStartDate && v.date < voucherStartDate) return false;
           if (voucherEndDate && v.date > voucherEndDate) return false;
           if (!vq) return true;
@@ -1395,7 +1416,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   className="w-full bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3.5 py-2 text-[#1D1D1F] font-semibold outline-none focus:border-[#0071E3] focus:bg-white"
                 >
                   {voucherType === 'RECEIPT'
-                    ? customers.map(c => (
+                    ? factoryCustomers.map(c => (
                         <option key={c.id} value={c.id}>{c.name} (قەرزی ئێستا: {c.currentDebt.toLocaleString()} د.ع)</option>
                       ))
                     : suppliers.map(s => (

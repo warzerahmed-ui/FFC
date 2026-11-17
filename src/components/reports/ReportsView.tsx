@@ -37,12 +37,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const {
     intakes,
     dispatches,
-    posSales,
     returns,
     expenses,
-    branchExpenses,
     products,
-    branchStock,
     custodyTransfers,
     addExpense,
     softDeleteRecord,
@@ -111,27 +108,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     () => dispatches.filter(d => d.destinationType === 'GIFT' && inPeriod(d.date)),
     [dispatches, inPeriod]
   );
-  const filteredPosSales = useMemo(() => posSales.filter(s => inPeriod(s.date)), [posSales, inPeriod]);
-  const filteredPosRegularSales = useMemo(
-    () => filteredPosSales.filter(s => s.paymentType !== 'GIFT'),
-    [filteredPosSales]
+  const filteredReturns = useMemo(
+    () => returns.filter(r => r.sourceType !== 'BRANCH' && inPeriod(r.date)),
+    [returns, inPeriod]
   );
-  const filteredPosGiftSales = useMemo(
-    () => filteredPosSales.filter(s => s.paymentType === 'GIFT'),
-    [filteredPosSales]
-  );
-  const filteredReturns = useMemo(() => returns.filter(r => inPeriod(r.date)), [returns, inPeriod]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inPeriod(e.date)), [expenses, inPeriod]);
-  const filteredBranchExpenses = useMemo(
-    () => branchExpenses.filter(e => inPeriod(e.date)),
-    [branchExpenses, inPeriod]
-  );
 
   const repSalesRevenue = filteredSalesDispatches.reduce((sum, d) => sum + d.totalAmount, 0);
-  const storePosRevenue = filteredPosRegularSales.reduce((sum, s) => sum + s.total, 0);
-  const totalSalesRevenue = repSalesRevenue + storePosRevenue;
+  const totalSalesRevenue = repSalesRevenue;
 
-  // Real Cost of Goods Sold (COGS) across Rep Sales + Showroom POS Regular Sales in selected period
+  // Real Cost of Goods Sold (COGS) across Factory Rep Sales in selected period
   const repCogsAmount = filteredSalesDispatches.reduce((sum, d) => {
     return (
       sum +
@@ -144,19 +130,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   }, 0);
 
-  const posCogsAmount = filteredPosRegularSales.reduce((sum, sale) => {
-    return (
-      sum +
-      sale.items.reduce((s, item) => {
-        const bItem = branchStock.find(b => b.productId === item.productId);
-        const prod = products.find(p => p.id === item.productId);
-        const unitCost = bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
-        return s + Math.round(item.weightKg * unitCost);
-      }, 0)
-    );
-  }, 0);
-
-  const totalCogsAmount = repCogsAmount + posCogsAmount;
+  const totalCogsAmount = repCogsAmount;
   const totalLiveBirdPurchases = filteredIntakes.reduce((sum, i) => sum + i.totalAmount, 0);
   const totalReturnsLoss = filteredReturns.reduce((sum, r) => sum + r.totalLossAmount, 0);
 
@@ -172,40 +146,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   }, 0);
 
-  const posGiftCost = filteredPosGiftSales.reduce((sum, sale) => {
-    if (sale.giftCost !== undefined && sale.giftCost > 0) return sum + sale.giftCost;
-    return (
-      sum +
-      sale.items.reduce((s, item) => {
-        const bItem = branchStock.find(b => b.productId === item.productId);
-        const prod = products.find(p => p.id === item.productId);
-        const unitCost = bItem?.factoryCostPerKg ?? prod?.costPerKg ?? 2750;
-        return s + Math.round(item.weightKg * unitCost);
-      }, 0)
-    );
-  }, 0);
-
-  const totalGiftCost = dispatchGiftCost + posGiftCost;
+  const totalGiftCost = dispatchGiftCost;
 
   const totalFactoryExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalStoreExpenses = filteredBranchExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalOperatingExpenses = totalFactoryExpenses + totalStoreExpenses;
+  const totalOperatingExpenses = totalFactoryExpenses;
 
   // True Net Operating Profit = Sales - (COGS + 3-Day Returns Loss + Gifts Cost + Operating Expenses)
   const netProfit =
     totalSalesRevenue - (totalCogsAmount + totalReturnsLoss + totalGiftCost + totalOperatingExpenses);
 
-  // Current Ending Inventory Valuation (Live + Ready + Showroom + Rep Custody)
+  // Current Ending Inventory Valuation (Live + Ready + Rep Custody)
   const currentInventoryValuation = useMemo(() => {
     const liveValue = intakes.reduce(
       (s, i) => s + Math.round(i.remainingLiveWeightKg * i.pricePerKg),
       0
     );
     const readyValue = products.reduce((s, p) => s + Math.round(p.inStockKg * p.costPerKg), 0);
-    const branchValue = branchStock.reduce(
-      (s, b) => s + Math.round(b.inStockKg * b.factoryCostPerKg),
-      0
-    );
     const repCustodyValue = products.reduce((s, p) => {
       const loaded = custodyTransfers
         .filter(
@@ -239,11 +195,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return {
       liveValue,
       readyValue,
-      branchValue,
       repCustodyValue,
-      total: liveValue + readyValue + branchValue + repCustodyValue,
+      total: liveValue + readyValue + repCustodyValue,
     };
-  }, [intakes, products, branchStock, custodyTransfers, dispatches]);
+  }, [intakes, products, custodyTransfers, dispatches]);
 
   const handleExportPnLCsv = () => {
     const periodLabel =
@@ -251,19 +206,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         ? 'کۆی گشتی'
         : `${dateBounds.start || '...'} تا ${dateBounds.end || '...'}`;
     const rows = [
-      ['ڕاپۆرتی قازانج و زەرەر (P&L)', factorySettings.factoryName, periodLabel],
+      ['ڕاپۆرتی قازانج و زەرەری کارگە (P&L)', factorySettings.factoryName, periodLabel],
       ['بڕگە', 'وردەکاری', 'بڕ (د.ع)'],
       ['داهاتی فرۆشتنی مەندوب', `${filteredSalesDispatches.length} وەسڵ`, String(repSalesRevenue)],
-      ['داهاتی فرۆشگای POS', `${filteredPosRegularSales.length} وەسڵ`, String(storePosRevenue)],
-      ['کۆی داهاتی فرۆشتن', '', String(totalSalesRevenue)],
-      ['تێچووی کاڵای فرۆشراو (COGS)', `مەندوب: ${repCogsAmount} | شۆرۆم: ${posCogsAmount}`, String(-totalCogsAmount)],
+      ['تێچووی کاڵای فرۆشراو (COGS)', `فرۆشی مەندوب`, String(-totalCogsAmount)],
       ['زیانی گەڕاوەی ٣ ڕۆژ (تەلەف)', `${filteredReturns.length} تۆمار`, String(-totalReturnsLoss)],
-      ['تێچووی دیاری و هەدیە', `کارگە/مەندوب: ${dispatchGiftCost} | شۆرۆم: ${posGiftCost}`, String(-totalGiftCost)],
-      ['خەرجی کارگە و شۆرۆم', `کارگە: ${totalFactoryExpenses} | شۆرۆم: ${totalStoreExpenses}`, String(-totalOperatingExpenses)],
+      ['تێچووی دیاری و هەدیە', `کارگە و مەندوب`, String(-totalGiftCost)],
+      ['خەرجی کارگە', `${filteredExpenses.length} تۆمار`, String(-totalOperatingExpenses)],
       ['پوختەی قازانجی خاوێن (Net Operating Profit)', '', String(netProfit)],
       ['---', '---', '---'],
       ['بڕی کڕینی کێڵگە لەم ماوەیەدا', `${filteredIntakes.length} وەسڵ`, String(totalLiveBirdPurchases)],
-      ['بەهای مەخزەنی ماوەی ئێستا', 'کۆگای وەرگرتن + ئامادە + کۆگای مەندوب + شۆرۆم', String(currentInventoryValuation.total)],
+      ['بەهای مەخزەنی ماوەی ئێستا', 'کۆگای وەرگرتن + ئامادە + کۆگای مەندوب', String(currentInventoryValuation.total)],
     ];
     const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -536,7 +489,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div>
               <span className="font-bold text-[#1D1D1F] text-sm block">کۆی داهاتی فرۆشتن (+)</span>
               <span className="text-[#515154] text-[11px] tabular-nums">
-                مەندوب ({repSalesRevenue.toLocaleString()} د.ع) + فرۆشگای POS ({storePosRevenue.toLocaleString()} د.ع)
+                فرۆشی مەندوب ({filteredSalesDispatches.length} وەسڵ)
               </span>
             </div>
             <span className="text-xl font-black text-[#248A3D] tabular-nums">
@@ -551,7 +504,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 تێچووی کاڵای فرۆشراو — COGS (-)
               </span>
               <span className="text-[#86868B] text-[11px] tabular-nums">
-                تێچووی تەنها ئەو کێشەی فرۆشراوە (مەندوب: {repCogsAmount.toLocaleString()} • شۆرۆم: {posCogsAmount.toLocaleString()})
+                تێچووی تەنها ئەو کێشەی لە کارگە و مەندوب فرۆشراوە
               </span>
             </div>
             <span className="text-base font-bold text-[#515154] tabular-nums">
@@ -563,7 +516,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="flex justify-between items-center p-4 rounded-2xl bg-[#FF3B30]/6 border border-[#FF3B30]/15">
             <div>
               <span className="font-bold text-[#D70015] block">زیانی گەڕاوەی ٣ ڕۆژ (تەلەف) (-)</span>
-              <span className="text-[#86868B] text-[11px]">گەڕێندراوەی بەسەرچوو لە مارکێتەکان و شۆرۆم</span>
+              <span className="text-[#86868B] text-[11px]">گەڕێندراوەی بەسەرچوو لە مارکێتەکان</span>
             </div>
             <span className="text-base font-bold text-[#D70015] tabular-nums">
               -{totalReturnsLoss.toLocaleString()} د.ع
@@ -575,7 +528,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div>
               <span className="font-bold text-[#AF52DE] block">تێچووی دیاری و هەدیە (-)</span>
               <span className="text-[#86868B] text-[11px] tabular-nums">
-                کارگە و عەهدە ({dispatchGiftCost.toLocaleString()} د.ع) + شۆرۆم POS ({posGiftCost.toLocaleString()} د.ع)
+                دیاری کارگە و مەندوب ({filteredGiftDispatches.length} وەسڵ)
               </span>
             </div>
             <span className="text-base font-bold text-[#AF52DE] tabular-nums">
@@ -588,7 +541,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div>
               <span className="font-bold text-[#1D1D1F] block">کۆی خەرجی بەڕێوەبردن (-)</span>
               <span className="text-[#86868B] text-[11px] tabular-nums">
-                کارگە ({totalFactoryExpenses.toLocaleString()} د.ع) + شۆرۆم ({totalStoreExpenses.toLocaleString()} د.ع)
+                خەرجییەکانی کارگە ({filteredExpenses.length} تۆمار)
               </span>
             </div>
             <span className="text-base font-bold text-[#FF9500] tabular-nums">
@@ -636,7 +589,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   بەهای مەخزەنی ماوەی ئێستا
                 </span>
                 <span className="text-[11px] text-[#515154] tabular-nums">
-                  کۆگای وەرگرتن {currentInventoryValuation.liveValue.toLocaleString()} • ئامادە {currentInventoryValuation.readyValue.toLocaleString()} • کۆگای مەندوب و شۆرۆم {(currentInventoryValuation.repCustodyValue + currentInventoryValuation.branchValue).toLocaleString()}
+                  کۆگای وەرگرتن {currentInventoryValuation.liveValue.toLocaleString()} • ئامادە {currentInventoryValuation.readyValue.toLocaleString()} • کۆگای مەندوب {currentInventoryValuation.repCustodyValue.toLocaleString()}
                 </span>
               </div>
               <span className="font-black text-[#248A3D] tabular-nums text-sm">

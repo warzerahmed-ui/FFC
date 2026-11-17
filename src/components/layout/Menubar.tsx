@@ -226,7 +226,7 @@ const MENU_GROUPS: MenuGroup[] = [
         id: 'reports',
         reportSubTab: 'DAILY',
         label: '٥. ڕاپۆرت و تەسفییەی ڕۆژانە',
-        description: 'تەسفییەی ڕۆژانەی مەندوب و شۆرۆم',
+        description: 'تەسفییەی ڕۆژانەی مەندوبەکانی کارگە',
         badge: 'تەسفییە',
         icon: Calendar,
       },

@@ -24,8 +24,6 @@ import { DailySettlement, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
-const BRANCH_ACCOUNT_NAME = 'فرۆشگای تایبەت (POS / شۆرۆم)';
-
 interface DailyReceiptRow {
   id: string;
   receiptNo: string;
@@ -64,10 +62,8 @@ interface AccountDailySummary {
 export const DailySettlementView: React.FC = () => {
   const {
     dispatches,
-    posSales,
     returns,
     vouchers,
-    branchExpenses,
     custodyTransfers,
     settlements,
     currentUser,
@@ -79,7 +75,6 @@ export const DailySettlementView: React.FC = () => {
 
   const todayISO = toLocalISODate();
   const [selectedDate, setSelectedDate] = useState<string>(todayISO);
-  const [accountFilter, setAccountFilter] = useState<'ALL' | 'BRANCH' | 'REP'>('ALL');
   const [historyScope, setHistoryScope] = useState<'DATE' | 'ALL'>('ALL');
 
   // Statement Preview & Print Modal
@@ -101,11 +96,9 @@ export const DailySettlementView: React.FC = () => {
     dispatches
       .filter(d => d.destinationType === 'REP')
       .forEach(d => set.add(d.date.slice(0, 10)));
-    posSales.forEach(s => set.add(s.date.slice(0, 10)));
-    branchExpenses.forEach(e => set.add(e.date.slice(0, 10)));
     settlements.forEach(s => set.add(s.date.slice(0, 10)));
     return Array.from(set).sort((a, b) => b.localeCompare(a));
-  }, [dispatches, posSales, branchExpenses, settlements, todayISO]);
+  }, [dispatches, settlements, todayISO]);
 
   // Build daily account summaries for selectedDate
   const accountSummaries: AccountDailySummary[] = useMemo(() => {
@@ -130,43 +123,7 @@ export const DailySettlementView: React.FC = () => {
       let returnsAmount = 0;
       let expensesList: { id: string; title: string; amount: number; time?: string }[] = [];
 
-      if (accountType === 'BRANCH') {
-        const dayPos = posSales.filter(s => s.date.slice(0, 10) === selectedDate);
-        receipts = dayPos.map(s => ({
-          id: s.id,
-          receiptNo: s.saleNo,
-          time: s.time || (s.date.includes(' ') ? s.date.split(' ')[1] : '---'),
-          partyLabel: s.customerName
-            ? `${s.customerName} (کاشێر: ${s.cashierName})`
-            : `فرۆشی کاشێر (${s.cashierName})`,
-          paymentKind:
-            s.paymentType === 'FIB_OR_CARD'
-              ? 'CARD'
-              : s.paymentType === 'DEBT'
-              ? 'CREDIT'
-              : 'CASH',
-          weightKg: Number(
-            s.items.reduce((sum, i) => sum + i.weightKg, 0).toFixed(2)
-          ),
-          amount: s.total,
-        }));
-
-        expensesList = branchExpenses
-          .filter(e => e.date.slice(0, 10) === selectedDate)
-          .map(e => ({ id: e.id, title: e.title, amount: e.amount, time: e.time }));
-
-        const branchReturnsToday = returns.filter(
-          r => r.date.slice(0, 10) === selectedDate && r.sourceType === 'BRANCH'
-        );
-        returnsCount = branchReturnsToday.length;
-        returnsWeightKg = Number(
-          branchReturnsToday.reduce((s, r) => s + r.totalWeightKg, 0).toFixed(2)
-        );
-        returnsAmount = branchReturnsToday.reduce(
-          (s, r) => s + (r.totalCustomerDeduction ?? r.totalLossAmount),
-          0
-        );
-      } else {
+      if (accountType === 'REP') {
         const shortName = accountName.split(' (')[0];
         const dayRep = dispatches.filter(
           d =>
@@ -209,28 +166,14 @@ export const DailySettlementView: React.FC = () => {
       let cashSalesAmount = receipts
         .filter(r => r.paymentKind === 'CASH')
         .reduce((s, r) => s + r.amount, 0);
-      let cardSalesAmount = receipts
+      const cardSalesAmount = receipts
         .filter(r => r.paymentKind === 'CARD')
         .reduce((s, r) => s + r.amount, 0);
       const creditSalesAmount = receipts
         .filter(r => r.paymentKind === 'CREDIT')
         .reduce((s, r) => s + r.amount, 0);
 
-      let posCashDebtCollected = 0;
-      if (accountType === 'BRANCH') {
-        const dayPos = posSales.filter(s => s.date.slice(0, 10) === selectedDate);
-        cashSalesAmount = dayPos.reduce(
-          (sum, s) => sum + (s.paymentType === 'CASH' ? s.total : s.paymentType === 'SPLIT' ? s.cashAmount || 0 : 0),
-          0
-        );
-        cardSalesAmount = dayPos.reduce(
-          (sum, s) => sum + (s.paymentType === 'FIB_OR_CARD' ? s.total : s.paymentType === 'SPLIT' ? s.cardAmount || 0 : 0),
-          0
-        );
-        posCashDebtCollected = vouchers
-          .filter(v => v.collectedAtPos && v.paymentMethod === 'CASH' && v.date.slice(0, 10) === selectedDate)
-          .reduce((sum, v) => sum + v.amount, 0);
-      }
+      const posCashDebtCollected = 0;
       const totalSalesAmount = cashSalesAmount + cardSalesAmount + creditSalesAmount;
       const totalWeightKg = Number(
         receipts.reduce((s, r) => s + r.weightKg, 0).toFixed(2)
@@ -318,38 +261,27 @@ export const DailySettlementView: React.FC = () => {
     };
 
     const list: AccountDailySummary[] = [
-      buildSummary('BRANCH', BRANCH_ACCOUNT_NAME),
       ...Array.from(repSet).map(name => buildSummary('REP', name)),
     ];
     return list;
   }, [
     selectedDate,
-    posSales,
     dispatches,
     returns,
     vouchers,
-    branchExpenses,
     custodyTransfers,
     settlements,
   ]);
 
   const filteredSummaries = useMemo(() => {
-    const byType =
-      accountFilter === 'ALL'
-        ? accountSummaries
-        : accountSummaries.filter(a => a.accountType === accountFilter);
-
     // Show accounts with activity first
-    return [...byType].sort((a, b) => {
+    return [...accountSummaries].sort((a, b) => {
       const aActive = a.dayState !== 'NO_ACTIVITY' ? 1 : 0;
       const bActive = b.dayState !== 'NO_ACTIVITY' ? 1 : 0;
       if (aActive !== bActive) return bActive - aActive;
-      if (a.accountType !== b.accountType) {
-        return a.accountType === 'BRANCH' ? -1 : 1;
-      }
       return b.totalSalesAmount - a.totalSalesAmount;
     });
-  }, [accountSummaries, accountFilter]);
+  }, [accountSummaries]);
 
   // Top KPI totals for selectedDate
   const dayKpis = useMemo(() => {
@@ -489,9 +421,8 @@ export const DailySettlementView: React.FC = () => {
       historyScope === 'DATE'
         ? settlements.filter(s => s.date.slice(0, 10) === selectedDate)
         : settlements;
-    if (accountFilter === 'ALL') return list;
-    return list.filter(s => s.accountType === accountFilter);
-  }, [settlements, historyScope, selectedDate, accountFilter]);
+    return list.filter(s => s.accountType === 'REP');
+  }, [settlements, historyScope, selectedDate]);
 
   const renderStatusBadge = (acc: AccountDailySummary) => {
     switch (acc.dayState) {
@@ -584,34 +515,8 @@ export const DailySettlementView: React.FC = () => {
                 />
               </div>
 
-              <div className="apple-segmented text-xs">
-                <button
-                  type="button"
-                  onClick={() => setAccountFilter('ALL')}
-                  className={`apple-segment-btn ${
-                    accountFilter === 'ALL' ? 'apple-segment-btn-active' : ''
-                  }`}
-                >
-                  هەموو
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountFilter('BRANCH')}
-                  className={`apple-segment-btn ${
-                    accountFilter === 'BRANCH' ? 'apple-segment-btn-active' : ''
-                  }`}
-                >
-                  شۆرۆم (POS)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountFilter('REP')}
-                  className={`apple-segment-btn ${
-                    accountFilter === 'REP' ? 'apple-segment-btn-active' : ''
-                  }`}
-                >
-                  مەندوبەکان
-                </button>
+              <div className="text-xs font-bold text-[#86868B] px-3 py-1.5 rounded-full bg-[#F5F5F7]">
+                مەندوبەکانی کارگە ({filteredSummaries.length})
               </div>
             </div>
           </div>
