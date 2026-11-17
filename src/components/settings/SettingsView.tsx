@@ -28,7 +28,11 @@ import {
   Image as ImageIcon,
   MessageCircle,
   ExternalLink,
+  QrCode,
+  Share2,
+  Copy,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import {
   ActivityCategory,
@@ -229,6 +233,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     });
     showToast('زانیارییەکانی کارگە بە سەرکەوتوویی پاشەکەوت کرا', 'success');
   };
+
+  // System Share / QR Code States
+  const [qrMode, setQrMode] = useState<'PUBLIC' | 'LOGIN'>('PUBLIC');
+  const [publicQrUrl, setPublicQrUrl] = useState<string>('');
+  const [staffQrUrl, setStaffQrUrl] = useState<string>('');
+  const [showQrPosterModal, setShowQrPosterModal] = useState(false);
+
+  const systemOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://ffc-erp.pages.dev';
+  const publicPortalLink = `${systemOrigin}/`;
+  const staffLoginLink = `${systemOrigin}/?login=1`;
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(publicPortalLink, {
+      width: 320,
+      margin: 2,
+      color: { dark: '#1D1D1F', light: '#FFFFFF' },
+    })
+      .then(url => {
+        if (!cancelled) setPublicQrUrl(url);
+      })
+      .catch(() => {});
+
+    QRCode.toDataURL(staffLoginLink, {
+      width: 320,
+      margin: 2,
+      color: { dark: '#1D1D1F', light: '#FFFFFF' },
+    })
+      .then(url => {
+        if (!cancelled) setStaffQrUrl(url);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [publicPortalLink, staffLoginLink]);
 
   // ==========================================
   // 2. ACCOUNTS STATE (Never exposes isSuperAdmin)
@@ -840,6 +884,133 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* System Share Link & QR Code Card */}
+            <div className="apple-card p-5 space-y-3.5">
+              <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
+                <div className="text-xs font-extrabold text-[#1D1D1F] flex items-center gap-1.5">
+                  <QrCode className="w-4 h-4 text-[#0071E3]" />
+                  شەیرکردن و بارکۆدی QRی سیستم
+                </div>
+              </div>
+
+              <div className="flex gap-1.5 bg-[#F5F5F7] p-1 rounded-xl text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setQrMode('PUBLIC')}
+                  className={`flex-1 py-1.5 rounded-lg font-bold transition-all ${
+                    qrMode === 'PUBLIC'
+                      ? 'bg-white text-[#0071E3] shadow-2xs'
+                      : 'text-[#515154]'
+                  }`}
+                >
+                  گشتی (فرۆشگا و ستاف)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrMode('LOGIN')}
+                  className={`flex-1 py-1.5 rounded-lg font-bold transition-all ${
+                    qrMode === 'LOGIN'
+                      ? 'bg-white text-[#1D1D1F] shadow-2xs'
+                      : 'text-[#515154]'
+                  }`}
+                >
+                  لۆگینی ستاف
+                </button>
+              </div>
+
+              {(() => {
+                const activeLink = qrMode === 'PUBLIC' ? publicPortalLink : staffLoginLink;
+                const activeQr = qrMode === 'PUBLIC' ? publicQrUrl : staffQrUrl;
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-2xl bg-white border border-black/[0.06] flex flex-col items-center text-center gap-2">
+                      {activeQr ? (
+                        <img
+                          src={activeQr}
+                          alt="QR Code"
+                          className="w-40 h-40 rounded-xl border border-black/[0.05]"
+                        />
+                      ) : (
+                        <div className="w-40 h-40 rounded-xl bg-[#F5F5F7] flex items-center justify-center text-[11px] text-[#86868B]">
+                          دروستکردنی QR...
+                        </div>
+                      )}
+                      <div dir="ltr" className="text-[11px] font-mono font-bold text-[#0071E3] break-all">
+                        {activeLink}
+                      </div>
+                      <p className="text-[10px] text-[#86868B] leading-relaxed">
+                        {qrMode === 'PUBLIC'
+                          ? 'کەسی دەرەوە بە مۆبایل وێنەی بگرێت ڕاستەوخۆ بەرهەمەکان دەبینێت و بە واتسئەپ ئۆردەر دەنێرێت؛ ستافیش دەتوانێت لێیەوە بچێتە ژوورەوە.'
+                          : 'تایبەت بە کارمەند و مەندوبەکان بۆ کردنەوەی ڕاستەوخۆی پەڕەی چوونەژوورەوە (Login).'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(activeLink);
+                          showToast('لینکەکە کۆپی کرا', 'success');
+                        }}
+                        className="py-2 px-3 rounded-xl bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] font-bold flex items-center justify-center gap-1"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        کۆپی لینک
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (navigator.share) {
+                            try {
+                              await navigator.share({
+                                title: factoryForm.factoryName,
+                                text: `${factoryForm.factoryName} — لینک بۆ بینینی بەرهەمەکان و چوونەژوورەوە`,
+                                url: activeLink,
+                              });
+                              return;
+                            } catch {
+                              // fallback to WhatsApp share
+                            }
+                          }
+                          window.open(
+                            `https://wa.me/?text=${encodeURIComponent(`${factoryForm.factoryName}\n${activeLink}`)}`,
+                            '_blank'
+                          );
+                        }}
+                        className="py-2 px-3 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#1B7A34] font-bold flex items-center justify-center gap-1"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        شەیرکردن
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!activeQr}
+                        onClick={() => {
+                          if (!activeQr) return;
+                          const a = document.createElement('a');
+                          a.href = activeQr;
+                          a.download = `QR-${factoryForm.shortCode}-${qrMode.toLowerCase()}.png`;
+                          a.click();
+                        }}
+                        className="py-2 px-3 rounded-xl bg-[#0071E3]/10 hover:bg-[#0071E3]/20 text-[#0071E3] font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        دابەزاندنی QR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrPosterModal(true)}
+                        className="py-2 px-3 rounded-xl bg-[#1D1D1F] hover:bg-black text-white font-bold flex items-center justify-center gap-1"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        پرینتکردنی QR
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* System Backup & Restore Card */}
@@ -1744,6 +1915,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Printable QR Poster Modal */}
+      {showQrPosterModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-[28px] w-full max-w-sm p-6 shadow-2xl border border-black/[0.08] space-y-4 text-center apple-sheet">
+            <div className="flex items-center justify-between no-print pb-2 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">پۆستەری بارکۆدی QR بۆ پرینت</h4>
+              <button
+                type="button"
+                onClick={() => setShowQrPosterModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 rounded-2xl border-2 border-dashed border-black/15 bg-white space-y-3">
+              <div className="flex justify-center">
+                <FactoryLogo
+                  size="lg"
+                  logoUrlOverride={factoryForm.logoUrl}
+                  altOverride={factoryForm.factoryName}
+                />
+              </div>
+              <div>
+                <div className="font-black text-base text-[#1D1D1F]">{factoryForm.factoryName}</div>
+                <div className="text-[11px] text-[#86868B] mt-0.5">
+                  {qrMode === 'PUBLIC'
+                    ? 'سکان بکە بۆ بینینی بەرهەمەکان و داواکردن بە واتسئەپ (یان چوونەژوورەوەی ستاف)'
+                    : 'سکان بکە بۆ چوونە ژوورەوەی ستاف و مەندوبەکان'}
+                </div>
+              </div>
+
+              <div className="flex justify-center py-1">
+                {(qrMode === 'PUBLIC' ? publicQrUrl : staffQrUrl) && (
+                  <img
+                    src={qrMode === 'PUBLIC' ? publicQrUrl : staffQrUrl}
+                    alt="QR Poster"
+                    className="w-56 h-56 rounded-2xl border border-black/[0.08]"
+                  />
+                )}
+              </div>
+
+              <div dir="ltr" className="text-xs font-mono font-bold text-[#0071E3] break-all">
+                {qrMode === 'PUBLIC' ? publicPortalLink : staffLoginLink}
+              </div>
+
+              {factoryForm.orderWhatsapp && (
+                <div className="text-[11px] font-bold text-[#1B7A34] bg-[#25D366]/10 py-1.5 px-3 rounded-full inline-block">
+                  واتسئەپی ئۆنلاین ئۆردەر: <span dir="ltr">{factoryForm.orderWhatsapp}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="w-full py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 no-print"
+            >
+              <Printer className="w-4 h-4" />
+              پرینتکردنی پۆستەر
+            </button>
           </div>
         </div>
       )}
