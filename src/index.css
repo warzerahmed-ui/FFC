@@ -2,6 +2,14 @@
 
 @layer base {
   html,
+  body,
+  #root {
+    overflow-x: hidden;
+    max-width: 100%;
+    overscroll-behavior-x: none;
+  }
+
+  html,
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Arabic", "Inter", "Vazirmatn", system-ui, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -12,6 +20,13 @@
     overscroll-behavior-y: none;
     background-color: #F5F5F7;
     color: #1D1D1F;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    min-width: 0;
   }
 
   h1, h2, h3, h4 {

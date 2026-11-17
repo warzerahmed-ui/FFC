@@ -358,23 +358,23 @@ export const LiveIntakeView: React.FC = () => {
 
       {/* Apple Sheet Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-[28px] w-full max-w-2xl overflow-hidden shadow-2xl border border-black/[0.08] apple-sheet">
-            <div className="p-5 bg-[#FBFBFD] border-b border-black/[0.06] flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-[#1D1D1F] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#0071E3]" />
-                تۆمارکردنی وەجبەی نوێ بە وەسڵی دەستی
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-x-hidden">
+          <div className="bg-white rounded-[24px] sm:rounded-[28px] w-full max-w-2xl min-w-0 overflow-hidden shadow-2xl border border-black/[0.08] apple-sheet">
+            <div className="p-4 sm:p-5 bg-[#FBFBFD] border-b border-black/[0.06] flex items-center justify-between gap-2">
+              <h3 className="text-xs sm:text-sm font-extrabold text-[#1D1D1F] flex items-center gap-2 min-w-0 truncate">
+                <FileText className="w-4 h-4 text-[#0071E3] shrink-0" />
+                <span className="truncate">تۆمارکردنی وەجبەی نوێ بە وەسڵی دەستی</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F] flex items-center justify-center"
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] hover:text-[#1D1D1F] flex items-center justify-center shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto overflow-x-hidden">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[#515154] font-semibold mb-1">ژمارەی وەسڵی دەستی *</label>
