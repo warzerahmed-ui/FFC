@@ -65,7 +65,7 @@ interface MenuSubItem {
 }
 
 interface MenuGroup {
-  key: 'dashboard' | 'factory' | 'sales' | 'gifts-expenses' | 'showroom' | 'finance';
+  key: 'dashboard' | 'factory' | 'showroom' | 'finance';
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   directTab?: TabType;
@@ -90,48 +90,33 @@ const MENU_GROUPS: MenuGroup[] = [
   },
   {
     key: 'factory',
-    label: 'کۆگای وەرگرتن',
+    label: 'کارگە',
     icon: Truck,
-    directTab: 'intake',
     items: [
       {
         id: 'intake',
-        label: 'کۆگای وەرگرتن (وەسڵی کێڵگە)',
+        label: '١. کۆگای وەرگرتن',
         description: 'تۆمارکردنی وەسڵ و کێشی مریشکی وەرگیراو لە کێڵگەکان',
         badge: 'وەرگرتن',
         icon: Truck,
       },
-    ],
-  },
-  {
-    key: 'sales',
-    label: 'ناردن و فرۆشتن',
-    icon: ShoppingBag,
-    items: [
       {
         id: 'custody',
-        label: '١. کۆگای مەندوب',
+        label: '٢. کۆگای مەندوب',
         description: 'بارکردن و بەدواداچوونی کۆگای مەندوبەکان',
-        badge: 'قۆناغی ١',
+        badge: 'مەندوب',
         icon: ClipboardList,
       },
       {
         id: 'rep-sales',
-        label: '٢. فرۆشتنی مەندوب و گەڕاوە',
+        label: '٣. فرۆشتنی مەندوب و گەڕاوە',
         description: 'وەسڵی دەستی و گەڕاوەی ٣ ڕۆژی مارکێتەکان',
-        badge: 'قۆناغی ٢',
+        badge: 'فرۆشتن',
         icon: Send,
       },
-    ],
-  },
-  {
-    key: 'gifts-expenses',
-    label: 'هەدیە و خەرجی',
-    icon: Gift,
-    items: [
       {
         id: 'gifts',
-        label: '١. دیاری و هەدیە',
+        label: '٤. دیاری و هەدیە',
         description: 'بەخشینی بێبەرامبەر بە تێچووی کارگە',
         badge: 'هەدیە',
         icon: Gift,
@@ -139,7 +124,7 @@ const MENU_GROUPS: MenuGroup[] = [
       {
         id: 'reports',
         reportSubTab: 'EXPENSES',
-        label: '٢. خەرجییەکانی کارگە',
+        label: '٥. خەرجییەکانی کارگە',
         description: 'تۆمارکردن و بەدواداچوونی خەرجییەکانی کارگە',
         badge: 'خەرجی',
         icon: DollarSign,
@@ -148,7 +133,7 @@ const MENU_GROUPS: MenuGroup[] = [
   },
   {
     key: 'showroom',
-    label: 'فرۆشگای شۆرۆم (POS)',
+    label: 'شۆرۆم',
     icon: ShoppingBag,
     items: [
       {
@@ -195,7 +180,7 @@ const MENU_GROUPS: MenuGroup[] = [
   },
   {
     key: 'finance',
-    label: 'ژمێریاری و ڕاپۆرت',
+    label: 'ژمێریاری',
     icon: Calculator,
     items: [
       {
