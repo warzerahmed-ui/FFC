@@ -15,7 +15,6 @@ import {
   X,
   Scale,
   Receipt,
-  Percent,
   Edit3,
   AlertCircle,
   MessageCircle,
@@ -193,6 +192,7 @@ export const POSView: React.FC<POSViewProps> = ({
   const [searchFilter, setSearchFilter] = useState('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<'CASH' | 'FIB_OR_CARD' | 'SPLIT' | 'DEBT' | 'GIFT'>('CASH');
   const [cashGiven, setCashGiven] = useState<string>('');
   const [splitCashAmount, setSplitCashAmount] = useState<string>('');
@@ -593,6 +593,7 @@ export const POSView: React.FC<POSViewProps> = ({
     setCart([]);
     setDiscountAmount(0);
     setDiscountPercent(0);
+    setFinalOverrideInput(null);
     setCashGiven('');
     setSplitCashAmount('');
     setGiftNote('');
@@ -629,6 +630,7 @@ export const POSView: React.FC<POSViewProps> = ({
     setCart(target.items);
     setDiscountPercent(target.discountPercent);
     setDiscountAmount(target.discountAmount);
+    setFinalOverrideInput(null);
     setCustomerNameInput(target.customerName || 'کڕیاری ئاسایی نەقد');
     setHeldOrders(prev => prev.filter(o => o.id !== orderId));
     playPosBeep('success');
@@ -1693,33 +1695,33 @@ export const POSView: React.FC<POSViewProps> = ({
                       className="apple-input px-3 py-1.5 text-xs font-medium"
                     />
                   ) : (
-                    <div className="flex items-center gap-1 bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-2">
-                      <Percent className="w-3.5 h-3.5 text-[#FF9500] shrink-0" />
+                    <div className="bg-[#F5F5F7] border border-black/[0.06] rounded-xl px-3 py-2 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-[#515154]">کۆی پارە دوای داشکاندن (د.ع)</span>
+                        {calculatedDiscount > 0 && (
+                          <span className="font-bold text-[#248A3D] tabular-nums">
+                            داشکاندن: -{calculatedDiscount.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="number"
-                        placeholder="داشکاندن د.ع"
-                        value={discountAmount || ''}
+                        min="0"
+                        step="250"
+                        value={finalOverrideInput !== null ? finalOverrideInput : String(netTotal)}
                         onChange={e => {
-                          setDiscountAmount(parseFloat(e.target.value) || 0);
+                          const v = e.target.value;
+                          setFinalOverrideInput(v);
                           setDiscountPercent(0);
-                        }}
-                        className="bg-transparent w-full py-1.5 text-xs font-semibold outline-none tabular-nums"
-                      />
-                      {[5, 10].map(pct => (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => {
-                            setDiscountPercent(discountPercent === pct ? 0 : pct);
+                          if (v === '') {
                             setDiscountAmount(0);
-                          }}
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
-                            discountPercent === pct ? 'bg-[#FF9500] text-white' : 'bg-white text-[#515154]'
-                          }`}
-                        >
-                          {pct}%
-                        </button>
-                      ))}
+                          } else {
+                            const num = parseFloat(v) || 0;
+                            setDiscountAmount(subtotal > num ? subtotal - num : 0);
+                          }
+                        }}
+                        className="w-full bg-white border border-[#0071E3]/40 rounded-lg px-2.5 py-1.5 text-xs font-black text-[#0071E3] outline-none focus:border-[#0071E3] tabular-nums"
+                      />
                     </div>
                   )}
                 </div>
