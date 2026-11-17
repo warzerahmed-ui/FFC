@@ -562,7 +562,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       case 'INTAKE':
         return 'وەرگرتن';
       case 'PRODUCTION':
-        return 'بەرهەمهێنان';
+        return 'کۆگای ئامادە';
       case 'CUSTODY':
         return 'کۆگای مەندوب';
       case 'SALES':
@@ -1012,6 +1012,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 );
               })()}
             </div>
+
+            {/* Custom Expense Categories Cleanup Card */}
+            {((factorySettings.customExpenseCategories?.length || 0) > 0 ||
+              (factorySettings.customBranchExpenseCategories?.length || 0) > 0) && (
+              <div className="apple-card p-5 space-y-3">
+                <div className="text-xs font-extrabold text-[#1D1D1F] pb-2 border-b border-black/[0.06]">
+                  جۆرە زیادکراوەکانی خەرجی
+                </div>
+                {(factorySettings.customExpenseCategories?.length || 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-[#86868B] block">کارگە:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(factorySettings.customExpenseCategories || []).map(cat => (
+                        <span
+                          key={`fac-${cat}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F5F5F7] text-[#1D1D1F] text-[11px] font-bold"
+                        >
+                          {cat}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateFactorySettings({
+                                customExpenseCategories: (
+                                  factorySettings.customExpenseCategories || []
+                                ).filter(c => c !== cat),
+                              })
+                            }
+                            className="text-[#FF3B30] hover:text-[#D70015]"
+                            title="سڕینەوە"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(factorySettings.customBranchExpenseCategories?.length || 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-[#86868B] block">شۆرۆم:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(factorySettings.customBranchExpenseCategories || []).map(cat => (
+                        <span
+                          key={`sh-${cat}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F5F5F7] text-[#1D1D1F] text-[11px] font-bold"
+                        >
+                          {cat}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateFactorySettings({
+                                customBranchExpenseCategories: (
+                                  factorySettings.customBranchExpenseCategories || []
+                                ).filter(c => c !== cat),
+                              })
+                            }
+                            className="text-[#FF3B30] hover:text-[#D70015]"
+                            title="سڕینەوە"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* System Backup & Restore Card */}
             <div className="apple-card p-5 space-y-3.5">
@@ -1533,7 +1601,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <option value="ALL">هەموو بەشەکان</option>
                 <option value="AUTH">چوونەژوورەوە</option>
                 <option value="INTAKE">وەرگرتن</option>
-                <option value="PRODUCTION">بەرهەمهێنان</option>
                 <option value="CUSTODY">کۆگای مەندوب</option>
                 <option value="SALES">فرۆشتن</option>
                 <option value="RETURN">گەڕاوە</option>
