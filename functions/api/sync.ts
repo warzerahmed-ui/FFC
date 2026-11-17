@@ -22,6 +22,7 @@ const ALLOWED_KEYS = new Set([
   'branchExpenses',
   'custodyTransfers',
   'settlements',
+  'showroomHandovers',
   'users',
   'factorySettings',
   'trashItems',
@@ -80,6 +81,7 @@ const WRITE_KEY_TABS: Record<string, string[]> = {
   branchExpenses: ['pos'],
   expenses: ['reports', 'accounting'],
   settlements: ['reports', 'accounting'],
+  showroomHandovers: ['pos', 'accounting', 'reports'],
   vouchers: ['pos', 'accounting'],
 };
 
@@ -99,6 +101,7 @@ const READ_KEY_TABS: Record<string, string[]> = {
   expenses: ['accounting', 'reports'],
   vouchers: ['custody', 'pos', 'accounting', 'reports'],
   settlements: ['accounting', 'reports'],
+  showroomHandovers: ['pos', 'accounting', 'reports'],
 };
 
 interface UserRecord {

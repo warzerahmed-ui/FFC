@@ -370,6 +370,23 @@ export interface BranchExpense {
   notes?: string;
 }
 
+export interface ShowroomHandover {
+  id: string;
+  handoverNo: string;
+  date: string;
+  time: string;
+  submittedBy: string;
+  cashAmount: number;
+  cardAmount: number;
+  totalAmount: number;
+  expectedCashAtClose?: number;
+  notes?: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  acceptedBy?: string;
+  acceptedAt?: string;
+  rejectionReason?: string;
+}
+
 export interface CustodyTransfer {
   id: string;
   receiptNo: string;

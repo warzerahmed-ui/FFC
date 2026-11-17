@@ -16,6 +16,7 @@ import {
   BranchExpense,
   CustodyTransfer,
   DailySettlement,
+  ShowroomHandover,
   User,
   FactorySettings,
   TrashEntityType,
@@ -86,6 +87,10 @@ interface AppContextType {
 
   // Daily Rep & Showroom Financial Settlements
   settlements: DailySettlement[];
+  showroomHandovers: ShowroomHandover[];
+  submitShowroomHandover: (handover: Omit<ShowroomHandover, 'id' | 'handoverNo' | 'status'>) => ShowroomHandover;
+  acceptShowroomHandover: (handoverId: string) => void;
+  rejectShowroomHandover: (handoverId: string, reason?: string) => void;
 
   // Authentication & Users
   currentUser: User;
@@ -286,6 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [branchExpenses, setBranchExpenses] = useState<BranchExpense[]>([]);
   const [custodyTransfers, setCustodyTransfers] = useState<CustodyTransfer[]>([]);
   const [settlements, setSettlements] = useState<DailySettlement[]>([]);
+  const [showroomHandovers, setShowroomHandovers] = useState<ShowroomHandover[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [factorySettings, setFactorySettings] = useState<FactorySettings>(DEFAULT_FACTORY_SETTINGS);
   const [trashItems, setTrashItems] = useState<SoftDeletedItem[]>([]);
@@ -337,6 +343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchExpenses([]);
     setCustodyTransfers([]);
     setSettlements([]);
+    setShowroomHandovers([]);
     setUsers([]);
     setFactorySettings(DEFAULT_FACTORY_SETTINGS);
     setTrashItems([]);
@@ -365,6 +372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchExpenses,
       custodyTransfers,
       settlements,
+      showroomHandovers,
       users,
       factorySettings,
       trashItems,
@@ -385,6 +393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchExpenses,
       custodyTransfers,
       settlements,
+      showroomHandovers,
       users,
       factorySettings,
       trashItems,
@@ -458,6 +467,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(d.settlements)) {
         setSettlements(d.settlements as DailySettlement[]);
         recordKey('settlements', d.settlements);
+      }
+      if (Array.isArray(d.showroomHandovers)) {
+        setShowroomHandovers(d.showroomHandovers as ShowroomHandover[]);
+        recordKey('showroomHandovers', d.showroomHandovers);
       }
       if (Array.isArray(d.users)) {
         const nextUsers = d.users as User[];
@@ -1872,6 +1885,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const submitShowroomHandover = (
+    payload: Omit<ShowroomHandover, 'id' | 'handoverNo' | 'status'>
+  ): ShowroomHandover => {
+    const num = showroomHandovers.length + 101;
+    const record: ShowroomHandover = {
+      ...payload,
+      id: `sh-ho-${genId()}`,
+      handoverNo: `SH-HO-${num}`,
+      status: 'PENDING',
+    };
+    setShowroomHandovers(prev => [record, ...prev]);
+    recordActivity(
+      'FINANCE',
+      'CREATE',
+      'ناردنی پارەی تەسلیمکراوی شۆرۆم بۆ کارگە',
+      `${record.handoverNo} • ${record.totalAmount.toLocaleString()} د.ع`,
+      record.handoverNo
+    );
+    return record;
+  };
+
+  const acceptShowroomHandover = (handoverId: string) => {
+    const target = showroomHandovers.find(h => h.id === handoverId);
+    if (!target || target.status !== 'PENDING') return;
+    const acceptedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setShowroomHandovers(prev =>
+      prev.map(h =>
+        h.id === handoverId
+          ? { ...h, status: 'ACCEPTED', acceptedBy: currentUser.name, acceptedAt }
+          : h
+      )
+    );
+    recordActivity(
+      'FINANCE',
+      'UPDATE',
+      'وەرگرتن و ئەکسیپتی پارەی شۆرۆم لە کارگە',
+      `${target.handoverNo} • +${target.totalAmount.toLocaleString()} د.ع`,
+      target.handoverNo
+    );
+  };
+
+  const rejectShowroomHandover = (handoverId: string, reason?: string) => {
+    const target = showroomHandovers.find(h => h.id === handoverId);
+    if (!target || target.status !== 'PENDING') return;
+    const acceptedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setShowroomHandovers(prev =>
+      prev.map(h =>
+        h.id === handoverId
+          ? {
+              ...h,
+              status: 'REJECTED',
+              acceptedBy: currentUser.name,
+              acceptedAt,
+              rejectionReason: reason,
+            }
+          : h
+      )
+    );
+    recordActivity(
+      'FINANCE',
+      'UPDATE',
+      'ڕەتکردنەوەی تەسلیمکردنی پارەی شۆرۆم',
+      `${target.handoverNo}${reason ? ` • ${reason}` : ''}`,
+      target.handoverNo
+    );
+  };
+
   const addDailySettlement = (data: Omit<DailySettlement, 'id'>): DailySettlement => {
     if (!hasAccess('reports') && !hasAccess('accounting')) {
       return { ...data, id: '' };
@@ -2482,6 +2562,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchExpenses,
         custodyTransfers,
         settlements,
+        showroomHandovers,
+        submitShowroomHandover,
+        acceptShowroomHandover,
+        rejectShowroomHandover,
         users,
         factorySettings,
         trashItems,
@@ -2519,6 +2603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(d.branchExpenses)) setBranchExpenses(d.branchExpenses);
       if (Array.isArray(d.custodyTransfers)) setCustodyTransfers(d.custodyTransfers);
       if (Array.isArray(d.settlements)) setSettlements(d.settlements);
+      if (Array.isArray(d.showroomHandovers)) setShowroomHandovers(d.showroomHandovers);
       if (Array.isArray(d.users)) setUsers(d.users);
       if (d.factorySettings && typeof d.factorySettings === 'object') {
         setFactorySettings(prev => ({ ...prev, ...d.factorySettings }));
@@ -2553,6 +2638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBranchExpenses([]);
     setCustodyTransfers([]);
     setSettlements([]);
+    setShowroomHandovers([]);
     setTrashItems([]);
     setProducts(prev => prev.map(p => ({ ...p, inStockKg: 0 })));
     setBranchStock(prev => prev.map(b => ({ ...b, inStockKg: 0 })));
@@ -2590,6 +2676,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchExpenses,
         custodyTransfers,
         settlements,
+        showroomHandovers,
+        submitShowroomHandover,
+        acceptShowroomHandover,
+        rejectShowroomHandover,
         currentUser,
         users,
         login,

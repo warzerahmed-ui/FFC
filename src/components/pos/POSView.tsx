@@ -28,7 +28,7 @@ import {
   CheckCircle,
   UserCheck,
 } from 'lucide-react';
-import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, PaymentVoucher, roundTo250 } from '../../types';
+import { POSSaleItem, POSSale, ProductItem, BranchStockItem, Customer, PaymentVoucher, ShowroomHandover, roundTo250 } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
@@ -150,11 +150,13 @@ export const POSView: React.FC<POSViewProps> = ({
     customers,
     vouchers,
     branchExpenses,
+    showroomHandovers,
     users,
     currentUser,
     factorySettings,
     updateFactorySettings,
     addPOSSale,
+    submitShowroomHandover,
     addCustomer,
     addVoucher,
     addBranchDelivery,
@@ -312,6 +314,13 @@ export const POSView: React.FC<POSViewProps> = ({
   // Showroom Barcode Sticker & Customer Ledger Modals
   const [barcodeStockItem, setBarcodeStockItem] = useState<BranchStockItem | null>(null);
   const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null);
+
+  // Showroom -> Factory Cash Handover & Printable Voucher
+  const [showHandoverModal, setShowHandoverModal] = useState(false);
+  const [handoverCashInput, setHandoverCashInput] = useState<string>('');
+  const [handoverCardInput, setHandoverCardInput] = useState<string>('');
+  const [handoverNotes, setHandoverNotes] = useState<string>('');
+  const [printHandover, setPrintHandover] = useState<ShowroomHandover | null>(null);
 
   // Inbound Delivery Receipt Print Modal
   const [selectedInboundReceipt, setSelectedInboundReceipt] = useState<{
@@ -2557,6 +2566,20 @@ export const POSView: React.FC<POSViewProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  const defaultCash = Math.max(0, netCashInDrawer - openingFloat);
+                  setHandoverCashInput(String(defaultCash));
+                  setHandoverCardInput(String(totalCardSales));
+                  setHandoverNotes('');
+                  setShowHandoverModal(true);
+                }}
+                className="px-4 py-2 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              >
+                <Banknote className="w-4 h-4" />
+                تەسلیمکردنی پارە بۆ کارگە
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowZReportModal(true)}
                 className="px-4 py-2 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
               >
@@ -2565,6 +2588,55 @@ export const POSView: React.FC<POSViewProps> = ({
               </button>
             </div>
           </div>
+
+          {showroomHandovers.length > 0 && (
+            <div className="apple-card p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="font-extrabold text-xs text-[#1D1D1F]">
+                  تۆماری تەسلیمکردنی پارەی شۆرۆم بۆ کارگە ({showroomHandovers.length})
+                </h4>
+              </div>
+              <div className="divide-y divide-black/[0.05] max-h-48 overflow-y-auto text-xs">
+                {showroomHandovers.map(ho => (
+                  <div key={ho.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-mono font-bold text-[#0071E3]">{ho.handoverNo}</span>
+                      <span className="text-[#86868B] mr-2">{ho.date} {ho.time}</span>
+                      <span className="text-[#515154] mr-2">• {ho.submittedBy}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-[#1D1D1F] tabular-nums">
+                        {ho.totalAmount.toLocaleString()} د.ع
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          ho.status === 'ACCEPTED'
+                            ? 'bg-[#34C759]/15 text-[#248A3D]'
+                            : ho.status === 'REJECTED'
+                            ? 'bg-[#FF3B30]/15 text-[#D70015]'
+                            : 'bg-[#FF9500]/15 text-[#B25000]'
+                        }`}
+                      >
+                        {ho.status === 'ACCEPTED'
+                          ? 'وەرگیراوە لە کارگە'
+                          : ho.status === 'REJECTED'
+                          ? 'ڕەتکراوە'
+                          : 'چاوەڕوانی وەرگرتن'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPrintHandover(ho)}
+                        className="px-2.5 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white font-bold text-[11px] flex items-center gap-1 transition-colors"
+                      >
+                        <Printer className="w-3 h-3" />
+                        چاپ (ئیمزا و مۆر)
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Shift Opening Float & Actual Cash Drawer Reconciliation */}
           <div className="apple-card p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-center text-xs">
@@ -4481,6 +4553,206 @@ export const POSView: React.FC<POSViewProps> = ({
           </div>
         );
       })()}
+      {/* 15. Submit Showroom Handover Modal */}
+      {showHandoverModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              const cashAmt = Math.max(0, Number(handoverCashInput) || 0);
+              const cardAmt = Math.max(0, Number(handoverCardInput) || 0);
+              const totalAmt = cashAmt + cardAmt;
+              if (totalAmt <= 0) {
+                showToast('تکایە بڕی پارەی ڕادەستکراو بنووسە', 'warn');
+                return;
+              }
+              const created = submitShowroomHandover({
+                date: todayISO,
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                submittedBy: currentUser?.name || 'بەرپرسی شۆرۆم',
+                cashAmount: cashAmt,
+                cardAmount: cardAmt,
+                totalAmount: totalAmt,
+                expectedCashAtClose: netCashInDrawer,
+                notes: handoverNotes.trim() || undefined,
+              });
+              setShowHandoverModal(false);
+              setPrintHandover(created);
+              playPosBeep('success');
+              showToast(`وەسڵی ${created.handoverNo} نێردرا بۆ کارگە`, 'success');
+            }}
+            className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
+              <div>
+                <h4 className="font-extrabold text-sm text-[#1D1D1F]">
+                  تەسلیمکردنی پارەی شۆرۆم بۆ کارگە
+                </h4>
+                <p className="text-[11px] text-[#86868B] mt-0.5">
+                  دوای ناردن و ئەکسیپتی کارگە، دەچێتە سەر قاسەی کارگە و دەتوانیت پرینتی بکەیت
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHandoverModal(false)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#515154] mb-1">کاشی ڕادەستکراو (د.ع)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="250"
+                  value={handoverCashInput}
+                  onChange={e => setHandoverCashInput(e.target.value)}
+                  className="apple-input w-full px-3 py-2 font-black text-[#248A3D] tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#515154] mb-1">کارتی ئەلکترۆنی (د.ع)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="250"
+                  value={handoverCardInput}
+                  onChange={e => setHandoverCardInput(e.target.value)}
+                  className="apple-input w-full px-3 py-2 font-black text-[#0071E3] tabular-nums"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#F5F5F7] flex items-center justify-between text-xs">
+              <span className="font-bold text-[#515154]">کۆی گشتی ڕادەستکراو:</span>
+              <span className="text-base font-black text-[#1D1D1F] tabular-nums">
+                {((Number(handoverCashInput) || 0) + (Number(handoverCardInput) || 0)).toLocaleString()} د.ع
+              </span>
+            </div>
+
+            <input
+              type="text"
+              placeholder="تێبینی (ئارەزوومەندانە)..."
+              value={handoverNotes}
+              onChange={e => setHandoverNotes(e.target.value)}
+              className="apple-input w-full px-3 py-2 text-xs"
+            />
+
+            <div className="flex gap-2 pt-2 border-t border-black/[0.06] text-xs">
+              <button
+                type="button"
+                onClick={() => setShowHandoverModal(false)}
+                className="w-1/2 py-2.5 bg-[#F5F5F7] text-[#515154] rounded-full font-semibold"
+              >
+                پاشگەزبوونەوە
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold rounded-full"
+              >
+                ناردن و چاپکردن
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 16. Official Printable Handover Voucher (بۆ ئیمزا و مۆر) */}
+      {printHandover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between no-print pb-2 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">
+                وەسڵی تەسلیمکردنی پارەی شۆرۆم (ئیمزا و مۆر)
+              </h4>
+              <button
+                type="button"
+                onClick={() => setPrintHandover(null)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl border border-black/15 space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-dashed border-black/15 pb-3">
+                <div className="flex items-center gap-2">
+                  <FactoryLogo size="sm" />
+                  <div>
+                    <div className="font-black text-sm text-[#1D1D1F]">{factorySettings.factoryName}</div>
+                    <div className="text-[10px] text-[#86868B]">
+                      {factorySettings.showroomName || 'فرۆشگای شۆرۆم'} ← ژمێریاری کارگە
+                    </div>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="font-mono font-black text-[#0071E3]">{printHandover.handoverNo}</div>
+                  <div className="text-[10px] text-[#86868B]">{printHandover.date} • {printHandover.time}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">ڕادەستکەر (شۆرۆم):</span>
+                  <span className="font-bold">{printHandover.submittedBy}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">دۆخ:</span>
+                  <span className="font-bold">
+                    {printHandover.status === 'ACCEPTED'
+                      ? `پەسەندکراو (${printHandover.acceptedBy || 'کارگە'})`
+                      : printHandover.status === 'REJECTED'
+                      ? 'ڕەتکراوە'
+                      : 'چاوەڕوانی ئەکسیپتی کارگە'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">کاشی ڕادەستکراو:</span>
+                  <span className="font-bold text-[#248A3D] tabular-nums">
+                    {printHandover.cashAmount.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">کارتی ئەلکترۆنی:</span>
+                  <span className="font-bold text-[#0071E3] tabular-nums">
+                    {printHandover.cardAmount.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-black/15 text-sm font-black">
+                  <span>کۆی گشتی:</span>
+                  <span className="tabular-nums">{printHandover.totalAmount.toLocaleString()} د.ع</span>
+                </div>
+                {printHandover.notes && (
+                  <div className="text-[11px] text-[#515154] pt-1">تێبینی: {printHandover.notes}</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-dashed border-black/20 text-center text-[11px]">
+                <div className="space-y-6">
+                  <div className="font-bold text-[#515154]">ئیمزا و مۆری ڕادەستکەر (شۆرۆم)</div>
+                  <div className="border-b border-black/30 mx-3" />
+                </div>
+                <div className="space-y-6">
+                  <div className="font-bold text-[#515154]">ئیمزا و مۆری وەرگر (کارگە)</div>
+                  <div className="border-b border-black/30 mx-3" />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="w-full py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 no-print"
+            >
+              <Printer className="w-4 h-4" />
+              چاپکردن (ئیمزا و مۆر)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

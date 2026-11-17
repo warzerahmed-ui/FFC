@@ -15,7 +15,7 @@ import {
   Trash2,
   MessageCircle,
 } from 'lucide-react';
-import { Customer, Supplier, PaymentVoucher } from '../../types';
+import { Customer, Supplier, PaymentVoucher, ShowroomHandover } from '../../types';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import { toLocalISODate } from '../../utils/date';
 
@@ -28,7 +28,8 @@ interface AccountingViewProps {
 export const AccountingView: React.FC<AccountingViewProps> = ({
   activeSubTab: controlledSubTab,
 }) => {
-  const { customers, suppliers, vouchers, dispatches, intakes, expenses, returns, repNames, addVoucher, addCustomer, addSupplier, softDeleteRecord, hasAccess, factorySettings } = useApp();
+  const { customers, suppliers, vouchers, dispatches, intakes, expenses, returns, showroomHandovers, repNames, addVoucher, addCustomer, addSupplier, acceptShowroomHandover, rejectShowroomHandover, softDeleteRecord, hasAccess, factorySettings } = useApp();
+  const [printHandover, setPrintHandover] = useState<ShowroomHandover | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<AccountingSubTab>(controlledSubTab || 'VOUCHERS');
 
@@ -319,7 +320,10 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         const factoryReceiptsIn = vouchers
           .filter(v => !v.collectedAtPos && v.type === 'RECEIPT' && v.paymentMethod === 'CASH')
           .reduce((s, v) => s + v.amount, 0);
-        const totalCashIn = cashRepSalesIn + factoryReceiptsIn;
+        const showroomHandoverIn = showroomHandovers
+          .filter(h => h.status === 'ACCEPTED')
+          .reduce((s, h) => s + h.cashAmount, 0);
+        const totalCashIn = cashRepSalesIn + factoryReceiptsIn + showroomHandoverIn;
 
         const factoryPaymentsOut = vouchers
           .filter(v => !v.collectedAtPos && v.type === 'PAYMENT' && v.paymentMethod === 'CASH')
@@ -352,6 +356,75 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           </div>
         );
       })()}
+
+      {/* Showroom Cash Handovers Bridge (وەرگرتنی پارەی تەسلیمکراوی شۆرۆم) */}
+      {showroomHandovers.length > 0 && (
+        <div className="apple-card p-4 space-y-2.5 border-[#0071E3]/20">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-extrabold text-[#1D1D1F]">
+              وەرگرتنی پارەی تەسلیمکراوی شۆرۆم ({showroomHandovers.filter(h => h.status === 'PENDING').length} چاوەڕوان)
+            </span>
+            <span className="text-[11px] text-[#86868B]">
+              تەنها دوای ئەکسیپت دەچێتە سەر قاسەی کارگە
+            </span>
+          </div>
+          <div className="divide-y divide-black/[0.05] max-h-52 overflow-y-auto text-xs">
+            {showroomHandovers.map(ho => (
+              <div key={ho.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="font-mono font-bold text-[#0071E3]">{ho.handoverNo}</span>
+                  <span className="text-[#86868B] mr-2">{ho.date} {ho.time}</span>
+                  <span className="text-[#515154] mr-2">• {ho.submittedBy}</span>
+                  <span className="font-black text-[#1D1D1F] mr-2 tabular-nums">
+                    {ho.totalAmount.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {ho.status === 'PENDING' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => acceptShowroomHandover(ho.id)}
+                        className="px-3 py-1 rounded-full bg-[#34C759] hover:bg-[#2FB350] text-white font-bold text-[11px]"
+                      >
+                        ئەکسیپت (وەرگرتن)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reason = window.prompt('هۆکاری ڕەتکردنەوە (ئارەزوومەندانە):') || undefined;
+                          rejectShowroomHandover(ho.id, reason);
+                        }}
+                        className="px-3 py-1 rounded-full bg-[#FF3B30]/12 hover:bg-[#FF3B30] text-[#D70015] hover:text-white font-bold text-[11px]"
+                      >
+                        ڕەتکردنەوە
+                      </button>
+                    </>
+                  ) : (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        ho.status === 'ACCEPTED'
+                          ? 'bg-[#34C759]/15 text-[#248A3D]'
+                          : 'bg-[#FF3B30]/15 text-[#D70015]'
+                      }`}
+                    >
+                      {ho.status === 'ACCEPTED' ? `وەرگیرا (${ho.acceptedBy || 'کارگە'})` : 'ڕەتکراوە'}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPrintHandover(ho)}
+                    className="px-2.5 py-1 rounded-full bg-[#F5F5F7] hover:bg-[#0071E3] text-[#1D1D1F] hover:text-white font-bold text-[11px] flex items-center gap-1"
+                  >
+                    <Printer className="w-3 h-3" />
+                    چاپ (ئیمزا و مۆر)
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* View 1: Vouchers List */}
       {activeSubTab === 'VOUCHERS' && (() => {
@@ -1768,6 +1841,99 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 Powered by RAND SUITE
               </p>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Printable Showroom Handover Voucher (بۆ ئیمزا و مۆر) */}
+      {printHandover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+          <div className="w-full max-w-md bg-white rounded-[28px] p-6 shadow-2xl border border-black/[0.08] space-y-4 apple-sheet">
+            <div className="flex items-center justify-between no-print pb-2 border-b border-black/[0.06]">
+              <h4 className="font-extrabold text-sm text-[#1D1D1F]">
+                وەسڵی تەسلیمکردنی پارەی شۆرۆم (ئیمزا و مۆر)
+              </h4>
+              <button
+                type="button"
+                onClick={() => setPrintHandover(null)}
+                className="w-7 h-7 rounded-full bg-[#F5F5F7] text-[#86868B] font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl border border-black/15 space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-dashed border-black/15 pb-3">
+                <div className="flex items-center gap-2">
+                  <FactoryLogo size="sm" />
+                  <div>
+                    <div className="font-black text-sm text-[#1D1D1F]">{factorySettings.factoryName}</div>
+                    <div className="text-[10px] text-[#86868B]">
+                      {factorySettings.showroomName || 'فرۆشگای شۆرۆم'} ← ژمێریاری کارگە
+                    </div>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="font-mono font-black text-[#0071E3]">{printHandover.handoverNo}</div>
+                  <div className="text-[10px] text-[#86868B]">{printHandover.date} • {printHandover.time}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">ڕادەستکەر (شۆرۆم):</span>
+                  <span className="font-bold">{printHandover.submittedBy}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">دۆخ:</span>
+                  <span className="font-bold">
+                    {printHandover.status === 'ACCEPTED'
+                      ? `پەسەندکراو (${printHandover.acceptedBy || 'کارگە'})`
+                      : printHandover.status === 'REJECTED'
+                      ? 'ڕەتکراوە'
+                      : 'چاوەڕوانی ئەکسیپتی کارگە'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">کاشی ڕادەستکراو:</span>
+                  <span className="font-bold text-[#248A3D] tabular-nums">
+                    {printHandover.cashAmount.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#86868B]">کارتی ئەلکترۆنی:</span>
+                  <span className="font-bold text-[#0071E3] tabular-nums">
+                    {printHandover.cardAmount.toLocaleString()} د.ع
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-black/15 text-sm font-black">
+                  <span>کۆی گشتی:</span>
+                  <span className="tabular-nums">{printHandover.totalAmount.toLocaleString()} د.ع</span>
+                </div>
+                {printHandover.notes && (
+                  <div className="text-[11px] text-[#515154] pt-1">تێبینی: {printHandover.notes}</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-dashed border-black/20 text-center text-[11px]">
+                <div className="space-y-6">
+                  <div className="font-bold text-[#515154]">ئیمزا و مۆری ڕادەستکەر (شۆرۆم)</div>
+                  <div className="border-b border-black/30 mx-3" />
+                </div>
+                <div className="space-y-6">
+                  <div className="font-bold text-[#515154]">ئیمزا و مۆری وەرگر (کارگە)</div>
+                  <div className="border-b border-black/30 mx-3" />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="w-full py-2.5 rounded-full bg-[#1D1D1F] hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 no-print"
+            >
+              <Printer className="w-4 h-4" />
+              چاپکردن (ئیمزا و مۆر)
+            </button>
           </div>
         </div>
       )}
