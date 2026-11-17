@@ -49,6 +49,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     softDeleteRecord,
     hasAccess,
     factorySettings,
+    updateFactorySettings,
   } = useApp();
 
   const [activeReportTab, setActiveReportTab] = useState<ReportSubTab>(controlledReportTab || 'PNL');
@@ -64,6 +65,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [toDate, setToDate] = useState<string>(todayISO);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseCategory, setExpenseCategory] = useState<ExpenseRecord['category']>('FUEL');
+  const [showNewCategoryBox, setShowNewCategoryBox] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [expenseTitle, setExpenseTitle] = useState('');
   const [expenseAmount, setExpenseAmount] = useState<number | ''>('');
   const [expenseRecipient, setExpenseRecipient] = useState('');
@@ -339,8 +342,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         return 'مووچە و کرێی کارمەند';
       case 'MAINTENANCE':
         return 'چاککردنەوە و سێرڤس';
-      default:
+      case 'OTHER':
         return 'خەرجی تر';
+      default:
+        return cat || 'خەرجی تر';
     }
   };
 
@@ -728,7 +733,48 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
             <form onSubmit={handleExpenseSubmit} className="p-5 space-y-3.5 text-xs">
               <div>
-                <label className="block text-[#515154] font-semibold mb-1">جۆری خەرجی:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[#515154] font-semibold">جۆری خەرجی:</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCategoryBox(prev => !prev)}
+                    className="text-[11px] font-bold text-[#0071E3] hover:text-[#0077ED]"
+                  >
+                    {showNewCategoryBox ? 'پاشگەزبوونەوە' : '+ جۆری نوێ'}
+                  </button>
+                </div>
+
+                {showNewCategoryBox && (
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="ناوی جۆری خەرجی نوێ (نموونە: کرێی بینا)..."
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                      className="apple-input flex-1 px-3 py-2 text-xs font-semibold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clean = newCategoryName.trim();
+                        if (!clean) return;
+                        const existing = factorySettings.customExpenseCategories || [];
+                        if (!existing.some(c => c.toLowerCase() === clean.toLowerCase())) {
+                          updateFactorySettings({
+                            customExpenseCategories: [...existing, clean],
+                          });
+                        }
+                        setExpenseCategory(clean);
+                        setNewCategoryName('');
+                        setShowNewCategoryBox(false);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs shrink-0"
+                    >
+                      زیادکردن
+                    </button>
+                  </div>
+                )}
+
                 <select
                   value={expenseCategory}
                   onChange={e => setExpenseCategory(e.target.value as ExpenseRecord['category'])}
@@ -740,6 +786,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <option value="PACKAGING">کیسە و پاکەت</option>
                   <option value="SALARIES">مووچەی کارمەندان و شۆفێر</option>
                   <option value="MAINTENANCE">چاککردنەوە و سێرڤس</option>
+                  {(factorySettings.customExpenseCategories || []).map(cat => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                   <option value="OTHER">خەرجی تر</option>
                 </select>
               </div>

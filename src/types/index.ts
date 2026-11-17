@@ -43,6 +43,7 @@ export interface FactorySettings {
   receiptFooter: string;
   orderWhatsapp?: string;
   logoUrl?: string;
+  customExpenseCategories?: string[];
   updatedAt?: string;
 }
 
@@ -274,7 +275,7 @@ export interface Supplier {
 export interface ExpenseRecord {
   id: string;
   date: string;
-  category: 'ELECTRICITY' | 'FUEL' | 'ICE' | 'PACKAGING' | 'SALARIES' | 'MAINTENANCE' | 'OTHER';
+  category: 'ELECTRICITY' | 'FUEL' | 'ICE' | 'PACKAGING' | 'SALARIES' | 'MAINTENANCE' | 'OTHER' | (string & {});
   title: string;
   amount: number;
   recipient: string;
