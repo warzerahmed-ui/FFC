@@ -603,8 +603,8 @@ export const Menubar: React.FC<MenubarProps> = ({
         </div>
       </header>
 
-      {/* Secondary Top Sub-Navigation Bar */}
-      <div className="bg-[#F5F5F7]/90 backdrop-blur-md border-b border-black/[0.06] px-4 lg:px-7 py-2 flex items-center justify-between gap-3 text-xs">
+      {/* Secondary Top Sub-Navigation Bar (Desktop only — mobile uses bottom bar & drawer) */}
+      <div className="hidden lg:flex bg-[#F5F5F7]/90 backdrop-blur-md border-b border-black/[0.06] px-4 lg:px-7 py-2 items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0 text-[#86868B] font-semibold pl-1">
             <ActiveBreadIcon className="w-3.5 h-3.5 text-[#0071E3]" />
@@ -1013,10 +1013,10 @@ export const Menubar: React.FC<MenubarProps> = ({
         return (
           <nav
             aria-label="مینیوی خوارەوەی مۆبایل"
-            className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-black/[0.08] pb-safe no-print shadow-[0_-4px_20px_rgba(0,0,0,0.05)]"
+            className="lg:hidden fixed bottom-2 inset-x-2.5 z-40 bg-white/92 backdrop-blur-xl border border-black/[0.08] rounded-2xl pb-safe no-print shadow-[0_8px_30px_rgba(0,0,0,0.08)]"
           >
             <div
-              className="grid items-center h-16 px-1"
+              className="grid items-center h-[60px] px-1.5 gap-0.5"
               style={{ gridTemplateColumns: `repeat(${Math.max(1, visibleItems.length)}, minmax(0, 1fr))` }}
             >
               {visibleItems.map(navItem => {
@@ -1026,16 +1026,16 @@ export const Menubar: React.FC<MenubarProps> = ({
                     key={navItem.key}
                     type="button"
                     onClick={navItem.onClick}
-                    className={`flex flex-col items-center justify-center gap-1 py-1.5 rounded-xl transition-all active:scale-95 ${
+                    className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition-all active:scale-95 ${
                       navItem.active ? 'text-[#0071E3] font-extrabold' : 'text-[#86868B] font-semibold'
                     }`}
                   >
                     <span
-                      className={`px-3 py-0.5 rounded-full transition-colors ${
-                        navItem.active ? 'bg-[#0071E3]/12' : ''
+                      className={`px-3 py-1 rounded-full transition-all ${
+                        navItem.active ? 'bg-[#0071E3] text-white shadow-sm shadow-[#0071E3]/25' : ''
                       }`}
                     >
-                      <NavIcon className="w-5 h-5" />
+                      <NavIcon className="w-[18px] h-[18px]" />
                     </span>
                     <span className="text-[10px] leading-none">{navItem.label}</span>
                   </button>
