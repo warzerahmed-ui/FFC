@@ -3409,20 +3409,30 @@ export const POSView: React.FC<POSViewProps> = ({
                     className="apple-input w-full px-3 py-1.5 text-xs font-mono text-left"
                   />
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      placeholder="نرخی فرۆشتن (د.ع)"
-                      value={recNewProdPrice}
-                      onChange={e => setRecNewProdPrice(e.target.value)}
-                      className="apple-input w-full px-3 py-1.5 text-xs font-bold"
-                    />
-                    <input
-                      type="number"
-                      placeholder="تێچووی کیلۆ (د.ع)"
-                      value={recNewProdCost}
-                      onChange={e => setRecNewProdCost(e.target.value)}
-                      className="apple-input w-full px-3 py-1.5 text-xs font-bold"
-                    />
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#515154] mb-1">
+                        نرخی فرۆشتن (د.ع)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="نرخی فرۆشتن (د.ع)"
+                        value={recNewProdPrice}
+                        onChange={e => setRecNewProdPrice(e.target.value)}
+                        className="apple-input w-full px-3 py-1.5 text-xs font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#515154] mb-1">
+                        تێچووی کیلۆ (د.ع)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="تێچووی کیلۆ (د.ع)"
+                        value={recNewProdCost}
+                        onChange={e => setRecNewProdCost(e.target.value)}
+                        className="apple-input w-full px-3 py-1.5 text-xs font-bold"
+                      />
+                    </div>
                   </div>
                   <button
                     type="button"
