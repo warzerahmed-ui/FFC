@@ -279,6 +279,7 @@ export interface ExpenseRecord {
   title: string;
   amount: number;
   recipient: string;
+  approvedBy?: string;
   receiptNo?: string;
   notes?: string;
 }

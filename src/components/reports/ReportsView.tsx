@@ -50,6 +50,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     hasAccess,
     factorySettings,
     updateFactorySettings,
+    users,
+    currentUser,
   } = useApp();
 
   const [activeReportTab, setActiveReportTab] = useState<ReportSubTab>(controlledReportTab || 'PNL');
@@ -70,6 +72,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [expenseTitle, setExpenseTitle] = useState('');
   const [expenseAmount, setExpenseAmount] = useState<number | ''>('');
   const [expenseRecipient, setExpenseRecipient] = useState('');
+  const [expenseApprover, setExpenseApprover] = useState<string>(currentUser?.name || 'CUSTOM');
+  const [customApprover, setCustomApprover] = useState('');
   const [expenseReceiptNo, setExpenseReceiptNo] = useState('');
 
   const dateBounds = useMemo(() => {
@@ -293,12 +297,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return;
     }
 
+    const finalApprover =
+      expenseApprover === 'CUSTOM' ? customApprover.trim() : expenseApprover.trim();
+
     addExpense({
       date: toLocalISODate(),
       category: expenseCategory,
       title: expenseTitle.trim(),
       amount: Number(expenseAmount),
       recipient: expenseRecipient.trim() || 'خەرجی کارگە',
+      approvedBy: finalApprover || currentUser?.name || '',
       receiptNo: expenseReceiptNo.trim(),
     });
 
@@ -306,6 +314,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setExpenseTitle('');
     setExpenseAmount('');
     setExpenseRecipient('');
+    setExpenseApprover(currentUser?.name || 'CUSTOM');
+    setCustomApprover('');
     setExpenseReceiptNo('');
   };
 
@@ -422,12 +432,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               type="button"
               onClick={() => {
                 const rows = [
-                  ['پۆلێن', 'بەروار', 'ناوی خەرجی', 'وەرگر', 'ژ. وەسڵ', 'بڕی پارە (د.ع)'],
+                  ['پۆلێن', 'بەروار', 'ناوی خەرجی', 'وەرگر', 'ڕەزامەندی', 'ژ. وەسڵ', 'بڕی پارە (د.ع)'],
                   ...filteredExpenses.map(e => [
                     getCategoryNameKu(e.category),
                     e.date,
                     e.title,
                     e.recipient,
+                    e.approvedBy || '',
                     e.receiptNo || '',
                     String(e.amount),
                   ]),
@@ -671,6 +682,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <th className="p-4">بەروار</th>
                 <th className="p-4">ناوی خەرجی</th>
                 <th className="p-4">وەرگر</th>
+                <th className="p-4">ڕەزامەندی</th>
                 <th className="p-4">ژ. وەسڵ</th>
                 <th className="p-4 text-left">بڕی پارە</th>
                 {hasAccess('settings') && <th className="p-4 text-center no-print">سڕینەوە</th>}
@@ -688,6 +700,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <td className="p-4 text-[#86868B] tabular-nums">{exp.date}</td>
                   <td className="p-4 font-bold">{exp.title}</td>
                   <td className="p-4 text-[#515154]">{exp.recipient}</td>
+                  <td className="p-4 text-[#0071E3] font-semibold">{exp.approvedBy || '---'}</td>
                   <td className="p-4 text-[#86868B] font-mono">{exp.receiptNo || '---'}</td>
                   <td className="p-4 text-left font-black text-[#FF9500] tabular-nums">
                     {exp.amount.toLocaleString()} د.ع
@@ -839,6 +852,54 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     onChange={e => setExpenseReceiptNo(e.target.value)}
                     className="apple-input w-full px-3.5 py-2 font-mono"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#515154] font-semibold mb-1">
+                  ڕەزامەندی لەلایەن (پەسەندکەر):
+                </label>
+                <div className="space-y-1.5">
+                  <select
+                    value={expenseApprover}
+                    onChange={e => {
+                      setExpenseApprover(e.target.value);
+                      if (e.target.value !== 'CUSTOM') setCustomApprover('');
+                    }}
+                    className="apple-input w-full px-3.5 py-2 font-semibold"
+                  >
+                    {users
+                      .filter(u => u.isActive !== false)
+                      .map(u => {
+                        const roleKu =
+                          u.role === 'SUPER_ADMIN'
+                            ? 'بەڕێوەبەری گشتی'
+                            : u.role === 'ADMIN'
+                            ? 'بەڕێوەبەر'
+                            : u.role === 'ACCOUNTANT'
+                            ? 'ژمێریار'
+                            : u.role === 'CASHIER'
+                            ? 'کاشێر'
+                            : u.role === 'REP'
+                            ? 'مەندوب'
+                            : u.role;
+                        return (
+                          <option key={u.id} value={u.name}>
+                            {u.name} ({roleKu})
+                          </option>
+                        );
+                      })}
+                    <option value="CUSTOM">+ ناوی تر (دەستی بنووسە)...</option>
+                  </select>
+                  {expenseApprover === 'CUSTOM' && (
+                    <input
+                      type="text"
+                      placeholder="ناوی ئەو کەسەی ڕەزامەندی داوە بنووسە..."
+                      value={customApprover}
+                      onChange={e => setCustomApprover(e.target.value)}
+                      className="apple-input w-full px-3.5 py-2 font-semibold"
+                    />
+                  )}
                 </div>
               </div>
 
