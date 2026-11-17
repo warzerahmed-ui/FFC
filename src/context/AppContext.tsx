@@ -250,6 +250,7 @@ const DEFAULT_FACTORY_SETTINGS: FactorySettings = {
   currency: 'د.ع',
   returnWindowDays: 3,
   receiptFooter: 'سوپاس بۆ متمانەتان • مریشکی فرێش هەمیشە تەندروست و پاکژە',
+  orderWhatsapp: '0770 111 2233',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

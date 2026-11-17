@@ -26,6 +26,8 @@ import {
   Download,
   Database,
   Image as ImageIcon,
+  MessageCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { FactoryLogo } from '../layout/FactoryLogo';
 import {
@@ -746,6 +748,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="sm:col-span-2">
+                <label className="font-bold text-[#248A3D] block mb-1.5 flex items-center gap-1.5">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                  ژمارەی واتسئەپی ئۆنلاین ئۆردەر (پەڕەی فرۆشگا / Landing Page)
+                </label>
+                <input
+                  type="text"
+                  value={factoryForm.orderWhatsapp || ''}
+                  onChange={e => setFactoryForm(f => ({ ...f, orderWhatsapp: e.target.value }))}
+                  placeholder="0770 111 2233"
+                  className="apple-input w-full px-3.5 py-2.5 font-mono text-left border-[#25D366]/35 focus:border-[#25D366]"
+                  dir="ltr"
+                />
+                <p className="text-[11px] text-[#86868B] mt-1">
+                  هەر کاتێک کڕیارێک لە پەڕەی سەرەکی فرۆشگا ئۆردەر بکات، ڕاستەوخۆ بە واتسئەپ دێت بۆ ئەم ژمارەیە.
+                </p>
+              </div>
+
+              <div className="sm:col-span-2">
                 <label className="font-bold text-[#515154] block mb-1.5 flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5 text-[#34C759]" />
                   تێبینی خوارەوەی وەسڵەکان
@@ -759,7 +779,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
 
-            <div className="pt-3 border-t border-black/[0.06] flex justify-end">
+            <div className="pt-3 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
+              <a
+                href="/?shop=1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-full bg-[#25D366]/12 hover:bg-[#25D366]/20 text-[#1B7A34] font-bold text-xs flex items-center gap-1.5 transition-all"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                کردنەوەی لاندینگ پەیجی فرۆشگا
+              </a>
               <button
                 type="submit"
                 className="px-6 py-2.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"

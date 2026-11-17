@@ -40,6 +40,7 @@ export interface FactorySettings {
   currency: string;
   returnWindowDays: number;
   receiptFooter: string;
+  orderWhatsapp?: string;
   logoUrl?: string;
   updatedAt?: string;
 }

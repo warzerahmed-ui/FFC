@@ -35,7 +35,9 @@ function readRememberedCredentials(): RememberedCredentials {
   }
 }
 
-export const LoginScreen: React.FC = () => {
+export const LoginScreen: React.FC<{ onBackToLanding?: () => void }> = ({
+  onBackToLanding,
+}) => {
   const { login, factorySettings } = useApp();
 
   const [savedCredentials] = useState<RememberedCredentials>(() => readRememberedCredentials());
@@ -303,6 +305,17 @@ export const LoginScreen: React.FC = () => {
             </form>
 
             <div className="mt-7 pt-5 border-t border-slate-100 text-center space-y-2.5">
+              {onBackToLanding && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={onBackToLanding}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0071E3]/10 hover:bg-[#0071E3]/15 text-[#0071E3] text-xs font-extrabold transition-all cursor-pointer"
+                  >
+                    <span>گەڕانەوە بۆ پەڕەی فرۆشگا و بەرهەمەکان</span>
+                  </button>
+                </div>
+              )}
               <p className="text-[11px] text-slate-400 font-medium">
                 دەسەڵاتەکان و بەشە کراوەکان بەپێی ڕۆڵی ئەکاونتەکەت خۆکارانە دیاری دەکرێن
               </p>

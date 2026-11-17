@@ -7,6 +7,7 @@ import type { ReportSubTab } from './components/reports/ReportsView';
 import type { SettingsSubTab } from './components/settings/SettingsView';
 import { TabType } from './types';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { LandingPage } from './components/landing/LandingPage';
 
 const DashboardView = lazy(() =>
   import('./components/dashboard/DashboardView').then(m => ({ default: m.DashboardView }))
@@ -42,6 +43,12 @@ function AppContent() {
   const [accountingSubTab, setAccountingSubTab] = useState<AccountingSubTab>('VOUCHERS');
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('PNL');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('FACTORY_INFO');
+  const [showLoginView, setShowLoginView] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.location.search.includes('login=1')
+  );
+  const [forceLandingView, setForceLandingView] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.location.search.includes('shop=1')
+  );
   const { hasAccess, currentUser, isAuthenticated, isHydratedFromCloud, factorySettings } = useApp();
 
   // Redirect if current role/account lacks permission for activeTab
@@ -65,8 +72,34 @@ function AppContent() {
     }
   }, [currentUser, activeTab, hasAccess, isAuthenticated, isHydratedFromCloud]);
 
+  if (forceLandingView) {
+    return (
+      <LandingPage
+        isAuthenticated={isAuthenticated}
+        onOpenLogin={() => {
+          setForceLandingView(false);
+          setShowLoginView(true);
+        }}
+        onBackToSystem={() => {
+          setForceLandingView(false);
+          if (typeof window !== 'undefined' && window.location.search.includes('shop=1')) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    if (showLoginView) {
+      return <LoginScreen onBackToLanding={() => setShowLoginView(false)} />;
+    }
+    return (
+      <LandingPage
+        isAuthenticated={false}
+        onOpenLogin={() => setShowLoginView(true)}
+      />
+    );
   }
 
   if (!isHydratedFromCloud) {
