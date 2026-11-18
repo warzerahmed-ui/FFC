@@ -138,6 +138,7 @@ export interface LiveIntake {
   farmName: string;          // ناوی کێڵگە
   driverName: string;        // ناوی شۆفێر / ئۆتۆمبێل
   birdCount: number;         // ژمارەی مریشک
+  cageCount?: number;        // ژمارەی قەفەز
   grossWeightKg: number;     // کێشی گشتی (بە ئۆتۆمبێل)
   tareWeightKg: number;      // کێشی بەتاڵ (تەفریق)
   netWeightKg: number;       // کێشی خاوێنی زیندوو

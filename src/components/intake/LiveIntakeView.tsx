@@ -20,6 +20,8 @@ export const LiveIntakeView: React.FC = () => {
   const [newFarmLocation, setNewFarmLocation] = useState('');
   const [newFarmPhone, setNewFarmPhone] = useState('');
   const [birdCount, setBirdCount] = useState<number | ''>('');
+  const [cageCount, setCageCount] = useState<number | ''>('');
+  const [deadBirdCount, setDeadBirdCount] = useState<number | ''>('');
   const [netWeightInput, setNetWeightInput] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
   const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
@@ -88,15 +90,21 @@ export const LiveIntakeView: React.FC = () => {
       return;
     }
 
+    const totalBirds = Number(birdCount) || 0;
+    const deadCount = Number(deadBirdCount) || 0;
+    const mortalityRate =
+      totalBirds > 0 && deadCount > 0 ? Number(((deadCount / totalBirds) * 100).toFixed(2)) : 0;
+
     addIntake({
       manualReceiptNo: cleanReceipt,
       date,
       farmName,
       driverName: '',
-      birdCount: Number(birdCount) || 0,
-      deadBirdCount: 0,
+      birdCount: totalBirds,
+      cageCount: Number(cageCount) || 0,
+      deadBirdCount: deadCount,
       deadWeightKg: 0,
-      mortalityRate: 0,
+      mortalityRate,
       grossWeightKg: netWeight,
       tareWeightKg: 0,
       netWeightKg: netWeight,
@@ -113,6 +121,8 @@ export const LiveIntakeView: React.FC = () => {
     setManualReceiptNo('');
     setFarmName('');
     setBirdCount('');
+    setCageCount('');
+    setDeadBirdCount('');
     setNetWeightInput('');
     setFinalOverrideInput(null);
     setPaidAmount(0);
@@ -135,12 +145,14 @@ export const LiveIntakeView: React.FC = () => {
 
   const handleExportCsv = () => {
     const rows = [
-      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان'],
+      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'ژمارەی قەفەز', 'ژمارەی مردوو', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان'],
       ...filteredIntakes.map(i => [
         i.manualReceiptNo,
         i.date,
         i.farmName,
         String(i.birdCount),
+        String(i.cageCount || 0),
+        String(i.deadBirdCount || 0),
         String(i.netWeightKg),
         String(i.pricePerKg),
         String(i.totalAmount),
@@ -301,11 +313,18 @@ export const LiveIntakeView: React.FC = () => {
                   <td className="p-4 font-bold text-[#1D1D1F]">{intake.farmName}</td>
                   <td className="p-4 text-center tabular-nums font-semibold">
                     <div>{intake.birdCount > 0 ? intake.birdCount.toLocaleString() : '---'}</div>
-                    {Boolean(intake.deadBirdCount && intake.deadBirdCount > 0) && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#D70015] bg-[#FF3B30]/10 px-1.5 py-0.5 rounded-md mt-0.5" title={`مرداربوو: ${intake.deadBirdCount} سەر (${intake.mortalityRate || 0}%)`}>
-                        {intake.deadBirdCount} تەلەف ({intake.mortalityRate || 0}%)
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center justify-center gap-1 mt-0.5">
+                      {Boolean(intake.cageCount && intake.cageCount > 0) && (
+                        <span className="inline-flex items-center text-[10px] font-bold text-[#0071E3] bg-[#0071E3]/10 px-1.5 py-0.5 rounded-md">
+                          {intake.cageCount?.toLocaleString()} قەفەز
+                        </span>
+                      )}
+                      {Boolean(intake.deadBirdCount && intake.deadBirdCount > 0) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#D70015] bg-[#FF3B30]/10 px-1.5 py-0.5 rounded-md" title={`مرداربوو: ${intake.deadBirdCount} سەر (${intake.mortalityRate || 0}%)`}>
+                          {intake.deadBirdCount?.toLocaleString()} مردوو ({intake.mortalityRate || 0}%)
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4 text-center font-black text-[#1D1D1F] tabular-nums">
                     {intake.netWeightKg.toLocaleString()} کگم
@@ -481,9 +500,34 @@ export const LiveIntakeView: React.FC = () => {
                   <label className="block text-[#515154] font-semibold mb-1">ژمارەی مریشک</label>
                   <input
                     type="number"
+                    min="0"
                     placeholder="1500"
                     value={birdCount}
                     onChange={e => setBirdCount(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 tabular-nums"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">ژمارەی قەفەز</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={cageCount}
+                    onChange={e => setCageCount(e.target.value ? Number(e.target.value) : '')}
+                    className="apple-input w-full px-3.5 py-2 tabular-nums"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#515154] font-semibold mb-1">ژمارەی مردوو</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={deadBirdCount}
+                    onChange={e => setDeadBirdCount(e.target.value ? Number(e.target.value) : '')}
                     className="apple-input w-full px-3.5 py-2 tabular-nums"
                   />
                 </div>
