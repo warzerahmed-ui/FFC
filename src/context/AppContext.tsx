@@ -356,6 +356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isHydratedFromCloudRef = useRef(false);
   const skipNextPushRef = useRef(false);
+  const pushInFlightRef = useRef(false);
   const lastServerUpdatedAtRef = useRef<string | null>(null);
   const keyVersionsRef = useRef<Record<string, string>>({});
   const lastSyncedJsonByKeyRef = useRef<Record<string, string>>({});
@@ -620,6 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       try {
+        pushInFlightRef.current = true;
         setCloudSyncStatus('SYNCING');
         const res = await fetch('/api/sync', {
           method: 'POST',
@@ -679,6 +681,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setPendingOfflineCount(Object.keys(delta).length);
         }
         setCloudSyncStatus('LOCAL_ONLY');
+      } finally {
+        pushInFlightRef.current = false;
       }
     },
     [applyCloudState, clearMemoryState, persistOfflineVaultSnapshot]
@@ -767,8 +771,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         const caller = data.callerUser && typeof data.callerUser === 'object' ? data.callerUser : currentUserRef.current;
-        if (data.callerUser && typeof data.callerUser === 'object') {
-          skipNextPushRef.current = true;
+        if (
+          data.callerUser &&
+          typeof data.callerUser === 'object' &&
+          JSON.stringify(data.callerUser) !== JSON.stringify(currentUserRef.current)
+        ) {
           setCurrentUser(data.callerUser);
         }
 
@@ -865,14 +872,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     })();
 
     const pollInterval = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && pushTimerRef.current === null) {
+      if (
+        document.visibilityState === 'visible' &&
+        pushTimerRef.current === null &&
+        !pushInFlightRef.current
+      ) {
         pullStateFromD1(false);
       }
     }, 20000);
 
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        pushTimerRef.current === null &&
+        !pushInFlightRef.current
+      ) {
+        pullStateFromD1(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       active = false;
       window.clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [pullStateFromD1, isAuthenticated, clearMemoryState]);
 
