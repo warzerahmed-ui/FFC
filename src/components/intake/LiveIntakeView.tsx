@@ -21,7 +21,7 @@ export const LiveIntakeView: React.FC = () => {
   const [newFarmPhone, setNewFarmPhone] = useState('');
   const [birdCount, setBirdCount] = useState<number | ''>('');
   const [cageCount, setCageCount] = useState<number | ''>('');
-  const [deadBirdCount, setDeadBirdCount] = useState<number | ''>('');
+  const [deadWeightInput, setDeadWeightInput] = useState<number | ''>('');
   const [netWeightInput, setNetWeightInput] = useState<number | ''>('');
   const [pricePerKg, setPricePerKg] = useState<number | ''>(2500);
   const [finalOverrideInput, setFinalOverrideInput] = useState<string | null>(null);
@@ -69,7 +69,9 @@ export const LiveIntakeView: React.FC = () => {
     setShowAddFarmBox(false);
   };
 
-  const netWeight = Number(netWeightInput) || 0;
+  const grossLiveWeight = Number(netWeightInput) || 0;
+  const deadWeight = Math.max(0, Number(deadWeightInput) || 0);
+  const netWeight = Math.max(0, Number((grossLiveWeight - deadWeight).toFixed(2)));
   const rawTotalAmount = netWeight > 0 ? roundTo250(netWeight * (Number(pricePerKg) || 0)) : 0;
   const totalAmount =
     finalOverrideInput !== null && finalOverrideInput !== ''
@@ -80,7 +82,11 @@ export const LiveIntakeView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanReceipt = manualReceiptNo.trim();
-    if (!cleanReceipt || !farmName || netWeight <= 0) {
+    if (!cleanReceipt || !farmName || grossLiveWeight <= 0) {
+      return;
+    }
+    if (netWeight <= 0) {
+      alert('کێشی هەلاک نابێت لە کێشی زیندوو زیاتر یان یەکسان بێت!');
       return;
     }
     if (
@@ -91,9 +97,8 @@ export const LiveIntakeView: React.FC = () => {
     }
 
     const totalBirds = Number(birdCount) || 0;
-    const deadCount = Number(deadBirdCount) || 0;
     const mortalityRate =
-      totalBirds > 0 && deadCount > 0 ? Number(((deadCount / totalBirds) * 100).toFixed(2)) : 0;
+      grossLiveWeight > 0 && deadWeight > 0 ? Number(((deadWeight / grossLiveWeight) * 100).toFixed(2)) : 0;
 
     addIntake({
       manualReceiptNo: cleanReceipt,
@@ -102,10 +107,10 @@ export const LiveIntakeView: React.FC = () => {
       driverName: '',
       birdCount: totalBirds,
       cageCount: Number(cageCount) || 0,
-      deadBirdCount: deadCount,
-      deadWeightKg: 0,
+      deadBirdCount: 0,
+      deadWeightKg: deadWeight,
       mortalityRate,
-      grossWeightKg: netWeight,
+      grossWeightKg: grossLiveWeight,
       tareWeightKg: 0,
       netWeightKg: netWeight,
       pricePerKg: Number(pricePerKg) || 0,
@@ -122,7 +127,7 @@ export const LiveIntakeView: React.FC = () => {
     setFarmName('');
     setBirdCount('');
     setCageCount('');
-    setDeadBirdCount('');
+    setDeadWeightInput('');
     setNetWeightInput('');
     setFinalOverrideInput(null);
     setPaidAmount(0);
@@ -145,14 +150,14 @@ export const LiveIntakeView: React.FC = () => {
 
   const handleExportCsv = () => {
     const rows = [
-      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'ژمارەی قەفەز', 'ژمارەی مردوو', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان'],
+      ['ژ. وەسڵی دەستی', 'بەروار', 'ناوی کێڵگە', 'ژمارەی مریشک', 'ژمارەی قەفەز', 'کێشی هەلاک (کگم)', 'کێشی خاوێن (کگم)', 'نرخی کیلۆ (د.ع)', 'کۆی تێچوو (د.ع)', 'دۆخی پارەدان'],
       ...filteredIntakes.map(i => [
         i.manualReceiptNo,
         i.date,
         i.farmName,
         String(i.birdCount),
         String(i.cageCount || 0),
-        String(i.deadBirdCount || 0),
+        String(i.deadWeightKg || 0),
         String(i.netWeightKg),
         String(i.pricePerKg),
         String(i.totalAmount),
@@ -327,7 +332,12 @@ export const LiveIntakeView: React.FC = () => {
                     </div>
                   </td>
                   <td className="p-4 text-center font-black text-[#1D1D1F] tabular-nums">
-                    {intake.netWeightKg.toLocaleString()} کگم
+                    <div>{intake.netWeightKg.toLocaleString()} کگم</div>
+                    {Boolean(intake.deadWeightKg && intake.deadWeightKg > 0) && (
+                      <span className="inline-flex items-center text-[10px] font-bold text-[#D70015] bg-[#FF3B30]/10 px-1.5 py-0.5 rounded-md mt-0.5">
+                        -{intake.deadWeightKg?.toLocaleString()} کگم هەلاک
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-center tabular-nums text-[#515154]">
                     {intake.pricePerKg.toLocaleString()} د.ع
@@ -521,13 +531,14 @@ export const LiveIntakeView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[#515154] font-semibold mb-1">ژمارەی مردوو</label>
+                  <label className="block text-[#515154] font-semibold mb-1">کێشی هەلاک (کگم)</label>
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
                     placeholder="0"
-                    value={deadBirdCount}
-                    onChange={e => setDeadBirdCount(e.target.value ? Number(e.target.value) : '')}
+                    value={deadWeightInput}
+                    onChange={e => setDeadWeightInput(e.target.value ? Number(e.target.value) : '')}
                     className="apple-input w-full px-3.5 py-2 tabular-nums"
                   />
                 </div>
@@ -564,6 +575,11 @@ export const LiveIntakeView: React.FC = () => {
                     <span className="text-xl font-black text-[#0071E3] tabular-nums">
                       {netWeight > 0 ? netWeight.toLocaleString() : 0} کگم
                     </span>
+                    {deadWeight > 0 && grossLiveWeight > 0 && (
+                      <span className="block text-[10px] font-bold text-[#D70015] tabular-nums mt-0.5">
+                        ({grossLiveWeight.toLocaleString()} - {deadWeight.toLocaleString()} کگم هەلاک)
+                      </span>
+                    )}
                   </div>
                   <div className="text-left">
                     <span className="text-[#86868B] block text-[11px]">کۆی پارەی کڕین:</span>
